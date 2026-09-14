@@ -1,10 +1,10 @@
-import type { Config } from "@swc/core";
+import type { Config } from '@swc/core';
 
 const config: Config = {
   jsc: {
     transform: {
       react: {
-        runtime: "automatic",
+        runtime: 'automatic',
       },
     },
   },

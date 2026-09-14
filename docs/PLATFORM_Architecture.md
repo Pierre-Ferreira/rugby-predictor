@@ -12,6 +12,10 @@ Current boundaries:
 - `imports/ui/` owns React layouts, route pages, links, and status states.
 - `docs/` owns prefixed project documentation.
 - `scripts/` owns local verification helpers.
+- `tests/unit/` owns framework-independent unit tests.
+- `tests/e2e/` owns Playwright browser smoke tests.
+- `tests/support/` owns shared verification helpers.
+- `.github/workflows/` owns GitHub Actions verification configuration.
 
 ## Data And Authority
 
@@ -27,6 +31,8 @@ Planned platform responsibilities:
 - AI services will be introduced later behind server-side integrations.
 
 CCPP-001 does not define domain collections, publications, methods, accounts, scoring, predictions, or leaderboards. `insecure` and `autopublish` must remain absent.
+
+CCPP-002 adds verification infrastructure only. It does not change data authority or introduce domain persistence.
 
 ## Dependency Discipline
 
@@ -56,3 +62,17 @@ Final mascot assets and approved branding are not established in CCPP-001.
 - Authentication and server-side authorisation are future work.
 - Do not expose privileged data or actions through client-only checks.
 - Keep secrets out of source control and documentation.
+- Browser tests can confirm placeholder UI behaviour, but backend security must be verified through server code review and future integration tests.
+
+## Verification Architecture
+
+Testing-stack decision: agreed for CCPP-002.
+
+Implementation evidence: local verification is recorded in `docs/AUDIT_002_Testing_Infrastructure.md`. Remote GitHub Actions execution is configured but has not been observed from this workspace.
+
+- ESLint checks code quality for TypeScript syntax, React, hooks, JSX accessibility, JavaScript, and config files.
+- Prettier owns formatting.
+- TypeScript checking runs with `noEmit` and without incremental build output.
+- Vitest owns fast unit tests for framework-independent code.
+- Playwright owns browser smoke checks against a local Meteor server on a dedicated test port. The Playwright target guard rejects non-local hosts to avoid accidental production testing.
+- Project invariant checks stay separate from ESLint and protect durable repo rules without blocking legitimate future collections or publications.

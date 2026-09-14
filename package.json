@@ -2,12 +2,18 @@
   "name": "rugby-rooster",
   "private": true,
   "scripts": {
-    "lint": "node scripts/lint-foundation.mjs",
-    "format:check": "node scripts/check-format.mjs",
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "eslint .",
+    "lint:project": "node scripts/check-project-invariants.mjs",
     "typecheck": "tsc --noEmit --incremental false",
     "start": "meteor run",
-    "test": "meteor test --once --driver-package meteortesting:mocha",
-    "test-app": "TEST_WATCH=1 meteor test --full-app --driver-package meteortesting:mocha",
+    "test": "npm run test:unit",
+    "test:unit": "vitest run --config vitest.config.mts",
+    "test:unit:watch": "vitest --config vitest.config.mts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "playwright:install": "playwright install chromium",
     "visualize": "meteor --production --extra-packages bundle-visualizer"
   },
   "dependencies": {
@@ -18,30 +24,39 @@
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
+    "@babel/core": "^8.0.5",
+    "@babel/eslint-parser": "^8.0.5",
+    "@eslint/js": "^9.39.5",
     "@meteorjs/rspack": "^2.1.0",
+    "@playwright/test": "^1.63.0",
     "@rsdoctor/rspack-plugin": "^1.5.7",
     "@rspack/cli": "^1.7.1",
     "@rspack/core": "^1.7.1",
     "@rspack/plugin-react-refresh": "^1.4.3",
     "@swc/core": "^1.15.18",
     "@types/meteor": "^2.9.9",
-    "@types/mocha": "^8.2.3",
     "@types/node": "^22.10.6",
     "@types/react": "^18.2.5",
     "@types/react-dom": "^18.2.4",
     "autoprefixer": "^10.6.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.12.0",
     "postcss": "^8.5.28",
+    "prettier": "^3.9.6",
     "react-refresh": "^0.17.0",
     "tailwindcss": "^3.4.19",
     "ts-checker-rspack-plugin": "^1.5.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
   },
   "meteor": {
     "mainModule": {
       "client": "client/main.tsx",
       "server": "server/main.ts"
     },
-    "testModule": "tests/main.ts",
     "modern": true
   }
 }

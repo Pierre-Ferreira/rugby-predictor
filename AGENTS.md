@@ -13,6 +13,10 @@ Before implementing future CCPP work:
 - Report checks actually run and never claim unperformed verification.
 - Keep secrets out of source control and documentation.
 - Document unresolved product decisions instead of silently inventing them.
+- Add tests for significant new behaviour and important failure paths.
+- Add regression tests for bug fixes where practical.
+- Run appropriate checks and report actual results.
+- Avoid arbitrary coverage targets and low-value tests written only to increase coverage.
 
 Implementation guardrails:
 
@@ -22,3 +26,5 @@ Implementation guardrails:
 - Install Jotai, simpl-schema, and Kaplay only when a milestone actually needs them.
 - Keep scoring and prediction validation independent of React and Kaplay.
 - Introduce AI services later only behind server-side integrations.
+- Keep unit tests focused on framework-independent behaviour where possible, and use Meteor/database integration tests only when the feature needs server or persistence coverage.
+- Keep Playwright and other automated browser checks pointed at local loopback targets unless a future task explicitly defines a safe non-production target and matching safeguards.

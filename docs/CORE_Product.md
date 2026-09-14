@@ -26,6 +26,11 @@ Out of scope for this product:
 - Honest empty states and placeholders.
 - No implemented fixtures, predictions, scoring, accounts, leagues, leaderboards, prizes, sponsorships, animations, quizzes, or AI reports.
 
+## Implemented In CCPP-002
+
+- Repeatable static checks, unit tests, browser smoke tests, and GitHub Actions configuration.
+- No new product gameplay, scoring, account, fixture, prediction, leaderboard, league, sponsorship, quiz, animation, or AI functionality.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
@@ -45,7 +50,7 @@ Out of scope for this product:
 
 These require precise specifications before implementation:
 
-- Extra-time treatment.
+- Extra-time treatment. The precise specification is not recorded in this repository yet and must be supplied before scoring implementation.
 - Prediction submission and reopening policies.
 - Leaderboard tie-breaking.
 - Detailed optional question configuration constraints.

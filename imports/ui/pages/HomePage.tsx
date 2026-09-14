@@ -46,7 +46,10 @@ export const HomePage = () => (
 
     <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-10 sm:px-6 md:grid-cols-3">
       {[
-        ['Games first', 'A public path is ready for upcoming televised fixtures.'],
+        [
+          'Games first',
+          'A public path is ready for upcoming televised fixtures.',
+        ],
         [
           'Rules later',
           'Prediction scoring and locking will be specified and tested separately.',

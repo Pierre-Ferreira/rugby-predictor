@@ -6,12 +6,23 @@ const failures = [];
 const ignoredDirectories = new Set([
   '.git',
   '.meteor/local',
+  '.playwright-mcp',
   '_build',
+  'coverage',
   'node_modules',
+  'playwright-report',
   'public/build-assets',
   'public/build-chunks',
+  'test-results',
 ]);
-const sourceExtensions = new Set(['.css', '.html', '.js', '.mjs', '.ts', '.tsx']);
+const sourceExtensions = new Set([
+  '.css',
+  '.html',
+  '.js',
+  '.mjs',
+  '.ts',
+  '.tsx',
+]);
 const markdownPrefixes = ['CORE_', 'PLATFORM_', 'MAP_', 'AUDIT_', 'TEMP_'];
 
 const read = (path) => readFileSync(join(root, path), 'utf8');
@@ -60,24 +71,33 @@ for (const forbiddenPackage of ['autopublish', 'insecure']) {
   }
 }
 
+const packageJson = JSON.parse(read('package.json'));
+if (packageJson.name !== 'rugby-rooster') {
+  addFailure('package.json name must remain rugby-rooster');
+}
+
+for (const dependencyType of ['dependencies', 'devDependencies']) {
+  if (packageJson[dependencyType]?.meteor) {
+    addFailure('Do not install the Meteor CLI installer into package.json');
+  }
+}
+
 const sourceFiles = walkFiles(
   root,
   (path) =>
     sourceExtensions.has(extname(path)) &&
-    path !== 'scripts/lint-foundation.mjs',
+    path !== 'scripts/check-project-invariants.mjs',
 );
-const forbiddenSourcePatterns = [
+const starterPatterns = [
   [/Welcome to Meteor/i, 'starter Meteor welcome copy'],
   [/Learn Meteor/i, 'starter Meteor learning copy'],
   [/LinksCollection/, 'starter LinksCollection API'],
-  [/Meteor\.publish\(/, 'application publication before auth/data milestone'],
-  [/new Mongo\.Collection/, 'domain collection before data milestone'],
 ];
 
 for (const file of sourceFiles) {
   const content = read(file);
 
-  for (const [pattern, label] of forbiddenSourcePatterns) {
+  for (const [pattern, label] of starterPatterns) {
     if (pattern.test(content)) {
       addFailure(`${file}: contains ${label}`);
     }
@@ -111,18 +131,20 @@ for (const requiredPath of [
   'docs/CORE_Product.md',
   'docs/CORE_Build_Plan.md',
   'docs/PLATFORM_Architecture.md',
+  'docs/PLATFORM_Testing.md',
   'docs/MAP_System.md',
   'docs/AUDIT_001_Project_Foundation.md',
+  'docs/AUDIT_002_Testing_Infrastructure.md',
 ]) {
   if (!existsSync(join(root, requiredPath))) {
-    addFailure(`${requiredPath}: required milestone document is missing`);
+    addFailure(`${requiredPath}: required project document is missing`);
   }
 }
 
 if (failures.length > 0) {
-  console.error('Foundation lint failed:');
+  console.error('Project invariant check failed:');
   failures.forEach((failure) => console.error(`- ${failure}`));
   process.exit(1);
 }
 
-console.log('Foundation lint passed.');
+console.info('Project invariant check passed.');

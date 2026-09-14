@@ -1,0 +1,10 @@
+.meteor/
+.playwright-mcp/
+_build/
+coverage/
+node_modules/
+playwright-report/
+public/build-assets/
+public/build-chunks/
+test-results/
+tsconfig.tsbuildinfo

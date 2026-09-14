@@ -52,7 +52,10 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => (
     <footer className="border-t border-rooster-line bg-white">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-rooster-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
         <p>Rugby Rooster foundation build.</p>
-        <AppLink className="focus-ring rounded-md font-bold text-rooster-red" to="/admin">
+        <AppLink
+          className="focus-ring rounded-md font-bold text-rooster-red"
+          to="/admin"
+        >
           Admin placeholder
         </AppLink>
       </div>

@@ -6,18 +6,18 @@ Pass. CCPP-001 is implemented without committing, pushing, or deploying.
 
 ## Acceptance Criteria
 
-| # | Criterion | Status | Evidence |
-|---|---|---|---|
-| 1 | Meteor React TypeScript app exists at repository root. | Pass | `.meteor/release:1`, `package.json:39-46`, `client/main.tsx:1-10`, `server/main.ts:1-7`. |
-| 2 | Meteor remains pinned to 3.5.1. | Pass | `.meteor/release:1`; `meteor --version` returned `Meteor 3.5.1`. |
-| 3 | Tailwind styling works. | Pass | `client/main.css:1-47`, `tailwind.config.cjs:1-31`, `postcss.config.js:1-6`; Playwright saw home hero background `rgb(34, 111, 84)` from `bg-rooster-grass`. |
-| 4 | Specified routes and layouts render. | Pass | `imports/shared/routes.ts:12-49`, `imports/ui/App.tsx:77-102`; Playwright rendered `/`, `/games`, `/admin`, and `/not-a-route`. |
-| 5 | Mobile layout is usable without horizontal overflow. | Pass | Playwright at `390x844`: `/`, `/games`, and `/admin` each reported `scrollWidth: 390`, `bodyScrollWidth: 390`, `hasHorizontalOverflow: false`. |
-| 6 | Admin placeholder exposes no privileged functionality. | Pass | `imports/ui/pages/AdminPage.tsx:7-11`; Playwright at desktop and mobile reported `buttons: 0`, `forms: 0`, `fields: 0`. |
-| 7 | `insecure` and `autopublish` are absent. | Pass | `.meteor/packages:7-25`; `meteor npm run lint` enforces absence and passed. |
-| 8 | Documented lint, formatting-check, and TypeScript-check commands pass. | Pass | `package.json:4-10`, `README.md:24-41`; all commands passed. |
-| 9 | Documentation and ongoing documentation instructions exist. | Pass | `AGENTS.md:5-24`, `README.md:43-56`, `docs/MAP_System.md:3-38`. |
-| 10 | No later-milestone features are represented as implemented. | Pass | `docs/CORE_Product.md:22-27`, `docs/CORE_Build_Plan.md:25-31`, `server/main.ts:3-7`; lint rejects starter publications and premature collections. |
+| #   | Criterion                                                              | Status | Evidence                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Meteor React TypeScript app exists at repository root.                 | Pass   | `.meteor/release:1`, `package.json:39-46`, `client/main.tsx:1-10`, `server/main.ts:1-7`.                                                                     |
+| 2   | Meteor remains pinned to 3.5.1.                                        | Pass   | `.meteor/release:1`; `meteor --version` returned `Meteor 3.5.1`.                                                                                             |
+| 3   | Tailwind styling works.                                                | Pass   | `client/main.css:1-47`, `tailwind.config.cjs:1-31`, `postcss.config.js:1-6`; Playwright saw home hero background `rgb(34, 111, 84)` from `bg-rooster-grass`. |
+| 4   | Specified routes and layouts render.                                   | Pass   | `imports/shared/routes.ts:12-49`, `imports/ui/App.tsx:77-102`; Playwright rendered `/`, `/games`, `/admin`, and `/not-a-route`.                              |
+| 5   | Mobile layout is usable without horizontal overflow.                   | Pass   | Playwright at `390x844`: `/`, `/games`, and `/admin` each reported `scrollWidth: 390`, `bodyScrollWidth: 390`, `hasHorizontalOverflow: false`.               |
+| 6   | Admin placeholder exposes no privileged functionality.                 | Pass   | `imports/ui/pages/AdminPage.tsx:7-11`; Playwright at desktop and mobile reported `buttons: 0`, `forms: 0`, `fields: 0`.                                      |
+| 7   | `insecure` and `autopublish` are absent.                               | Pass   | `.meteor/packages:7-25`; `meteor npm run lint` enforces absence and passed.                                                                                  |
+| 8   | Documented lint, formatting-check, and TypeScript-check commands pass. | Pass   | `package.json:4-10`, `README.md:24-41`; all commands passed.                                                                                                 |
+| 9   | Documentation and ongoing documentation instructions exist.            | Pass   | `AGENTS.md:5-24`, `README.md:43-56`, `docs/MAP_System.md:3-38`.                                                                                              |
+| 10  | No later-milestone features are represented as implemented.            | Pass   | `docs/CORE_Product.md:22-27`, `docs/CORE_Build_Plan.md:25-31`, `server/main.ts:3-7`; lint rejects starter publications and premature collections.            |
 
 ## Files Changed
 

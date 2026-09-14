@@ -6,3 +6,6 @@ _build
 */build-chunks
 .rsdoctor
 .playwright-mcp/
+coverage/
+playwright-report/
+test-results/
