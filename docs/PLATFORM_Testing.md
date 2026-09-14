@@ -45,15 +45,20 @@ ESLint 9 is pinned because the installed React and JSX accessibility plugin peer
 
 Runner: Vitest.
 
-Current implementation: locally verified for CCPP-002.
+Current implementation: locally verified for CCPP-003.
 
-Vitest fits the next scoring-engine milestone because it runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution today and scoring/prediction validation later.
+Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation.
 
 Test locations and naming:
 
 - Unit tests live under `tests/unit/`.
 - Test files use `*.test.ts`.
-- Current unit coverage is `tests/unit/routes.test.ts`.
+
+Current unit test files:
+
+- `tests/unit/routes.test.ts` - route resolution.
+- `tests/unit/playwright-target.test.ts` - local-only Playwright target guard.
+- `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring rules, validation, snapshots, pending/provisional/final observations, custom questions, and worked examples.
 
 Commands:
 
@@ -62,7 +67,7 @@ meteor npm run test:unit
 meteor npm run test:unit:watch
 ```
 
-Do not invent domain logic just to create tests. Add tests for meaningful new behaviour, important failure paths, and bug regressions where practical.
+Do not invent domain logic just to create tests. Add tests for meaningful new behaviour, important failure paths, and bug regressions where practical. Report the runner's test count as tests passed.
 
 ## Browser Tests
 

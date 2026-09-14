@@ -9,6 +9,7 @@ Current boundaries:
 - `client/` owns browser startup and global styles.
 - `server/` owns Meteor server startup.
 - `imports/shared/` holds framework-light shared metadata used by client and future server code.
+- `imports/shared/scoring/` holds the CCPP-003 framework-independent scoring engine.
 - `imports/ui/` owns React layouts, route pages, links, and status states.
 - `docs/` owns prefixed project documentation.
 - `scripts/` owns local verification helpers.
@@ -33,6 +34,8 @@ Planned platform responsibilities:
 CCPP-001 does not define domain collections, publications, methods, accounts, scoring, predictions, or leaderboards. `insecure` and `autopublish` must remain absent.
 
 CCPP-002 adds verification infrastructure only. It does not change data authority or introduce domain persistence.
+
+CCPP-003 adds scoring rules and a pure shared scoring engine. It does not introduce domain persistence, Meteor methods, publications, fixture administration, prediction submission, live event capture, or leaderboard aggregation. Future server code must call the engine from authoritative Meteor methods and bind predictions to immutable fixture ruleset snapshots.
 
 ## Dependency Discipline
 
@@ -76,3 +79,7 @@ Implementation evidence: local verification is recorded in `docs/AUDIT_002_Testi
 - Vitest owns fast unit tests for framework-independent code.
 - Playwright owns browser smoke checks against a local Meteor server on a dedicated test port. The Playwright target guard rejects non-local hosts to avoid accidental production testing.
 - Project invariant checks stay separate from ESLint and protect durable repo rules without blocking legitimate future collections or publications.
+
+## Scoring Engine
+
+The scoring engine architecture is documented in `docs/PLATFORM_Scoring_Engine.md`. The authoritative product rules are in `docs/CORE_Scoring_Rules.md`.

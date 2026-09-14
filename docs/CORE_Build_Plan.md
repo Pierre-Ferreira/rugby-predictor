@@ -6,7 +6,7 @@ This is the current roadmap, not permission to implement later milestones inside
 
 1. Application foundation - this task.
 2. Testing infrastructure and foundation verification - CCPP-002.
-3. Detailed game rules and tested scoring engine.
+3. Detailed game rules and tested scoring engine - CCPP-003.
 4. Passwordless accounts and authorisation.
 5. Fixture management and public fixture browsing.
 6. Prediction sequence and submission locking.
@@ -44,9 +44,28 @@ Implemented:
 
 Not implemented:
 
-- Scoring engine, scoring rules, and prediction validation.
 - Accounts, fixtures, predictions, leaderboards, leagues, sponsorships, animations, quizzes, or AI reports.
 - Database-backed integration tests for future domain features.
+
+## CCPP-003 Scope
+
+Milestone status: implemented for the isolated scoring rules and framework-independent engine. Verification evidence is recorded in `docs/AUDIT_003_Scoring_Engine.md`.
+
+Implemented:
+
+- Authoritative scoring rules and worked examples in `docs/CORE_Scoring_Rules.md`.
+- Pure TypeScript scoring engine under `imports/shared/scoring/`.
+- Default ruleset snapshot with CCPP-003 question deductions.
+- Ruleset, prediction, and observation validation with structured errors.
+- Live "If it ended now" scoring, pending observations, provisional deductions, and final-score confirmation rejection.
+- Custom numeric and categorical question support without executable formulas.
+- Unit tests for scoring, validation, snapshots, and documented examples.
+
+Not implemented:
+
+- UI, accounts, database collections, fixture administration, prediction submission, match-event capture, event normalization, league aggregation, leaderboards, AI, deployment, or admin configuration permissions.
+- Database immutability for fixture ruleset snapshots.
+- Upstream regulation-time versus extra-time observation policy.
 
 ## Roadmap Discipline
 

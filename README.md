@@ -1,6 +1,6 @@
 # Rugby Rooster
 
-Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification.
+Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification. CCPP-003 adds the framework-independent scoring rules and tested scoring engine.
 
 This repository is not Rugby Tracker / Rucks and Mauls. Club management, player rosters, BokSmart documents, subscription tiers, and player-performance analytics are outside this project unless a future task explicitly changes scope.
 
@@ -66,8 +66,11 @@ Project documentation lives under `docs/`:
 
 - `docs/CORE_Product.md`
 - `docs/CORE_Build_Plan.md`
+- `docs/CORE_Scoring_Rules.md`
 - `docs/PLATFORM_Architecture.md`
+- `docs/PLATFORM_Scoring_Engine.md`
 - `docs/PLATFORM_Testing.md`
 - `docs/MAP_System.md`
 - `docs/AUDIT_001_Project_Foundation.md`
 - `docs/AUDIT_002_Testing_Infrastructure.md`
+- `docs/AUDIT_003_Scoring_Engine.md`

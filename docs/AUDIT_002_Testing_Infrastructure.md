@@ -79,7 +79,7 @@ Removed obsolete CCPP-001 verification files superseded by the new infrastructur
 
 - Unit tests: 2 files, 10 tests passed.
 - Browser tests: 1 file, 9 Chromium tests passed.
-- Total automated test assertions at command level: 19 tests passed.
+- Total automated tests at command level: 19 tests passed.
 - Coverage collection was not configured or run. CCPP-002 intentionally avoids arbitrary coverage targets.
 
 ## Dependency Findings
