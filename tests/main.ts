@@ -1,10 +1,10 @@
 import { Meteor } from 'meteor/meteor';
 import assert from 'assert';
 
-describe('rugby-predictor', function () {
+describe('rugby-rooster', function () {
   it('package.json has correct name', async function () {
     const { name } = await import('../package.json');
-    assert.strictEqual(name, 'rugby-predictor');
+    assert.strictEqual(name, 'rugby-rooster');
   });
 
   if (Meteor.isClient) {
