@@ -75,6 +75,9 @@ Current unit test files:
   database, and supported topology verification.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment,
   inherited Mongo variable rejection, and derived Rspack dev-server port checks.
+- `tests/unit/fixtures.test.ts` - fixture validation, Team 1 / Team 2
+  normalization, public list option validation, and South African time to UTC
+  conversion.
 
 Commands:
 
@@ -159,6 +162,14 @@ The current browser suite covers:
   falling back to older stored credentials.
 - Blocked client attempts to update protected user fields.
 - Mobile and keyboard access for sign-in.
+- Public fixture browsing for upcoming, past, and detail views.
+- Platform-admin fixture create, publish, and cancel workflow.
+
+Fixture browser setup creates a verified current-run admin with the existing
+test auth helpers and signs in with the isolated-only
+`test.auth.loginTokenForEmail` helper. This avoids repeatedly exercising the
+deferred CCPP-004D passwordless navigation issue while leaving production
+authorization unchanged.
 
 Failure diagnostics:
 
@@ -224,6 +235,13 @@ The integration suite includes coverage for:
 - Player/admin permission boundaries and admin revocation.
 - Narrow current-user publication fields.
 - Central safe return-path validation.
+- Fixture admin mutation authorization, injection rejection, create/edit/publish
+  /cancel behavior, conflict handling, repeated state calls, public draft
+  exclusion, public field projection, ruleset snapshot independence, invalid
+  default ruleset rejection, and admin fixture publication authorization.
+
+The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
+both the existing auth integration suite and the fixture integration suite.
 
 Future Meteor/database integration tests must cover:
 

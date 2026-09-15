@@ -61,7 +61,7 @@
       "server": "server/main.ts"
     },
     "testModule": {
-      "server": "imports/server/auth/passwordless.app-test.ts"
+      "server": "imports/server/app-tests.ts"
     },
     "modern": true
   }

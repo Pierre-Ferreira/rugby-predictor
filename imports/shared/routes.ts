@@ -2,6 +2,7 @@ export type RouteId =
   | 'account'
   | 'admin'
   | 'authEmailLink'
+  | 'gameDetail'
   | 'games'
   | 'home'
   | 'notFound'
@@ -62,12 +63,23 @@ export const notFoundRoute: AppRoute = {
   layout: 'public',
 };
 
+const gameDetailPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}$/;
+
 export const publicNavigationRoutes = appRoutes.filter(
   (route) => route.id === 'home' || route.id === 'games',
 );
 
 export const resolveRoute = (pathname: string): AppRoute => {
   const normalizedPath = normalizePath(pathname);
+
+  if (gameDetailPattern.test(normalizedPath)) {
+    return {
+      id: 'gameDetail',
+      label: 'Fixture',
+      layout: 'public',
+      path: normalizedPath,
+    };
+  }
 
   return (
     appRoutes.find((route) => route.path === normalizedPath) ?? notFoundRoute

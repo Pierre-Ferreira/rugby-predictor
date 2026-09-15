@@ -244,6 +244,36 @@ Not part of this milestone:
   changes, HMR changes, database changes, email changes, fixture work,
   deployment, or real-device installation testing.
 
+## CCPP-005 Scope
+
+Milestone status: implemented for fixture management and public browsing.
+Verification evidence is recorded in
+`docs/AUDIT_005_Fixture_Management.md`.
+
+Implemented:
+
+- Fixture persistence with Team 1 / Team 2 text fields, competition text,
+  UTC kickoff storage, optional venue, draft/published visibility, cancellation
+  state, server-owned metadata, and first-publication ruleset snapshots.
+- Server-authorized platform-admin methods to create drafts, edit active
+  fixture details, publish valid drafts, and cancel fixtures.
+- Explicit admin and public publications with bounded queries and public field
+  projections.
+- Existing admin area fixture list, create/edit form, publish action, and
+  cancellation confirmation.
+- Public `/games` browsing for published upcoming and past scheduled fixtures.
+- Public `/games/:fixtureId` detail routes.
+- South African time admin-entry policy with UTC storage conversion.
+- Unit, Meteor integration, and focused Playwright coverage for the fixture
+  workflow.
+
+Not implemented:
+
+- Prediction submission, results entry, match-event capture, automatic
+  live/completed transitions, deletion, unpublishing, restoration, team or
+  competition management, custom question UI, service workers, offline fixture
+  caching, leagues, prizes, sponsorships, animation, quizzes, AI, or deployment.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

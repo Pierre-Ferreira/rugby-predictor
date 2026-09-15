@@ -11,6 +11,7 @@ import { PublicLayout } from './layouts/PublicLayout';
 import { AdminPage } from './pages/AdminPage';
 import { AccountPage } from './pages/AccountPage';
 import { AuthEmailLinkPage } from './pages/AuthEmailLinkPage';
+import { GameDetailPage } from './pages/GameDetailPage';
 import { GamesPage } from './pages/GamesPage';
 import { HomePage } from './pages/HomePage';
 import { NotFoundPage } from './pages/NotFoundPage';
@@ -19,6 +20,7 @@ import { ErrorState, LoadingState } from './components/Status';
 
 const routePages: Record<RouteId, () => ReactNode> = {
   account: AccountPage,
+  gameDetail: GameDetailPage,
   home: HomePage,
   games: GamesPage,
   admin: AdminPage,
@@ -108,7 +110,9 @@ const RoutedPage = ({ route }: { readonly route: AppRoute }) => {
   }
 
   return (
-    <PublicLayout currentPath={route.path}>
+    <PublicLayout
+      currentPath={route.id === 'gameDetail' ? '/games' : route.path}
+    >
       <Page />
     </PublicLayout>
   );

@@ -1,3 +1,4 @@
+import { Accounts } from 'meteor/accounts-base';
 import { Meteor } from 'meteor/meteor';
 
 import { TEST_AUTH_METHODS } from '/imports/shared/auth/methods';
@@ -230,6 +231,44 @@ export const registerAuthTestMethods = async (
       return {
         email: normalizedEmail,
         userId,
+      };
+    },
+
+    [TEST_AUTH_METHODS.loginTokenForEmail]: async function loginTokenForEmail(
+      ...args: unknown[]
+    ) {
+      const [emailInput] = assertArgCount(args, 1);
+      const testEnvironment =
+        await dependencies.assertVerifiedAuthTestEnvironment();
+      const normalizedEmail = assertTestEmail(emailInput);
+
+      await assertCurrentRunOwnsEmail(
+        normalizedEmail,
+        testEnvironment.runId,
+        dependencies.users,
+      );
+
+      const user = await findTestOwnedUserByEmail(
+        normalizedEmail,
+        testEnvironment.runId,
+        dependencies.users,
+      );
+
+      if (!user) {
+        throw new Meteor.Error(
+          'test-data-not-owned',
+          'Test helper refused to operate on data outside the current test run.',
+        );
+      }
+
+      const stampedToken = Accounts._generateStampedLoginToken();
+      const hashedToken = Accounts._hashStampedToken(stampedToken);
+
+      Accounts._insertHashedLoginToken(user._id, hashedToken);
+
+      return {
+        token: stampedToken.token,
+        userId: user._id,
       };
     },
 

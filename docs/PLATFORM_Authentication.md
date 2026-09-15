@@ -165,6 +165,11 @@ MongoDB connection used by Meteor, reads the active database name from the
 driver `Db`, and reads the connected endpoint from the driver's topology
 description. Helper mutations re-check the same active connection identity.
 Helpers must not be exposed from ordinary development or production settings.
+The CCPP-005 fixture browser setup also uses a gated
+`test.auth.loginTokenForEmail` helper. It issues a Meteor resume token only for
+an `example.test` account owned by the current isolated test run, so fixture
+browser tests can sign in an already-created admin without exercising the
+deferred passwordless email-link navigation path.
 
 The isolated-helper database check supports local loopback MongoDB topology
 metadata only. It accepts a driver `Single` topology with exactly one reported

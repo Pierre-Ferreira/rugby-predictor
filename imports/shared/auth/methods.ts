@@ -13,6 +13,7 @@ export const TEST_AUTH_METHODS = {
   createVerifiedUser: 'test.auth.createVerifiedUser',
   environment: 'test.auth.environment',
   latestMailFor: 'test.mail.latestFor',
+  loginTokenForEmail: 'test.auth.loginTokenForEmail',
   reset: 'test.auth.reset',
   setAdminForEmail: 'test.auth.setAdminForEmail',
 } as const;

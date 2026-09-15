@@ -28,6 +28,14 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves public game detail routes under games', () => {
+    expect(resolveRoute('/games/abc_123')).toMatchObject({
+      id: 'gameDetail',
+      layout: 'public',
+      path: '/games/abc_123',
+    });
+  });
+
   it('resolves account and passwordless sign-in routes', () => {
     expect(resolveRoute('/sign-in')).toMatchObject({
       id: 'signIn',

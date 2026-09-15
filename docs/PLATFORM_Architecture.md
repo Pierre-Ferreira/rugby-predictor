@@ -48,6 +48,11 @@ manifest content-type hook. It intentionally does not add a service worker,
 offline caching, push notifications, install prompts, update handling, auth
 changes, fixture data, or deployment behaviour.
 
+CCPP-005 adds fixture persistence, server-authorized admin fixture methods,
+explicit fixture publications, public fixture browsing, and admin fixture
+management UI. It does not add prediction submission, match events, results,
+offline caching, or team/competition management systems.
+
 ## Dependency Discipline
 
 Install Jotai, simpl-schema, and Kaplay when a milestone actually needs them. Do not create empty abstractions for future features.
@@ -75,8 +80,13 @@ Final mascot assets and approved branding are not established in CCPP-001.
 - The admin page is restricted by the server-side `admin.accessSummary` method.
 - Passwordless email-link operations are validated, throttled, and wrapped on the server.
 - Client-side auth state is a UI hint only; privileged data and actions must remain behind Meteor methods/publications with server-side checks.
+- Fixture admin operations are server-authorized methods, and public fixture
+  publications use explicit field projections.
 - Keep secrets out of source control and documentation.
 - Browser tests confirm user-facing auth flows, and Meteor integration tests verify server-side auth boundaries.
+- Fixture integration tests verify server-side fixture authorization,
+  publication projection, state transitions, conflict handling, and ruleset
+  snapshot protection.
 
 ## Verification Architecture
 
@@ -102,3 +112,7 @@ The account and authorisation architecture is documented in `docs/PLATFORM_Authe
 ## PWA Foundation
 
 The minimal PWA foundation is documented in `docs/PLATFORM_PWA.md`.
+
+## Fixtures
+
+The fixture platform is documented in `docs/PLATFORM_Fixtures.md`.

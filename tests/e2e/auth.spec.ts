@@ -178,6 +178,10 @@ declare global {
       };
       user: () => unknown;
       userId: () => string | null;
+      loginWithToken: (
+        token: string,
+        callback: (error?: { readonly error?: string }) => void,
+      ) => void;
     };
   }
 }

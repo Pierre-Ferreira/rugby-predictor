@@ -5,11 +5,14 @@ const SAFE_QUERY_VALUE_PATTERN = /^[a-zA-Z0-9_-]{1,40}$/;
 const isFixturePath = (pathname: string): boolean =>
   /^\/fixtures(?:\/[a-zA-Z0-9_-]{1,80})?$/.test(pathname);
 
+const isGamePath = (pathname: string): boolean =>
+  /^\/games(?:\/[a-zA-Z0-9_-]{1,128})?$/.test(pathname);
+
 const isAllowedPath = (pathname: string): boolean =>
   pathname === '/' ||
-  pathname === '/games' ||
   pathname === '/account' ||
   pathname === '/admin' ||
+  isGamePath(pathname) ||
   isFixturePath(pathname);
 
 const hasControlCharacter = (value: string): boolean =>

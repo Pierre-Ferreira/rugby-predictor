@@ -13,6 +13,7 @@ import {
   SignInRequiredState,
 } from '../components/AuthStates';
 import { LoadingState } from '../components/Status';
+import { AdminFixtureManager } from '../fixtures/AdminFixtureManager';
 
 export const AdminPage = () => {
   const auth = useAuthState();
@@ -138,6 +139,8 @@ export const AdminPage = () => {
             </dd>
           </div>
         </dl>
+
+        <AdminFixtureManager />
       </section>
     </main>
   );

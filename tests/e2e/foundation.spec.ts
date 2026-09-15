@@ -27,7 +27,7 @@ test.describe('Rugby Rooster foundation', () => {
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: 'No games are available yet',
+        name: 'Upcoming fixtures',
       }),
     ).toBeVisible();
 
@@ -202,9 +202,7 @@ test.describe('Rugby Rooster foundation', () => {
     ).toBeVisible();
   });
 
-  test('homepage navigation reaches the games empty state', async ({
-    page,
-  }) => {
+  test('homepage navigation reaches fixture browsing', async ({ page }) => {
     await gotoApp(page, '/');
 
     await page.getByRole('link', { name: 'Browse games' }).click();
@@ -213,7 +211,7 @@ test.describe('Rugby Rooster foundation', () => {
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: 'No games are available yet',
+        name: 'Upcoming fixtures',
       }),
     ).toBeVisible();
   });
@@ -223,7 +221,7 @@ test.describe('Rugby Rooster foundation', () => {
 
     const emptyState = page.getByRole('heading', {
       level: 1,
-      name: 'No games are available yet',
+      name: 'Upcoming fixtures',
     });
     await expect(emptyState).toBeVisible();
 
@@ -251,7 +249,7 @@ test.describe('Rugby Rooster foundation', () => {
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: 'No games are available yet',
+        name: 'Upcoming fixtures',
       }),
     ).toBeVisible();
   });
@@ -274,7 +272,7 @@ test.describe('Rugby Rooster foundation', () => {
     await expect(
       page.getByRole('heading', {
         level: 1,
-        name: 'No games are available yet',
+        name: 'Upcoming fixtures',
       }),
     ).toBeVisible();
   });

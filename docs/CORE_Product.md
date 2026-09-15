@@ -54,6 +54,21 @@ Out of scope for this product:
 - Unit, Meteor full-app integration, and Playwright coverage for account and authorisation behavior.
 - No fixtures, predictions, leagues, leaderboards, prizes, sponsorships, animation, quizzes, AI reports, payment features, or Rugby Tracker / Rucks and Mauls concepts.
 
+## Implemented In CCPP-005
+
+- Platform-admin fixture creation, editing, publication, and cancellation.
+- Fixture persistence with Team 1 / Team 2 display names, competition display
+  name, UTC scheduled kickoff, optional venue, visibility, cancellation state,
+  server-owned admin metadata, and first-publication scoring ruleset snapshot.
+- Public browsing for published upcoming and past scheduled fixtures at
+  `/games`.
+- Public fixture detail routes at `/games/:fixtureId`.
+- Draft privacy through public list/detail publication exclusion.
+- South African time admin-entry policy for this initial workflow.
+- No prediction submission, match results, live/completed automation, deletion,
+  unpublishing, restoration, team/competition management, custom question UI,
+  service-worker caching, or offline fixture browsing.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
