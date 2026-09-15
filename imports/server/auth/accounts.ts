@@ -20,6 +20,7 @@ import {
 } from './throttle';
 import {
   buildCanonicalUrl,
+  getAuthTestRunId,
   getMailFromAddress,
   shouldCaptureMailLocally,
 } from './settings';
@@ -221,6 +222,63 @@ const throwPublicDeliveryError = (): never => {
   );
 };
 
+const findUserOwnershipByEmail = async (
+  email: string,
+): Promise<{ readonly ownerRunId?: string } | null> => {
+  const user = (await Meteor.users.findOneAsync(
+    {
+      'emails.address': email,
+    },
+    {
+      fields: {
+        'rugbyRoosterTest.ownerRunId': 1,
+      },
+    },
+  )) as
+    | {
+        readonly rugbyRoosterTest?: {
+          readonly ownerRunId?: string;
+        };
+      }
+    | null;
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    ownerRunId: user.rugbyRoosterTest?.ownerRunId,
+  };
+};
+
+const markUserOwnedByCurrentTestRun = async (
+  email: string,
+  priorOwnership: { readonly ownerRunId?: string } | null,
+) => {
+  const testRunId = getAuthTestRunId();
+
+  if (!testRunId) {
+    return;
+  }
+
+  if (priorOwnership && priorOwnership.ownerRunId !== testRunId) {
+    return;
+  }
+
+  await Meteor.users.updateAsync(
+    {
+      'emails.address': email,
+    },
+    {
+      $set: {
+        rugbyRoosterTest: {
+          ownerRunId: testRunId,
+        },
+      },
+    },
+  );
+};
+
 export const configureAccounts = () => {
   (Accounts.config as (options: Record<string, unknown>) => void)({
     ambiguousErrorMessages: true,
@@ -254,18 +312,10 @@ export const configureAccounts = () => {
 };
 
 export const configureEmailDelivery = () => {
-  if (
-    Meteor.isProduction &&
-    !process.env.MAIL_URL &&
-    !Meteor.settings.packages?.email
-  ) {
-    throw new Error(
-      'Production mail delivery requires MAIL_URL or Meteor.settings.packages.email.',
-    );
-  }
-
   if (shouldCaptureMailLocally()) {
-    configureLocalMailSink();
+    configureLocalMailSink({
+      getTestRunId: getAuthTestRunId,
+    });
   }
 };
 
@@ -352,19 +402,31 @@ export const protectPasswordlessPackageMethods = () => {
   ) {
     const sanitizedPayload = sanitizePasswordlessRequestPayload(payload);
     const connectionIdentity = getThrottleIdentityForInvocation(this);
+    const priorOwnership = await findUserOwnershipByEmail(
+      sanitizedPayload.selector.email,
+    );
 
     checkAuthThrottle(
       AUTH_THROTTLE_LIMITS.linkRequestByEmail,
       sanitizedPayload.selector.email,
     );
     checkAuthThrottle(
-      AUTH_THROTTLE_LIMITS.linkRequestByAddress,
+      AUTH_THROTTLE_LIMITS.linkRequestByAddressAggregate,
       connectionIdentity,
     );
 
     try {
       await originalRequestLoginTokenForUser.call(this, sanitizedPayload);
+      await markUserOwnedByCurrentTestRun(
+        sanitizedPayload.selector.email,
+        priorOwnership,
+      );
     } catch (error) {
+      await markUserOwnedByCurrentTestRun(
+        sanitizedPayload.selector.email,
+        priorOwnership,
+      );
+
       if (
         error instanceof Meteor.Error &&
         error.error === 'too-many-requests'

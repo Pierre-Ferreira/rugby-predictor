@@ -9,10 +9,10 @@
     "typecheck": "tsc --noEmit --incremental false",
     "start": "meteor run",
     "test": "npm run test:unit",
-    "test:integration": "meteor test --full-app --once --driver-package meteortesting:mocha --port 3400 --settings tests/settings/integration-settings.json",
+    "test:integration": "node scripts/run-integration-tests.mjs",
     "test:unit": "vitest run --config vitest.config.mts",
     "test:unit:watch": "vitest --config vitest.config.mts",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-playwright-tests.mjs",
     "test:e2e:ui": "playwright test --ui",
     "playwright:install": "playwright install chromium",
     "visualize": "meteor --production --extra-packages bundle-visualizer"

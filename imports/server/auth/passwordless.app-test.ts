@@ -11,10 +11,17 @@ import {
   ADMIN_METHODS,
   AUTH_METHODS,
   type CurrentAccessResult,
+  TEST_AUTH_METHODS,
 } from '/imports/shared/auth/methods';
 import { resolveSafeReturnPath } from '/imports/shared/auth/redirects';
 import { failNextLocalMailForTests, latestCapturedMailFor } from './mailSink';
 import { resetTestAuthData } from './testSupport';
+import {
+  AUTH_THROTTLE_LIMITS,
+  checkAuthThrottle,
+  getAuthThrottleBucketCountForTests,
+  resetAuthThrottlesForTests,
+} from './throttle';
 import {
   grantPlatformAdminByEmail,
   revokePlatformAdminByEmail,
@@ -145,9 +152,11 @@ const findUserByEmail = async (email: string, fields = {}) => {
     options: unknown,
   ) => Promise<Meteor.User | null>;
 
-  return findUser(email, {
-    fields,
-  });
+  return (
+    (await findUser(email, {
+      fields,
+    })) ?? null
+  );
 };
 
 describe('CCPP-004 passwordless accounts and authorisation', function (this: Mocha.Suite) {
@@ -155,6 +164,89 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
 
   beforeEach(async () => {
     await resetTestAuthData();
+  });
+
+  it('proves the isolated test environment before helpers run', async () => {
+    const environment = await callMethod<{
+      readonly appUrl: string;
+      readonly databaseId: string;
+      readonly databaseName: string;
+      readonly localDir: string;
+      readonly runId: string;
+    }>(TEST_AUTH_METHODS.environment);
+
+    assert.match(environment.appUrl, /^http:\/\/127\.0\.0\.1:/);
+    assert.match(environment.databaseId, /^meteor-managed:/);
+    assert.equal(environment.databaseName, 'meteor');
+    assert.match(environment.localDir, /\.meteor\/local-integration$/);
+    assert.match(environment.runId, /^rr-integration-/);
+  });
+
+  it('limits helper cleanup and mutations to current-run owned data', async () => {
+    const environment = await callMethod<{ readonly runId: string }>(
+      TEST_AUTH_METHODS.environment,
+    );
+    const ownedEmail = uniqueEmail('owned-helper');
+    const otherRunEmail = uniqueEmail('other-run');
+    const unownedEmail = uniqueEmail('unowned');
+
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [ownedEmail]);
+
+    await Meteor.users.insertAsync({
+      createdAt: new Date(),
+      emails: [
+        {
+          address: otherRunEmail,
+          verified: true,
+        },
+      ],
+      rugbyRoosterTest: {
+        ownerRunId: 'rr-integration-other-run',
+      },
+      services: {},
+    } as unknown as Meteor.User);
+    await Meteor.users.insertAsync({
+      createdAt: new Date(),
+      emails: [
+        {
+          address: unownedEmail,
+          verified: true,
+        },
+      ],
+      services: {},
+    });
+
+    assert.equal(
+      await callMethod(TEST_AUTH_METHODS.setAdminForEmail, [ownedEmail, true]),
+      true,
+    );
+    await assert.rejects(
+      () =>
+        callMethod(TEST_AUTH_METHODS.setAdminForEmail, [
+          otherRunEmail,
+          true,
+        ]),
+      /outside the current test run/i,
+    );
+    await assert.rejects(
+      () => callMethod(TEST_AUTH_METHODS.latestMailFor, [otherRunEmail]),
+      /outside the current test run/i,
+    );
+    await assert.rejects(
+      () => callMethod(TEST_AUTH_METHODS.latestMailFor, [123]),
+      /invalid-test-email|invalid arguments/i,
+    );
+    await assert.rejects(
+      () => callMethod(TEST_AUTH_METHODS.reset, ['extra-arg']),
+      /invalid arguments/i,
+    );
+
+    await resetTestAuthData();
+
+    assert.equal(await findUserByEmail(ownedEmail, { _id: 1 }), null);
+    assert.ok(await findUserByEmail(otherRunEmail, { _id: 1 }));
+    assert.ok(await findUserByEmail(unownedEmail, { _id: 1 }));
+    assert.equal(environment.runId.startsWith('rr-integration-'), true);
   });
 
   it('creates a new unverified account on request and verifies it on link redemption', async () => {
@@ -183,6 +275,12 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
     );
 
     const link = getLinkParts(email);
+    const helperMail = await callMethod<{ readonly url: string }>(
+      TEST_AUTH_METHODS.latestMailFor,
+      [email],
+    );
+
+    assert.equal(helperMail.url, link.url.toString());
     assert.equal(link.returnTo, '/account');
     assert.equal(link.url.pathname, '/auth/email-link');
     assert.equal(link.url.searchParams.has('loginToken'), false);
@@ -376,7 +474,7 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
     );
   });
 
-  it('throttles link requests by email identity and by connection address', async () => {
+  it('throttles link requests by email identity and by shared-address aggregate', async () => {
     const email = uniqueEmail('throttle-email');
 
     await requestLink(email);
@@ -388,10 +486,20 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
     await resetTestAuthData();
 
     const invocation = makeInvocation('same-address', '198.51.100.44');
+    const aggregateLimit =
+      AUTH_THROTTLE_LIMITS.linkRequestByAddressAggregate.limit;
 
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 12; index += 1) {
       await requestLink(
-        uniqueEmail(`throttle-ip-${index}`),
+        uniqueEmail(`shared-address-player-${index}`),
+        '/games',
+        invocation,
+      );
+    }
+
+    for (let index = 12; index < aggregateLimit; index += 1) {
+      await requestLink(
+        uniqueEmail(`shared-address-fill-${index}`),
         '/games',
         invocation,
       );
@@ -399,9 +507,29 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
 
     await assert.rejects(
       () =>
-        requestLink(uniqueEmail('throttle-ip-blocked'), '/games', invocation),
+        requestLink(
+          uniqueEmail('shared-address-blocked'),
+          '/games',
+          invocation,
+        ),
       /Too many attempts/i,
     );
+  });
+
+  it('prunes expired in-memory throttle buckets', () => {
+    resetAuthThrottlesForTests();
+
+    checkAuthThrottle(AUTH_THROTTLE_LIMITS.linkRequestByEmail, 'old-a', 0);
+    checkAuthThrottle(AUTH_THROTTLE_LIMITS.linkRequestByEmail, 'old-b', 0);
+    assert.equal(getAuthThrottleBucketCountForTests(), 2);
+
+    checkAuthThrottle(
+      AUTH_THROTTLE_LIMITS.linkRequestByEmail,
+      'new-c',
+      AUTH_THROTTLE_LIMITS.linkRequestByEmail.windowMs + 1,
+    );
+
+    assert.equal(getAuthThrottleBucketCountForTests(), 1);
   });
 
   it('throttles token redemption attempts for the package login path', async () => {

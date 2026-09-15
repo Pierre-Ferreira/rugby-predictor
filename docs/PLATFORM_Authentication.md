@@ -32,8 +32,15 @@ Rugby Tracker / Rucks and Mauls concepts.
 The email-link route strips token and email query parameters from the browser URL
 after reading them. Pending link credentials are kept only in tab-scoped browser
 state so local hot-code-push reloads can finish the same sign-in attempt without
-leaving the token in the final URL. Pending credentials are cleared on success or
-failure.
+leaving the token in the final URL. Pending credentials are cleared on success,
+failure, or malformed new link input.
+
+CCPP-004A adds account-aware confirmation behaviour for the email-link route.
+When a verified browser session already matches the link email, the player can
+continue with the current session without consuming the link. When a verified
+browser session belongs to a different email, the page shows the current account,
+the link target account, and explicit choices to switch accounts or keep the
+current account. Switching logs out the current session before redeeming the link.
 
 ## Server Authority
 
@@ -45,10 +52,11 @@ Authoritative auth code lives under `imports/server/auth/`.
 - `methods.ts` registers `auth.requestSignInLink`, `auth.currentAccess`, and
   `admin.accessSummary`.
 - `authorization.ts` resolves verified email state and platform-admin grants.
-- `settings.ts` reads Rugby Rooster private settings.
+- `settings.ts` reads Rugby Rooster private settings and validates auth runtime
+  safety before auth methods and test helpers are registered.
 - `mailSink.ts` captures local/test emails without sending real mail.
 - `testSupport.ts` registers test-only helper methods only when private test
-  settings enable them and the app is not production.
+  settings enable them and the app is in a verified isolated test environment.
 
 The raw package method `requestLoginTokenForUser` is wrapped so callers cannot
 inject arbitrary selectors, roles, profiles, unsafe return URLs, or privileged
@@ -88,8 +96,16 @@ Private settings live under `private.rugbyRooster`:
 ```
 
 Production mail delivery requires `MAIL_URL` or Meteor email package settings.
-Local and test runs capture mail when configured or when no production mail
-transport is present.
+Production startup rejects explicit local mail capture, explicit test-helper
+enablement, missing mail transport, and missing canonical app URL. Local and
+test runs capture mail when configured or when no production mail transport is
+present.
+
+Test helpers require `private.rugbyRooster.test.enableTestHelpers: true` plus an
+isolated launcher environment with loopback `ROOT_URL`, generated
+`RUGBY_ROOSTER_TEST_RUN_ID`, expected Meteor-managed database identity, and
+current-run ownership checks for helper mutations. Helpers must not be exposed
+from ordinary development or production settings.
 
 Optional admin provisioning can grant or revoke `roles.platformAdmin` by verified
 email during startup:
@@ -112,16 +128,18 @@ verified. Settings files must not contain production secrets in source control.
 
 ## Verification Coverage
 
-- Unit tests cover email normalization and safe return-path validation.
+- Unit tests cover email normalization, safe return-path validation, auth runtime
+  configuration, isolated test launcher setup, and throttle configuration.
 - Meteor full-app integration tests cover account creation, verification,
   returning-player reuse, resend invalidation, plus addressing, token expiry,
   replay rejection, concurrent redemption, package method hardening, throttling,
-  delivery failure, admin grant/revocation, current access, and publication
-  field limits.
+  throttle-bucket pruning, test-helper ownership checks, delivery failure, admin
+  grant/revocation, current access, and publication field limits.
 - Playwright tests cover captured email-link request/redemption, fresh-browser
   login, session restoration, sign-out, admin denial/grant/revocation,
-  invalid-link recovery, blocked client user updates, mobile layout, and keyboard
-  access.
+  same-account continuation, different-account switch/keep choices, malformed
+  new-link credential clearing, invalid-link recovery, blocked client user
+  updates, mobile layout, and keyboard access.
 
 ## Current Limits
 

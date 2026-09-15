@@ -1,11 +1,15 @@
 import { expect, type Page, test } from '@playwright/test';
 
-import { TEST_AUTH_METHODS } from '../../imports/shared/auth/methods';
+import {
+  AUTH_METHODS,
+  TEST_AUTH_METHODS,
+} from '../../imports/shared/auth/methods';
 
 const uniqueEmail = (label: string) =>
   `ccpp004-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
+const PENDING_LINK_STORAGE_KEY = 'rugby-rooster:pending-email-link';
 
 const isTransientLocalNavigationError = (error: unknown) =>
   error instanceof Error &&
@@ -83,7 +87,14 @@ const gotoLocal = async (page: Page, url: string) => {
 
 const resetAuthState = async (page: Page) => {
   await gotoLocal(page, '/');
+  const environment = await callMeteor<{
+    readonly appUrl: string;
+    readonly runId: string;
+  }>(page, TEST_AUTH_METHODS.environment);
+  expect(environment.appUrl).toMatch(/^http:\/\/127\.0\.0\.1:/);
+  expect(environment.runId).toBe(process.env.RUGBY_ROOSTER_TEST_RUN_ID);
   await callMeteor(page, TEST_AUTH_METHODS.reset);
+  await gotoLocal(page, '/');
 };
 
 const latestMailFor = async (page: Page, email: string) =>
@@ -92,6 +103,37 @@ const latestMailFor = async (page: Page, email: string) =>
     readonly text: string;
     readonly url: string;
   } | null>(page, TEST_AUTH_METHODS.latestMailFor, email);
+
+const requestSignInLink = async (
+  page: Page,
+  email: string,
+  returnTo = '/account',
+) => {
+  await callMeteor(page, AUTH_METHODS.requestSignInLink, {
+    email,
+    returnTo,
+  });
+  const mail = await latestMailFor(page, email);
+
+  expect(mail?.url).toContain('/auth/email-link');
+
+  return mail?.url ?? '/';
+};
+
+const signInWithEmailLink = async (
+  page: Page,
+  email: string,
+  returnTo = '/account',
+) => {
+  await gotoLocal(page, `/sign-in?returnTo=${encodeURIComponent(returnTo)}`);
+  await page.getByLabel('Email address').fill(email);
+  await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
+  const mail = await latestMailFor(page, email);
+
+  await gotoLocal(page, mail?.url ?? '/');
+  await page.getByRole('button', { name: 'Continue signing in' }).click();
+  await expect(page).toHaveURL(returnTo);
+};
 
 const expectNoHorizontalOverflow = async (page: Page) => {
   const overflow = await page.evaluate(() => ({
@@ -233,6 +275,135 @@ test.describe('passwordless authentication', () => {
     await expect(
       page.getByRole('heading', { name: 'Admin access is restricted' }),
     ).toBeVisible();
+  });
+
+  test('prompts before switching away from a different signed-in account and can keep the current account', async ({
+    page,
+  }) => {
+    const currentEmail = uniqueEmail('current-account');
+    const linkEmail = uniqueEmail('link-account');
+
+    await signInWithEmailLink(page, currentEmail);
+    const linkUrl = await requestSignInLink(page, linkEmail);
+
+    await gotoLocal(page, linkUrl);
+    await expect(
+      page.getByText(`You are signed in as ${currentEmail}.`),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`This link is intended for ${linkEmail}.`),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Switch accounts' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Keep current account' }).click();
+    await expect(page).toHaveURL('/account');
+    await expect(page.getByText(currentEmail)).toBeVisible();
+
+    const storedCredentials = await page.evaluate(
+      (storageKey) => window.sessionStorage.getItem(storageKey),
+      PENDING_LINK_STORAGE_KEY,
+    );
+    expect(storedCredentials).toBeNull();
+  });
+
+  test('switches accounts only after confirmation and follows the safe destination', async ({
+    page,
+  }) => {
+    const currentEmail = uniqueEmail('switch-current');
+    const linkEmail = uniqueEmail('switch-target');
+
+    await signInWithEmailLink(page, currentEmail);
+    const linkUrl = await requestSignInLink(page, linkEmail);
+
+    await gotoLocal(page, linkUrl);
+    await page.getByRole('button', { name: 'Switch accounts' }).click();
+
+    await expect(page).toHaveURL('/account');
+    await expect(page.getByText(linkEmail)).toBeVisible();
+  });
+
+  test('shows honest recovery when a different-account link cannot be redeemed', async ({
+    page,
+  }) => {
+    const currentEmail = uniqueEmail('invalid-current');
+    const linkEmail = uniqueEmail('invalid-target');
+
+    await signInWithEmailLink(page, currentEmail);
+    const linkUrl = new URL(await requestSignInLink(page, linkEmail));
+    linkUrl.searchParams.set('token', 'BADBAD');
+
+    await gotoLocal(page, linkUrl.toString());
+    await page.getByRole('button', { name: 'Switch accounts' }).click();
+
+    await expect(
+      page.getByText('This sign-in link is invalid, expired, or already used.'),
+    ).toBeVisible();
+    await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
+    await expect(
+      page.getByRole('link', { name: 'Request another link' }),
+    ).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.Meteor.userId()))
+      .toBeNull();
+  });
+
+  test('continues an already signed-in same-account session without consuming the link', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('same-account');
+
+    await signInWithEmailLink(page, email);
+    const linkUrl = await requestSignInLink(page, email);
+
+    await gotoLocal(page, linkUrl);
+    await expect(
+      page.getByText(`You are already signed in as ${email}.`),
+    ).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Continue with current session' })
+      .click();
+    await expect(page).toHaveURL('/account');
+
+    await page
+      .getByRole('main')
+      .getByRole('button', { name: 'Sign out' })
+      .click();
+    await expect(page).toHaveURL('/games');
+
+    await gotoLocal(page, linkUrl);
+    await page.getByRole('button', { name: 'Continue signing in' }).click();
+    await expect(page).toHaveURL('/account');
+    await expect(page.getByText(email)).toBeVisible();
+  });
+
+  test('does not reuse stored credentials for a malformed new link', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('malformed');
+    const linkUrl = await requestSignInLink(page, email);
+
+    await gotoLocal(page, linkUrl);
+    await expect(
+      page.getByRole('heading', { name: 'Continue signing in' }),
+    ).toBeVisible();
+
+    await gotoLocal(
+      page,
+      '/auth/email-link?email=not-an-email&token=&returnTo=%2Faccount',
+    );
+    await expect(
+      page.getByText('This sign-in link is missing details.'),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Continue signing in' }),
+    ).toHaveCount(0);
+    const storedCredentials = await page.evaluate(
+      (storageKey) => window.sessionStorage.getItem(storageKey),
+      PENDING_LINK_STORAGE_KEY,
+    );
+    expect(storedCredentials).toBeNull();
   });
 
   test('shows invalid-link recovery without leaking credentials in the final URL', async ({

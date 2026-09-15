@@ -108,6 +108,29 @@ Not implemented:
 - Fixture management, prediction submission, scoring persistence, match-event capture, league aggregation, leaderboards, prizes, sponsorships, animations, quizzes, AI reports, payment features, or rich admin user management.
 - Account deletion, support workflows, marketing preferences UI, or long-term consent/audit policy.
 
+## CCPP-004A Scope
+
+Milestone status: in progress and checkpointed for review in
+`docs/AUDIT_004A_Login_Navigation_Fix.md`. This is not completion evidence.
+
+Current checkpointed work:
+
+- Account-aware `/auth/email-link` navigation for same-account continuation and
+  different-account switch-or-keep decisions.
+- Malformed new email-link handling that clears pending tab credentials instead
+  of falling back to older stored credentials.
+- Isolated integration and Playwright launchers with loopback binding,
+  generated test run IDs, and inherited Mongo variable rejection.
+- Rspack loopback host/origin adjustments for local browser-test startup.
+- A client-development, isolated-E2E `Meteor.isTest` override and HMR/live-reload
+  suppression gate that still requires review before acceptance.
+
+Not complete:
+
+- The `Meteor.isTest` override has not been accepted as the final solution.
+- Full final verification has not been re-run after this checkpoint.
+- No commit, push, deployment, or production verification has been performed.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

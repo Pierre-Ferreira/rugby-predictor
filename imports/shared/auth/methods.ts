@@ -9,6 +9,7 @@ export const ADMIN_METHODS = {
 
 export const TEST_AUTH_METHODS = {
   createVerifiedUser: 'test.auth.createVerifiedUser',
+  environment: 'test.auth.environment',
   latestMailFor: 'test.mail.latestFor',
   reset: 'test.auth.reset',
   setAdminForEmail: 'test.auth.setAdminForEmail',

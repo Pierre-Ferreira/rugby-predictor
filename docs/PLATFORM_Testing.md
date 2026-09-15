@@ -6,6 +6,10 @@ Testing strategy: agreed for CCPP-002.
 
 Implementation evidence: locally verified on September 14, 2026 in `docs/AUDIT_002_Testing_Infrastructure.md`, extended for scoring in CCPP-003/003A, and extended for passwordless account integration/browser coverage in CCPP-004.
 
+CCPP-004A has an in-progress login-navigation/test-stability checkpoint in
+`docs/AUDIT_004A_Login_Navigation_Fix.md`. That checkpoint is not final
+completion evidence.
+
 Remote CI status: configured but not yet observed running in GitHub Actions from this workspace.
 
 ## Static Checks
@@ -62,6 +66,10 @@ Current unit test files:
 - `tests/unit/playwright-target.test.ts` - local-only Playwright target guard.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003/003A scoring rules, validation, public helper boundaries, snapshots, pending/provisional/final observations, custom questions, first-try observation consistency, malformed public requests, and worked examples.
 - `tests/unit/auth-helpers.test.ts` - email identity normalization and safe auth return paths.
+- `tests/unit/auth-config.test.ts` - auth runtime settings validation,
+  isolated-test helper contract checks, and throttle setting validation.
+- `tests/unit/test-launchers.test.ts` - isolated test launcher environment,
+  inherited Mongo variable rejection, and derived Rspack dev-server port checks.
 
 Commands:
 
@@ -76,11 +84,26 @@ Do not invent domain logic just to create tests. Add tests for meaningful new be
 
 Runner: Playwright Test.
 
-Current implementation: locally verified for CCPP-002.
+Current implementation: locally verified for CCPP-002 and extended by CCPP-004.
+CCPP-004A browser-test stabilization changes are checkpointed for review, not
+yet accepted as final completion evidence.
 
 Browser tests live under `tests/e2e/` and use accessible role/name selectors where practical. The Playwright config starts the Meteor app on local port `3200` unless `PLAYWRIGHT_BASE_URL` is provided.
 
 `tests/support/playwright-target.ts` resolves the browser-test target. Default tests run against `http://127.0.0.1:3200`. If `PLAYWRIGHT_BASE_URL` is supplied, it must use a local loopback host: `127.0.0.1`, `localhost`, or `::1`. Non-local hosts fail during Playwright config loading before browsers or tests run.
+
+`meteor npm run test:e2e` runs `scripts/run-playwright-tests.mjs`, which creates
+an isolated local environment for the Playwright process. The launcher refuses
+inherited Mongo connection variables, sets a generated
+`RUGBY_ROOSTER_TEST_RUN_ID`, uses `.meteor/local-playwright`, sets `ROOT_URL` to
+loopback, and derives `RSPACK_DEVSERVER_PORT` as the app port plus 2. The managed
+web server starts Meteor with `--port 127.0.0.1:<port>` and does not reuse an
+existing server.
+
+During the current CCPP-004A checkpoint, `rspack.config.ts` also disables Rspack
+HMR/live reload and injects `Meteor.isTest = true` only for client development
+builds in isolated E2E runs whose run id begins with `rr-e2e-`. This is a
+reviewed workaround candidate, not an accepted general testing pattern.
 
 Install browser prerequisites:
 
@@ -114,6 +137,10 @@ The current browser suite covers:
 - Link redemption in a fresh browser, session restoration, and sign-out.
 - Restricted admin denial, grant, and revocation behavior.
 - Invalid-link recovery without retaining token/email query parameters in the final URL.
+- Same-account email-link continuation without consuming the link.
+- Different-account email-link confirmation with explicit switch-or-keep choices.
+- Malformed new email-link URLs clearing pending tab credentials instead of
+  falling back to older stored credentials.
 - Blocked client attempts to update protected user fields.
 - Mobile and keyboard access for sign-in.
 
@@ -137,6 +164,12 @@ meteor npm run test:integration
 Current integration settings live in `tests/settings/integration-settings.json`
 and enable local mail capture plus test-only auth helpers. Integration tests must
 never connect to production services.
+
+`meteor npm run test:integration` runs `scripts/run-integration-tests.mjs`. The
+launcher refuses inherited Mongo connection variables, sets
+`.meteor/local-integration`, binds Meteor to `127.0.0.1:<port>`, uses
+Meteor-managed Mongo, and passes an isolated `rr-integration-*` test run id to
+server-side auth helpers.
 
 Current coverage:
 
@@ -202,6 +235,9 @@ Remediate these in a bounded dependency-maintenance task that can assess Meteor 
 - Browser checks that start a local Meteor/Rspack web server may need normal loopback access. In restricted automation sandboxes, rerun `meteor npm run test:e2e` with permission for local loopback if the web server listens but Playwright cannot reach it.
 - Generated Meteor/Rspack browser-test directories (`.meteor/local-playwright/`, `_build-local-playwright/`, local build chunks/assets, `test-results/`, and `playwright-report/`) are ignored by source checks and must not be included in handover archives.
 - If port `3200` is already in use, stop the conflicting local process or set `PORT` to another local port. If using `PLAYWRIGHT_BASE_URL`, keep it on a local loopback host.
+- Do not treat the CCPP-004A `Meteor.isTest` client override as accepted solely
+  because browser tests pass. Review its Meteor/Rspack support boundary and any
+  package code that branches on `Meteor.isTest` before making it durable.
 
 ## References
 

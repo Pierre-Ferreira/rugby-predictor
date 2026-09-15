@@ -13,9 +13,13 @@ const expectNoHorizontalOverflow = async (page: Page) => {
   expect(overflow.bodyScrollWidth).toBeLessThanOrEqual(overflow.viewportWidth);
 };
 
+const gotoApp = async (page: Page, path: string) => {
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+};
+
 test.describe('Rugby Rooster foundation', () => {
   test('homepage renders Rugby Rooster identity', async ({ page }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     await expect(page).toHaveTitle('Rugby Rooster');
     await expect(
@@ -29,7 +33,7 @@ test.describe('Rugby Rooster foundation', () => {
   test('homepage navigation reaches the games empty state', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     await page.getByRole('link', { name: 'Browse games' }).click();
 
@@ -43,7 +47,7 @@ test.describe('Rugby Rooster foundation', () => {
   });
 
   test('games route loads directly and survives refresh', async ({ page }) => {
-    await page.goto('/games');
+    await gotoApp(page, '/games');
 
     const emptyState = page.getByRole('heading', {
       level: 1,
@@ -51,7 +55,7 @@ test.describe('Rugby Rooster foundation', () => {
     });
     await expect(emptyState).toBeVisible();
 
-    await page.reload();
+    await page.reload({ waitUntil: 'domcontentloaded' });
 
     await expect(page).toHaveURL('/games');
     await expect(emptyState).toBeVisible();
@@ -60,7 +64,7 @@ test.describe('Rugby Rooster foundation', () => {
   test('browser back and forward navigation preserve routes', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
     await page.getByRole('link', { name: 'Browse games' }).click();
     await expect(page).toHaveURL('/games');
 
@@ -81,7 +85,7 @@ test.describe('Rugby Rooster foundation', () => {
   });
 
   test('keyboard navigation can reach the games route', async ({ page }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     const gamesNavLink = page
       .getByRole('navigation', { name: 'Primary navigation' })
@@ -106,7 +110,7 @@ test.describe('Rugby Rooster foundation', () => {
   test('admin route requires sign-in before showing protected content', async ({
     page,
   }) => {
-    await page.goto('/admin');
+    await gotoApp(page, '/admin');
 
     await expect(
       page.getByRole('heading', { level: 1, name: 'Sign in to continue' }),
@@ -120,7 +124,7 @@ test.describe('Rugby Rooster foundation', () => {
   });
 
   test('unknown paths display the not-found page', async ({ page }) => {
-    await page.goto('/unknown-foundation-route');
+    await gotoApp(page, '/unknown-foundation-route');
 
     await expect(
       page.getByRole('heading', { level: 1, name: 'Page not found' }),
@@ -140,7 +144,7 @@ test.describe('Rugby Rooster foundation', () => {
       });
 
       for (const path of ['/', '/games', '/sign-in', '/account', '/admin']) {
-        await page.goto(path);
+        await gotoApp(page, path);
         await expectNoHorizontalOverflow(page);
       }
     });

@@ -1,59 +1,60 @@
 import { Meteor } from 'meteor/meteor';
+import { MongoInternals } from 'meteor/mongo';
 
-interface MailSettings {
-  readonly capture?: boolean;
-  readonly from?: string;
-}
+import {
+  type AuthRuntimeConfig,
+  type AuthRuntimeEnvironment,
+  type IsolatedTestEnvironment,
+  type RugbyRoosterSettingsInput,
+  validateAuthRuntimeConfig,
+} from '/imports/shared/auth/config';
 
 interface AdminProvisioningSettings {
   readonly action?: 'grant' | 'revoke';
   readonly email?: string;
 }
 
-interface TestSettings {
-  readonly enableTestHelpers?: boolean;
-}
-
-interface RugbyRoosterSettings {
+interface RugbyRoosterSettings extends RugbyRoosterSettingsInput {
   readonly adminProvisioning?: AdminProvisioningSettings;
-  readonly appUrl?: string;
-  readonly mail?: MailSettings;
-  readonly test?: TestSettings;
 }
 
 export const getRugbyRoosterSettings = (): RugbyRoosterSettings =>
   (Meteor.settings.private?.rugbyRooster ?? {}) as RugbyRoosterSettings;
 
-export const getCanonicalAppUrl = (): string => {
-  const configuredUrl =
-    getRugbyRoosterSettings().appUrl ?? process.env.ROOT_URL;
+let cachedAuthRuntimeConfig: AuthRuntimeConfig | null = null;
 
-  if (!configuredUrl) {
-    if (Meteor.isProduction) {
-      throw new Error('Rugby Rooster requires private.rugbyRooster.appUrl.');
-    }
+const runtimeEnvironment = (): AuthRuntimeEnvironment => ({
+  MAIL_URL: process.env.MAIL_URL,
+  METEOR_LOCAL_DIR: process.env.METEOR_LOCAL_DIR,
+  MONGO_OPLOG_URL: process.env.MONGO_OPLOG_URL,
+  MONGO_URL: process.env.MONGO_URL,
+  NODE_ENV: process.env.NODE_ENV,
+  ROOT_URL: process.env.ROOT_URL,
+  RUGBY_ROOSTER_TEST_DATABASE_ID:
+    process.env.RUGBY_ROOSTER_TEST_DATABASE_ID,
+  RUGBY_ROOSTER_TEST_DATABASE_NAME:
+    process.env.RUGBY_ROOSTER_TEST_DATABASE_NAME,
+  RUGBY_ROOSTER_TEST_MODE: process.env.RUGBY_ROOSTER_TEST_MODE,
+  RUGBY_ROOSTER_TEST_RUN_ID: process.env.RUGBY_ROOSTER_TEST_RUN_ID,
+});
 
-    return 'http://127.0.0.1:3000';
-  }
+export const validateRugbyRoosterAuthConfiguration =
+  (): AuthRuntimeConfig => {
+    cachedAuthRuntimeConfig = validateAuthRuntimeConfig({
+      env: runtimeEnvironment(),
+      hasMeteorEmailPackageSettings: Boolean(Meteor.settings.packages?.email),
+      isProduction: Meteor.isProduction,
+      settings: getRugbyRoosterSettings(),
+    });
 
-  let parsed: URL;
+    return cachedAuthRuntimeConfig;
+  };
 
-  try {
-    parsed = new URL(configuredUrl);
-  } catch {
-    throw new Error('private.rugbyRooster.appUrl must be an absolute URL.');
-  }
+export const getAuthRuntimeConfig = (): AuthRuntimeConfig =>
+  cachedAuthRuntimeConfig ?? validateRugbyRoosterAuthConfiguration();
 
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
-    throw new Error('private.rugbyRooster.appUrl must use http or https.');
-  }
-
-  parsed.hash = '';
-  parsed.search = '';
-  parsed.pathname = parsed.pathname.replace(/\/+$/, '');
-
-  return parsed.toString().replace(/\/$/, '');
-};
+export const getCanonicalAppUrl = (): string =>
+  getAuthRuntimeConfig().canonicalAppUrl;
 
 export const buildCanonicalUrl = (
   pathname: string,
@@ -69,9 +70,59 @@ export const buildCanonicalUrl = (
 };
 
 export const areTestHelpersEnabled = (): boolean => {
-  const settings = getRugbyRoosterSettings();
+  return getAuthRuntimeConfig().testHelpersEnabled;
+};
 
-  return settings.test?.enableTestHelpers === true && !Meteor.isProduction;
+export const getAuthTestEnvironment = (): IsolatedTestEnvironment | null =>
+  getAuthRuntimeConfig().testEnvironment;
+
+export const getAuthTestRunId = (): string | null =>
+  getAuthTestEnvironment()?.runId ?? null;
+
+export const getActiveMongoDatabaseName = (): string | null => {
+  const driver = MongoInternals.defaultRemoteCollectionDriver() as unknown as {
+    mongo?: {
+      db?: {
+        databaseName?: string;
+        s?: {
+          databaseName?: string;
+          namespace?: {
+            db?: string;
+          };
+        };
+      };
+    };
+  };
+  const db = driver.mongo?.db;
+
+  return (
+    db?.databaseName ??
+    db?.s?.databaseName ??
+    db?.s?.namespace?.db ??
+    null
+  );
+};
+
+export const assertVerifiedAuthTestEnvironment = () => {
+  const testEnvironment = getAuthTestEnvironment();
+
+  if (!testEnvironment || Meteor.isProduction) {
+    throw new Meteor.Error(
+      'test-environment-unavailable',
+      'Auth test helpers require an isolated local test environment.',
+    );
+  }
+
+  const activeDatabaseName = getActiveMongoDatabaseName();
+
+  if (activeDatabaseName !== testEnvironment.databaseName) {
+    throw new Meteor.Error(
+      'test-environment-mismatch',
+      'Auth test helpers refused to run against the active database.',
+    );
+  }
+
+  return testEnvironment;
 };
 
 export const getMailFromAddress = (): string =>
@@ -79,15 +130,5 @@ export const getMailFromAddress = (): string =>
   'Rugby Rooster <no-reply@rugbyrooster.local>';
 
 export const shouldCaptureMailLocally = (): boolean => {
-  const settings = getRugbyRoosterSettings();
-
-  if (settings.mail?.capture === true) {
-    return true;
-  }
-
-  if (Meteor.isProduction) {
-    return false;
-  }
-
-  return !process.env.MAIL_URL && !Meteor.settings.packages?.email;
+  return getAuthRuntimeConfig().shouldCaptureMailLocally;
 };

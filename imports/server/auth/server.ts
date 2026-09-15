@@ -9,7 +9,9 @@ import {
 import { provisionPlatformAdminFromSettings } from './authorization';
 import { registerAuthMethods } from './methods';
 import { registerAuthTestMethods } from './testSupport';
+import { validateRugbyRoosterAuthConfiguration } from './settings';
 
+validateRugbyRoosterAuthConfiguration();
 configureAccounts();
 configureEmailDelivery();
 configurePasswordlessEmails();

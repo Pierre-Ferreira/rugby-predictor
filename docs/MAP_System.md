@@ -17,6 +17,8 @@
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
 - `docs/AUDIT_003A_Scoring_Validation_Corrections.md` - CCPP-003A validation correction evidence.
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
+- `docs/AUDIT_004A_Login_Navigation_Fix.md` - CCPP-004A in-progress login-navigation and test-stability checkpoint.
+- `docs/TEMP_004A_Resume.md` - temporary CCPP-004A resume checkpoint; remove when CCPP-004A is complete.
 
 ## Application Entry Points
 
@@ -40,6 +42,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 ## Authentication Entry Points
 
 - `imports/shared/auth/` - auth constants, method names, email normalization, and safe return-path helpers.
+- `imports/shared/auth/config.ts` - framework-independent auth runtime settings validation, isolated-test environment contract, and throttle setting resolution.
 - `imports/server/auth/accounts.ts` - Meteor account configuration, passwordless email templates, local mail delivery wiring, package method hardening, throttling, and token redemption locks.
 - `imports/server/auth/methods.ts` - public auth and restricted admin Meteor methods.
 - `imports/server/auth/authorization.ts` - verified-player and platform-admin server checks.
@@ -66,10 +69,16 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `.prettierignore` - generated and dependency paths excluded from formatting.
 - `vitest.config.mts` - unit-test configuration.
 - `playwright.config.ts` - browser-test configuration with local Meteor web server management.
+- `rspack.config.ts` - Meteor Rspack configuration, TypeScript checker plugin, local dev-server host settings, and current CCPP-004A isolated-E2E HMR suppression gate.
 - `.github/workflows/verification.yml` - GitHub Actions verification workflow.
 - `scripts/check-project-invariants.mjs` - durable Rugby Rooster project-invariant checks.
+- `scripts/test-environment.mjs` - isolated local test environment builder shared by integration and Playwright launchers.
+- `scripts/run-integration-tests.mjs` - Meteor full-app integration-test launcher with loopback binding and inherited Mongo variable rejection.
+- `scripts/run-playwright-tests.mjs` - Playwright launcher with isolated test run IDs and Meteor-managed local test environment variables.
 - `tests/unit/routes.test.ts` - route resolution unit tests.
 - `tests/unit/auth-helpers.test.ts` - auth helper unit tests.
+- `tests/unit/auth-config.test.ts` - auth runtime configuration tests.
+- `tests/unit/test-launchers.test.ts` - isolated test launcher environment tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.

@@ -1,41 +1,46 @@
 import { Meteor } from 'meteor/meteor';
 
-const MINUTE_MS = 60 * 1000;
+import {
+  type ResolvedThrottleRule,
+  resolveAuthThrottleLimits,
+} from '/imports/shared/auth/config';
+import { getRugbyRoosterSettings } from './settings';
 
-export const AUTH_THROTTLE_LIMITS = {
-  linkRequestByEmail: {
-    keyPrefix: 'link-email',
-    limit: 3,
-    windowMs: 15 * MINUTE_MS,
-  },
-  linkRequestByAddress: {
-    keyPrefix: 'link-address',
-    limit: 8,
-    windowMs: 15 * MINUTE_MS,
-  },
-  redemptionByEmail: {
-    keyPrefix: 'redeem-email',
-    limit: 8,
-    windowMs: 15 * MINUTE_MS,
-  },
-  redemptionByAddress: {
-    keyPrefix: 'redeem-address',
-    limit: 20,
-    windowMs: 15 * MINUTE_MS,
-  },
-} as const;
+export const AUTH_THROTTLE_LIMITS = resolveAuthThrottleLimits(
+  getRugbyRoosterSettings(),
+);
 
-interface ThrottleRule {
-  readonly keyPrefix: string;
-  readonly limit: number;
+interface ThrottleBucket {
+  readonly timestamps: number[];
   readonly windowMs: number;
 }
 
-const buckets = new Map<string, number[]>();
+const buckets = new Map<string, ThrottleBucket>();
+
+const pruneExpiredThrottleBuckets = (now: number) => {
+  for (const [key, bucket] of buckets.entries()) {
+    const oldestAllowed = now - bucket.windowMs;
+    const timestamps = bucket.timestamps.filter(
+      (timestamp) => timestamp > oldestAllowed,
+    );
+
+    if (timestamps.length === 0) {
+      buckets.delete(key);
+      continue;
+    }
+
+    buckets.set(key, {
+      timestamps,
+      windowMs: bucket.windowMs,
+    });
+  }
+};
 
 export const resetAuthThrottlesForTests = () => {
   buckets.clear();
 };
+
+export const getAuthThrottleBucketCountForTests = () => buckets.size;
 
 export const getThrottleIdentityForInvocation = (
   invocation: Pick<Meteor.MethodThisType, 'connection'>,
@@ -55,13 +60,15 @@ export const getThrottleIdentityForInvocation = (
 };
 
 export const checkAuthThrottle = (
-  rule: ThrottleRule,
+  rule: ResolvedThrottleRule,
   identity: string,
   now = Date.now(),
 ) => {
+  pruneExpiredThrottleBuckets(now);
+
   const key = `${rule.keyPrefix}:${identity}`;
   const oldestAllowed = now - rule.windowMs;
-  const timestamps = (buckets.get(key) ?? []).filter(
+  const timestamps = (buckets.get(key)?.timestamps ?? []).filter(
     (timestamp) => timestamp > oldestAllowed,
   );
 
@@ -69,7 +76,10 @@ export const checkAuthThrottle = (
     const retryAt = timestamps[0] + rule.windowMs;
     const retrySeconds = Math.max(1, Math.ceil((retryAt - now) / 1000));
 
-    buckets.set(key, timestamps);
+    buckets.set(key, {
+      timestamps,
+      windowMs: rule.windowMs,
+    });
 
     throw new Meteor.Error(
       'too-many-requests',
@@ -78,5 +88,8 @@ export const checkAuthThrottle = (
   }
 
   timestamps.push(now);
-  buckets.set(key, timestamps);
+  buckets.set(key, {
+    timestamps,
+    windowMs: rule.windowMs,
+  });
 };
