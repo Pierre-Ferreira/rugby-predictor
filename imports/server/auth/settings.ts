@@ -8,7 +8,10 @@ import {
   validateAuthRuntimeConfig,
 } from '/imports/shared/auth/config';
 import { assertIsolatedMongoConnectionIdentity } from '/imports/shared/auth/testDatabaseIdentity';
-import { getActiveMongoConnectionIdentity } from './mongoConnectionIdentity';
+import {
+  getActiveMongoConnectionIdentity,
+  getActiveMongoConnectionTopologyDiagnostic,
+} from './mongoConnectionIdentity';
 
 interface AdminProvisioningSettings {
   readonly action?: 'grant' | 'revoke';
@@ -84,6 +87,31 @@ export const getAuthTestEnvironment = (): IsolatedTestEnvironment | null =>
 export const getAuthTestRunId = (): string | null =>
   getAuthTestEnvironment()?.runId ?? null;
 
+const shouldReportMongoTopologyDiagnostic = (): boolean =>
+  process.env.RUGBY_ROOSTER_TEST_MONGO_DIAGNOSTICS === '1' &&
+  process.env.RUGBY_ROOSTER_TEST_MODE === 'isolated';
+
+const reportMongoTopologyDiagnostic = async (phase: string): Promise<void> => {
+  if (!shouldReportMongoTopologyDiagnostic()) {
+    return;
+  }
+
+  try {
+    const diagnostic = await getActiveMongoConnectionTopologyDiagnostic();
+    console.info(
+      `[rugby-rooster:test-mongo-topology:${phase}] ${JSON.stringify(
+        diagnostic,
+      )}`,
+    );
+  } catch {
+    console.info(
+      `[rugby-rooster:test-mongo-topology:${phase}] ${JSON.stringify({
+        diagnostic: 'unavailable',
+      })}`,
+    );
+  }
+};
+
 export const assertVerifiedAuthTestEnvironment = async () => {
   const testEnvironment = getAuthTestEnvironment();
 
@@ -105,6 +133,8 @@ export const assertVerifiedAuthTestEnvironment = async () => {
       observed,
     });
   } catch (error) {
+    await reportMongoTopologyDiagnostic('verification-failed');
+
     throw new Meteor.Error(
       'test-environment-mismatch',
       error instanceof Error

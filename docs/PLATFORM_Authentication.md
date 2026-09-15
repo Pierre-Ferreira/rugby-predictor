@@ -126,14 +126,17 @@ description. Helper mutations re-check the same active connection identity.
 Helpers must not be exposed from ordinary development or production settings.
 
 The isolated-helper database check supports local loopback MongoDB topology
-metadata only. It accepts explicitly supported loopback host forms
-`127.0.0.1`, `localhost`, `::1`, and `[::1]`, requires all reported endpoints to
-use the expected port, requires at least one endpoint on the expected host, and
-requires the database name to match. It rejects missing, SRV, load-balanced,
-unknown, non-loopback, wrong-port, or wrong-database metadata. This verifies the
-active endpoint plus database name used by Meteor; it does not independently
-prove the MongoDB filesystem storage directory or exclusive ownership of a
-MongoDB process.
+metadata only. It accepts a driver `Single` topology with exactly one reported
+endpoint, and the observed Meteor-managed single-node replica set shape:
+`ReplicaSetWithPrimary` with one `RSPrimary` server. The active endpoint must
+use the exact expected host and port, and the database name must match. The
+check recognizes loopback host forms `127.0.0.1`, `localhost`, `::1`, and
+`[::1]` only to reject non-loopback endpoints; it does not treat loopback host
+aliases as interchangeable. It rejects missing, multiple, SRV, load-balanced,
+unknown, non-loopback, wrong-host, wrong-port, wrong-database, and unsupported
+topology metadata. This verifies the active endpoint plus database name used by
+Meteor; it does not independently prove the MongoDB filesystem storage
+directory or exclusive ownership of a MongoDB process.
 
 Optional admin provisioning can grant or revoke `roles.platformAdmin` by verified
 email during startup:

@@ -27,7 +27,10 @@ import {
   grantPlatformAdminByEmail,
   revokePlatformAdminByEmail,
 } from './authorization';
-import { getActiveMongoConnectionIdentity } from './mongoConnectionIdentity';
+import {
+  getActiveMongoConnectionIdentity,
+  getActiveMongoConnectionTopologyDiagnostic,
+} from './mongoConnectionIdentity';
 
 type MethodHandler = (
   this: Meteor.MethodThisType,
@@ -173,52 +176,28 @@ const findUserByEmail = async (email: string, fields = {}) => {
   );
 };
 
-describe('CCPP-004 passwordless accounts and authorisation', function (this: Mocha.Suite) {
-  this.timeout(20_000);
+if (
+  process.env.RUGBY_ROOSTER_TEST_MONGO_DIAGNOSTICS === '1' &&
+  process.env.RUGBY_ROOSTER_TEST_MODE === 'isolated'
+) {
+  describe('CCPP-004 MongoDB topology diagnostic', function (this: Mocha.Suite) {
+    this.timeout(20_000);
 
-  beforeEach(async () => {
-    await resetTestAuthData();
-  });
+    it('reports sanitized MongoDB topology metadata', async () => {
+      const diagnostic = await getActiveMongoConnectionTopologyDiagnostic();
 
-  it('proves the isolated test environment before helpers run', async () => {
-    const environment = await callMethod<{
-      readonly appUrl: string;
-      readonly databaseId: string;
-      readonly databaseName: string;
-      readonly localDir: string;
-      readonly mongoEndpoint: {
-        readonly host: string;
-        readonly port: number;
-      };
-      readonly runId: string;
-    }>(TEST_AUTH_METHODS.environment);
-    const observedIdentity = await getActiveMongoConnectionIdentity();
-    const expectedMongoPort = Number(new URL(environment.appUrl).port) + 1;
-
-    assert.match(environment.appUrl, /^http:\/\/127\.0\.0\.1:/);
-    assert.match(environment.databaseId, /^meteor-managed:/);
-    assert.equal(environment.databaseName, 'meteor');
-    assert.match(environment.localDir, /\.meteor\/local-integration$/);
-    assert.equal(environment.mongoEndpoint.host, '127.0.0.1');
-    assert.equal(environment.mongoEndpoint.port, expectedMongoPort);
-    assert.match(environment.runId, /^rr-integration-/);
-    assertIsolatedMongoConnectionIdentity({
-      expected: {
-        databaseName: environment.databaseName,
-        endpoint: environment.mongoEndpoint,
-      },
-      observed: observedIdentity,
+      console.info(
+        `[rugby-rooster:test-mongo-topology:test] ${JSON.stringify(
+          diagnostic,
+        )}`,
+      );
+      assert.ok(diagnostic, 'sanitized MongoDB topology metadata exists');
     });
-    assert.equal(observedIdentity?.databaseName, environment.databaseName);
-    assert.ok(
-      observedIdentity?.endpoints?.some(
-        (endpoint) =>
-          endpoint.host === environment.mongoEndpoint.host &&
-          endpoint.port === environment.mongoEndpoint.port,
-      ),
-      'active MongoDB identity includes the expected endpoint',
-    );
   });
+}
+
+describe('CCPP-004 auth test helper database gating', function (this: Mocha.Suite) {
+  this.timeout(20_000);
 
   it('does not register helper methods when database verification fails', async () => {
     let registerCalled = false;
@@ -292,6 +271,54 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
 
     assert.equal(verificationCalls, 2);
     assert.equal(insertCalled, false);
+  });
+});
+
+describe('CCPP-004 passwordless accounts and authorisation', function (this: Mocha.Suite) {
+  this.timeout(20_000);
+
+  beforeEach(async () => {
+    await resetTestAuthData();
+  });
+
+  it('proves the isolated test environment before helpers run', async () => {
+    const environment = await callMethod<{
+      readonly appUrl: string;
+      readonly databaseId: string;
+      readonly databaseName: string;
+      readonly localDir: string;
+      readonly mongoEndpoint: {
+        readonly host: string;
+        readonly port: number;
+      };
+      readonly runId: string;
+    }>(TEST_AUTH_METHODS.environment);
+    const observedIdentity = await getActiveMongoConnectionIdentity();
+    const expectedMongoPort = Number(new URL(environment.appUrl).port) + 1;
+
+    assert.match(environment.appUrl, /^http:\/\/127\.0\.0\.1:/);
+    assert.match(environment.databaseId, /^meteor-managed:/);
+    assert.equal(environment.databaseName, 'meteor');
+    assert.match(environment.localDir, /\.meteor\/local-integration$/);
+    assert.equal(environment.mongoEndpoint.host, '127.0.0.1');
+    assert.equal(environment.mongoEndpoint.port, expectedMongoPort);
+    assert.match(environment.runId, /^rr-integration-/);
+    assertIsolatedMongoConnectionIdentity({
+      expected: {
+        databaseName: environment.databaseName,
+        endpoint: environment.mongoEndpoint,
+      },
+      observed: observedIdentity,
+    });
+    assert.equal(observedIdentity?.databaseName, environment.databaseName);
+    assert.ok(
+      observedIdentity?.endpoints?.some(
+        (endpoint) =>
+          endpoint.host === environment.mongoEndpoint.host &&
+          endpoint.port === environment.mongoEndpoint.port,
+      ),
+      'active MongoDB identity includes the expected endpoint',
+    );
   });
 
   it('limits helper cleanup and mutations to current-run owned data', async () => {

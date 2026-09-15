@@ -11,7 +11,13 @@ export interface ExpectedMongoConnectionIdentity {
 export interface ObservedMongoConnectionIdentity {
   readonly databaseName: string | null;
   readonly endpoints: readonly MongoConnectionEndpoint[] | null;
-  readonly topology: 'single' | 'multiple' | 'srv' | 'load-balanced' | 'unknown';
+  readonly topology:
+    | 'single'
+    | 'single-node-replica-set'
+    | 'multiple'
+    | 'srv'
+    | 'load-balanced'
+    | 'unknown';
 }
 
 const SUPPORTED_LOOPBACK_HOSTS = new Map<string, string>([
@@ -93,6 +99,7 @@ export const assertIsolatedMongoConnectionIdentity = ({
   }
 
   if (
+    observed.topology === 'multiple' ||
     observed.topology === 'srv' ||
     observed.topology === 'load-balanced' ||
     observed.topology === 'unknown'
@@ -108,6 +115,12 @@ export const assertIsolatedMongoConnectionIdentity = ({
     );
   }
 
+  if (observed.endpoints.length !== 1) {
+    throw new Error(
+      'Auth test helpers require exactly one active MongoDB endpoint.',
+    );
+  }
+
   if (!observed.databaseName) {
     throw new Error(
       'Auth test helpers require the active MongoDB database name.',
@@ -120,24 +133,21 @@ export const assertIsolatedMongoConnectionIdentity = ({
     );
   }
 
-  const normalizedEndpoints = observed.endpoints.map((endpoint) => ({
-    host: normalizeSupportedLoopbackHost(endpoint.host),
-    port: endpoint.port,
-  }));
+  const [observedEndpoint] = observed.endpoints;
+  const normalizedEndpoint = {
+    host: normalizeSupportedLoopbackHost(observedEndpoint.host),
+    port: observedEndpoint.port,
+  };
 
-  if (normalizedEndpoints.some((endpoint) => !endpoint.host)) {
+  if (!normalizedEndpoint.host) {
     throw new Error(
       'Auth test helpers require the active MongoDB endpoint to be loopback.',
     );
   }
 
   if (
-    normalizedEndpoints.some(
-      (endpoint) => endpoint.port !== expected.endpoint.port,
-    ) ||
-    normalizedEndpoints.every(
-      (endpoint) => endpoint.host !== expected.endpoint.host,
-    )
+    normalizedEndpoint.port !== expected.endpoint.port ||
+    normalizedEndpoint.host !== expected.endpoint.host
   ) {
     throw new Error(
       'Auth test helpers refused to run against the active MongoDB endpoint.',

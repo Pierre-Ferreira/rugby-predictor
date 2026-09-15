@@ -47,27 +47,17 @@ describe('isolated test database identity verification', () => {
     });
   });
 
-  it('accepts multiple loopback aliases on the expected MongoDB port', () => {
+  it('accepts the observed single-node replica-set primary topology', () => {
     expect(
       assertIsolatedMongoConnectionIdentity({
         expected: expectedIdentity,
         observed: observedIdentity({
-          endpoints: [
-            {
-              host: 'localhost',
-              port: 3401,
-            },
-            {
-              host: '127.0.0.1',
-              port: 3401,
-            },
-          ],
-          topology: 'multiple',
+          topology: 'single-node-replica-set',
         }),
       }),
     ).toMatchObject({
       databaseName: 'meteor',
-      topology: 'multiple',
+      topology: 'single-node-replica-set',
     });
   });
 
@@ -85,6 +75,27 @@ describe('isolated test database identity verification', () => {
         }),
       }),
     ).toThrow(/active MongoDB endpoint/);
+  });
+
+  it('rejects multiple loopback aliases on the expected MongoDB port', () => {
+    expect(() =>
+      assertIsolatedMongoConnectionIdentity({
+        expected: expectedIdentity,
+        observed: observedIdentity({
+          endpoints: [
+            {
+              host: 'localhost',
+              port: 3401,
+            },
+            {
+              host: '127.0.0.1',
+              port: 3401,
+            },
+          ],
+          topology: 'multiple',
+        }),
+      }),
+    ).toThrow(/supported local MongoDB topology/);
   });
 
   it('rejects the right endpoint on the wrong database', () => {
@@ -112,6 +123,22 @@ describe('isolated test database identity verification', () => {
         }),
       }),
     ).toThrow(/endpoint to be loopback/);
+  });
+
+  it('rejects loopback host aliases that do not match the expected host', () => {
+    expect(() =>
+      assertIsolatedMongoConnectionIdentity({
+        expected: expectedIdentity,
+        observed: observedIdentity({
+          endpoints: [
+            {
+              host: 'localhost',
+              port: 3401,
+            },
+          ],
+        }),
+      }),
+    ).toThrow(/active MongoDB endpoint/);
   });
 
   it('rejects missing, unavailable, ambiguous, or unsupported metadata', () => {
@@ -145,10 +172,9 @@ describe('isolated test database identity verification', () => {
               port: 3402,
             },
           ],
-          topology: 'multiple',
         }),
       }),
-    ).toThrow(/active MongoDB endpoint/);
+    ).toThrow(/exactly one active MongoDB endpoint/);
 
     expect(() =>
       assertIsolatedMongoConnectionIdentity({

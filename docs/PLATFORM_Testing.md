@@ -68,6 +68,8 @@ Current unit test files:
 - `tests/unit/auth-helpers.test.ts` - email identity normalization and safe auth return paths.
 - `tests/unit/auth-config.test.ts` - auth runtime settings validation,
   isolated-test helper contract checks, and throttle setting validation.
+- `tests/unit/test-database-identity.test.ts` - isolated MongoDB endpoint,
+  database, and supported topology verification.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment,
   inherited Mongo variable rejection, and derived Rspack dev-server port checks.
 
@@ -173,6 +175,13 @@ Meteor-managed Mongo, derives the expected Mongo endpoint as `127.0.0.1` on
 passes an isolated `rr-integration-*` test run id to server-side auth helpers.
 The server auth integration file is also listed as `meteor.testModule.server`
 so the full-app test runner has an explicit supported server test entry.
+
+Set `RUGBY_ROOSTER_TEST_MONGO_DIAGNOSTICS=1` only for isolated integration
+diagnosis. When combined with `RUGBY_ROOSTER_TEST_MODE=isolated`, the auth
+database verifier can emit sanitized MongoDB topology metadata: raw driver
+topology type, reported server types, parsed host/port entries, active database
+name, and parse counts. The flag defaults off and must not dump driver objects,
+connection strings, credentials, emails, or tokens.
 
 The integration suite includes coverage for:
 

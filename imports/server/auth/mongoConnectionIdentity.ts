@@ -5,11 +5,38 @@ import {
   type ObservedMongoConnectionIdentity,
 } from '/imports/shared/auth/testDatabaseIdentity';
 
+export interface MongoConnectionTopologyDiagnostic {
+  readonly databaseName: string | null;
+  readonly hostPortEntries: readonly MongoConnectionEndpoint[];
+  readonly rawTopologyType: string | null;
+  readonly reportedServerCount: number | null;
+  readonly serverTypes: readonly (string | null)[];
+  readonly unparsedHostPortEntryCount: number;
+}
+
+interface ActiveMongoConnectionState {
+  readonly client: unknown;
+  readonly db: {
+    readonly command: (command: { readonly ping: 1 }) => Promise<unknown>;
+  } & Record<string, unknown>;
+  readonly description: Record<string, unknown> | null;
+  readonly serverMetadata: readonly MongoTopologyServerMetadata[] | null;
+}
+
+interface MongoTopologyServerMetadata {
+  readonly endpoint: MongoConnectionEndpoint | null;
+  readonly type: string | null;
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
 const stringValue = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null;
+
+const isEndpoint = (
+  value: MongoConnectionEndpoint | null,
+): value is MongoConnectionEndpoint => Boolean(value);
 
 const parseEndpointPort = (value: string): number | null => {
   if (!/^\d+$/.test(value)) {
@@ -82,21 +109,39 @@ const readTopologyDescription = (
 };
 
 const readActiveTopologyEndpoints = (
-  description: Record<string, unknown> | null,
+  serverMetadata: readonly MongoTopologyServerMetadata[] | null,
 ): readonly MongoConnectionEndpoint[] | null => {
+  if (!serverMetadata) {
+    return null;
+  }
+
+  const endpoints = serverMetadata.map((server) => server.endpoint);
+
+  return endpoints.every(Boolean)
+    ? (endpoints as readonly MongoConnectionEndpoint[])
+    : null;
+};
+
+const readTopologyServerMetadata = (
+  description: Record<string, unknown> | null,
+): readonly MongoTopologyServerMetadata[] | null => {
   const servers = description?.servers;
 
   if (!(servers instanceof Map)) {
     return null;
   }
 
-  const endpoints = Array.from(servers.values()).map((server) =>
-    isRecord(server) ? parseTopologyAddress(server.address) : null,
+  return Array.from(servers.values()).map((server) =>
+    isRecord(server)
+      ? {
+          endpoint: parseTopologyAddress(server.address),
+          type: stringValue(server.type),
+        }
+      : {
+          endpoint: null,
+          type: null,
+        },
   );
-
-  return endpoints.every(Boolean)
-    ? (endpoints as readonly MongoConnectionEndpoint[])
-    : null;
 };
 
 const readClientOptions = (client: unknown): Record<string, unknown> | null => {
@@ -111,10 +156,12 @@ const classifyTopology = ({
   client,
   description,
   endpoints,
+  serverMetadata,
 }: {
   readonly client: unknown;
   readonly description: Record<string, unknown> | null;
   readonly endpoints: readonly MongoConnectionEndpoint[] | null;
+  readonly serverMetadata: readonly MongoTopologyServerMetadata[] | null;
 }): ObservedMongoConnectionIdentity['topology'] => {
   const options = readClientOptions(client);
 
@@ -134,11 +181,20 @@ const classifyTopology = ({
     return 'single';
   }
 
+  if (
+    description?.type === 'ReplicaSetWithPrimary' &&
+    endpoints?.length === 1 &&
+    serverMetadata?.length === 1 &&
+    serverMetadata[0]?.type === 'RSPrimary'
+  ) {
+    return 'single-node-replica-set';
+  }
+
   return 'unknown';
 };
 
-export const getActiveMongoConnectionIdentity =
-  async (): Promise<ObservedMongoConnectionIdentity | null> => {
+const getActiveMongoConnectionState =
+  async (): Promise<ActiveMongoConnectionState | null> => {
     const driver =
       MongoInternals.defaultRemoteCollectionDriver() as unknown as {
         mongo?: {
@@ -160,15 +216,56 @@ export const getActiveMongoConnectionIdentity =
     await db.command({ ping: 1 });
 
     const description = readTopologyDescription(client);
-    const endpoints = readActiveTopologyEndpoints(description);
 
     return {
-      databaseName: readDatabaseName(db),
+      client,
+      db: db as ActiveMongoConnectionState['db'],
+      description,
+      serverMetadata: readTopologyServerMetadata(description),
+    };
+  };
+
+export const getActiveMongoConnectionIdentity =
+  async (): Promise<ObservedMongoConnectionIdentity | null> => {
+    const state = await getActiveMongoConnectionState();
+
+    if (!state) {
+      return null;
+    }
+
+    const endpoints = readActiveTopologyEndpoints(state.serverMetadata);
+
+    return {
+      databaseName: readDatabaseName(state.db),
       endpoints,
       topology: classifyTopology({
-        client,
-        description,
+        client: state.client,
+        description: state.description,
         endpoints,
+        serverMetadata: state.serverMetadata,
       }),
+    };
+  };
+
+export const getActiveMongoConnectionTopologyDiagnostic =
+  async (): Promise<MongoConnectionTopologyDiagnostic | null> => {
+    const state = await getActiveMongoConnectionState();
+
+    if (!state) {
+      return null;
+    }
+
+    const endpoints =
+      state.serverMetadata?.map((server) => server.endpoint).filter(isEndpoint) ??
+      [];
+
+    return {
+      databaseName: readDatabaseName(state.db),
+      hostPortEntries: endpoints,
+      rawTopologyType: stringValue(state.description?.type),
+      reportedServerCount: state.serverMetadata?.length ?? null,
+      serverTypes: state.serverMetadata?.map((server) => server.type) ?? [],
+      unparsedHostPortEntryCount:
+        state.serverMetadata?.filter((server) => !server.endpoint).length ?? 0,
     };
   };
