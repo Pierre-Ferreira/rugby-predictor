@@ -150,3 +150,38 @@ login-link credential follow-up. It moved successful redemption cleanup to after
 navigation is initiated and added a same-tab sanitized-link reload regression.
 Targeted verification passed, but the full auth browser suite still failed 1 of
 12 tests in the same-account link reuse path, so CCPP-004D remains open.
+
+## Follow-up - 2026-09-15 Same-Account Link Invalidation
+
+`docs/AUDIT_004D_Same_Account_Link_Invalidation.md` records the follow-up that
+replaces unused-link preservation with explicit server-side invalidation for
+same-account continuation.
+
+The new implementation adds `auth.invalidateSameAccountSignInLink`, validates
+the presented link credentials against the current verified account, and
+atomically unsets only the matching current `accounts-passwordless` token state.
+The old same-account browser expectation was replaced with a contract that
+continues the current session, signs out, reopens the same link, and expects
+recovery guidance rather than successful redemption.
+
+The earlier cleanup-order changes did not establish the cause of the previous
+same-account reuse failure. The user's manual observation is treated as
+user-reported evidence only, not proof that this new explicit invalidation
+mechanism already existed.
+
+Follow-up verification on September 15, 2026:
+
+| Command                                                                                                                                   | Outcome                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `meteor npm run test:integration`                                                                                                         | Passed: 24 server tests, including same-account invalidation, session preservation, rejected invalidated-link redemption, unauthorized caller rejection, stale-token protection, and fresh signed-out redemption after invalidation.                                                                                         |
+| `meteor npm run test:e2e -- auth.spec.ts --grep "requests a real email link\|continues a same-account session and invalidates that link"` | Passed: 2 Chromium tests.                                                                                                                                                                                                                                                                                                    |
+| `meteor npm run typecheck`                                                                                                                | Passed.                                                                                                                                                                                                                                                                                                                      |
+| `meteor npm run lint`                                                                                                                     | Passed.                                                                                                                                                                                                                                                                                                                      |
+| `meteor npm run test:e2e -- auth.spec.ts`                                                                                                 | Failed after all 12 tests executed: 11 passed and 1 failed in `recovers stored email-link credentials after sanitized same-tab reload`; artifact evidence showed authenticated state on the sanitized email-link URL plus HMR fallback/hot-code-push activity.                                                               |
+| `meteor npm run test:e2e -- auth.spec.ts` one justified retry                                                                             | Failed after all 12 tests executed: 11 passed and 1 failed in `continues a same-account session and invalidates that link`; the previously failed sanitized reload test passed, and the new failure ended signed out on the sanitized email-link URL with missing-details recovery plus HMR fallback/hot-code-push activity. |
+| `meteor npm run test:e2e -- auth.spec.ts --grep "continues a same-account session and invalidates that link"`                             | Passed: 1 Chromium test on the final source state after a same-account success cleanup-order tweak. No further full-suite retry was run.                                                                                                                                                                                     |
+
+CCPP-004D remains open because the required full auth browser suite did not pass
+after the allowed retry. The implemented behaviour change is complete at the
+server and targeted-browser level, but full-suite closure is blocked by local
+browser-suite instability that was not debugged further in this focused change.

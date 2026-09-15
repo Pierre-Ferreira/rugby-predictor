@@ -3,6 +3,10 @@ import { Meteor } from 'meteor/meteor';
 
 import { PASSWORDLESS_TOKEN_SEQUENCE_LENGTH } from '/imports/shared/auth/constants';
 import {
+  AUTH_METHODS,
+  type InvalidateSameAccountSignInLinkResult,
+} from '/imports/shared/auth/methods';
+import {
   resolveSafeReturnPath,
   signInPathForReturnTo,
 } from '/imports/shared/auth/redirects';
@@ -11,6 +15,7 @@ import {
   validateEmailIdentity,
 } from '/imports/shared/auth/email';
 import { navigateTo } from '../navigation';
+import { callMeteorMethod } from '../auth/methodCall';
 import { AppLink } from '../components/AppLink';
 import { useAuthState } from '../auth/useAuthState';
 
@@ -22,6 +27,8 @@ interface LinkCredentials {
 
 let pendingLinkCredentials: LinkCredentials | null = null;
 const PENDING_LINK_STORAGE_KEY = 'rugby-rooster:pending-email-link';
+const INVALID_LINK_RECOVERY_MESSAGE =
+  'This sign-in link is invalid, expired, already used, or has been replaced. Request a new link to continue.';
 
 const isLinkCredentials = (value: unknown): value is LinkCredentials => {
   if (!value || typeof value !== 'object') {
@@ -134,6 +141,15 @@ const loginWithPasswordlessToken = (
     );
   });
 
+const invalidateSameAccountLink = (credentials: LinkCredentials) =>
+  callMeteorMethod<InvalidateSameAccountSignInLinkResult>(
+    AUTH_METHODS.invalidateSameAccountSignInLink,
+    {
+      email: credentials.email,
+      token: credentials.token,
+    },
+  );
+
 const logoutCurrentSession = (): Promise<void> =>
   new Promise((resolve, reject) => {
     Meteor.logout((error) => {
@@ -200,17 +216,39 @@ export const AuthEmailLinkPage = () => {
       setCredentials(null);
     } catch {
       discardCredentials();
-      setError('This sign-in link is invalid, expired, or already used.');
+      setError(INVALID_LINK_RECOVERY_MESSAGE);
     } finally {
       setIsRedeeming(false);
     }
   };
 
-  const continueWithCurrentSession = () => {
+  const keepCurrentAccount = () => {
     clearPendingCredentials();
     isLeavingPage.current = true;
     navigateTo(returnTo, true);
     setCredentials(null);
+  };
+
+  const continueWithSameAccountSession = async () => {
+    if (!credentials) {
+      return;
+    }
+
+    setError(null);
+    setIsRedeeming(true);
+
+    try {
+      await invalidateSameAccountLink(credentials);
+      isLeavingPage.current = true;
+      navigateTo(credentials.returnTo, true);
+      clearPendingCredentials();
+      setCredentials(null);
+    } catch {
+      discardCredentials();
+      setError(INVALID_LINK_RECOVERY_MESSAGE);
+    } finally {
+      setIsRedeeming(false);
+    }
   };
 
   const switchAccounts = async () => {
@@ -230,7 +268,7 @@ export const AuthEmailLinkPage = () => {
       setCredentials(null);
     } catch {
       discardCredentials();
-      setError('This sign-in link is invalid, expired, or already used.');
+      setError(INVALID_LINK_RECOVERY_MESSAGE);
     } finally {
       setIsRedeeming(false);
     }
@@ -284,11 +322,14 @@ export const AuthEmailLinkPage = () => {
               This link is intended for the same account.
             </p>
             <button
-              className="focus-ring mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink sm:w-auto"
-              onClick={continueWithCurrentSession}
+              className="focus-ring mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
+              disabled={isRedeeming}
+              onClick={continueWithSameAccountSession}
               type="button"
             >
-              Continue with current session
+              {isRedeeming
+                ? 'Continuing with current session'
+                : 'Continue with current session'}
             </button>
           </div>
         ) : credentials && isDifferentAccount ? (
@@ -314,7 +355,7 @@ export const AuthEmailLinkPage = () => {
               <button
                 className="focus-ring inline-flex min-h-11 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-sun disabled:cursor-not-allowed disabled:text-rooster-muted sm:w-auto"
                 disabled={isRedeeming}
-                onClick={continueWithCurrentSession}
+                onClick={keepCurrentAccount}
                 type="button"
               >
                 Keep current account

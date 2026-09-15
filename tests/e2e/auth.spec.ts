@@ -10,6 +10,8 @@ const uniqueEmail = (label: string) =>
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const PENDING_LINK_STORAGE_KEY = 'rugby-rooster:pending-email-link';
+const INVALID_LINK_RECOVERY_MESSAGE =
+  'This sign-in link is invalid, expired, already used, or has been replaced. Request a new link to continue.';
 
 const isTransientLocalNavigationError = (error: unknown) =>
   error instanceof Error &&
@@ -392,9 +394,7 @@ test.describe('passwordless authentication', () => {
     ).toBeVisible();
     await page.getByRole('button', { name: 'Switch accounts' }).click();
 
-    await expect(
-      page.getByText('This sign-in link is invalid, expired, or already used.'),
-    ).toBeVisible();
+    await expect(page.getByText(INVALID_LINK_RECOVERY_MESSAGE)).toBeVisible();
     await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
     await expect(
       page.getByRole('link', { name: 'Request another link' }),
@@ -404,7 +404,7 @@ test.describe('passwordless authentication', () => {
       .toBeNull();
   });
 
-  test('continues an already signed-in same-account session without consuming the link', async ({
+  test('continues a same-account session and invalidates that link', async ({
     page,
   }) => {
     const email = uniqueEmail('same-account');
@@ -420,6 +420,10 @@ test.describe('passwordless authentication', () => {
       .getByRole('button', { name: 'Continue with current session' })
       .click();
     await expect(page).toHaveURL('/account');
+    await expect(page.getByText(email)).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.Meteor.userId()))
+      .toBeTruthy();
 
     await page
       .getByRole('main')
@@ -429,8 +433,14 @@ test.describe('passwordless authentication', () => {
 
     await gotoLocal(page, linkUrl);
     await page.getByRole('button', { name: 'Continue signing in' }).click();
-    await expect(page).toHaveURL('/account');
-    await expect(page.getByText(email)).toBeVisible();
+    await expect(page.getByText(INVALID_LINK_RECOVERY_MESSAGE)).toBeVisible();
+    await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
+    await expect(
+      page.getByRole('link', { name: 'Request another link' }),
+    ).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.Meteor.userId()))
+      .toBeNull();
   });
 
   test('does not reuse stored credentials for a malformed new link', async ({
@@ -513,9 +523,7 @@ test.describe('passwordless authentication', () => {
     await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
     await page.getByRole('button', { name: 'Continue signing in' }).click();
 
-    await expect(
-      page.getByText('This sign-in link is invalid, expired, or already used.'),
-    ).toBeVisible();
+    await expect(page.getByText(INVALID_LINK_RECOVERY_MESSAGE)).toBeVisible();
     await expect(
       page.getByRole('link', { name: 'Request another link' }),
     ).toBeVisible();

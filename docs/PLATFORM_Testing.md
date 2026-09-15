@@ -146,7 +146,8 @@ The current browser suite covers:
   successful admin-directed link redemption for eligible verified platform
   admins.
 - Invalid-link recovery without retaining token/email query parameters in the final URL.
-- Same-account email-link continuation without consuming the link.
+- Same-account email-link continuation that explicitly invalidates the presented
+  link and rejects reopening that same link after sign-out.
 - Different-account email-link confirmation with explicit switch-or-keep choices.
 - Malformed new email-link URLs clearing pending tab credentials instead of
   falling back to older stored credentials.
@@ -196,6 +197,9 @@ The integration suite includes coverage for:
 
 - Passwordless account creation and verification.
 - Returning-player account reuse and resend invalidation.
+- Same-account continuation link invalidation, session preservation,
+  unauthorized invalidation rejection, stale-token protection, and fresh
+  signed-out redemption after invalidation.
 - Case/whitespace normalization while preserving plus addressing.
 - Invalid, expired, replayed, and concurrent token redemption.
 - Direct package method hardening against arbitrary selectors and user data.

@@ -40,12 +40,16 @@ state so local hot-code-push reloads can finish the same sign-in attempt without
 leaving the token in the final URL. Pending credentials are cleared on success,
 failure, or malformed new link input.
 
-CCPP-004A adds account-aware confirmation behaviour for the email-link route.
-When a verified browser session already matches the link email, the player can
-continue with the current session without consuming the link. When a verified
-browser session belongs to a different email, the page shows the current account,
-the link target account, and explicit choices to switch accounts or keep the
-current account. Switching logs out the current session before redeeming the link.
+CCPP-004A added account-aware confirmation behaviour for the email-link route.
+CCPP-004D now requires same-account continuation to invalidate the presented
+link. When a verified browser session already matches the link email, the player
+can continue with the current session only after the server validates and
+invalidates that specific current link. Reopening that link after signing out is
+rejected with recovery guidance and requires requesting a new link. When a
+verified browser session belongs to a different email, the page shows the current
+account, the link target account, and explicit choices to switch accounts or keep
+the current account. Switching logs out the current session before redeeming the
+link.
 
 ## Server Authority
 
@@ -76,6 +80,18 @@ consume the normal email/IP throttles and return the same public acknowledgement
 but they do not create accounts, generate tokens, send mail, or invalidate
 existing links. The package `login` method is wrapped for passwordless selectors
 so only normalized email selectors are accepted for email-link redemption.
+
+The same-account continuation method `auth.invalidateSameAccountSignInLink`
+requires an authenticated verified current account whose verified email matches
+the normalized link email. It validates the submitted link credentials, hashes
+the submitted email plus uppercased sequence using the installed
+`accounts-passwordless` token representation, and performs a single conditional
+update against the current user, verified email, unexpired
+`services.passwordless.createdAt`, and matching
+`services.passwordless.tokens` element. The update unsets only
+`services.passwordless`; it preserves existing login sessions and unrelated
+account fields. Invalid, expired, replaced, already-used, anonymous,
+unverified, and different-account attempts do not fall back to ordinary login.
 
 ## Authorisation
 
@@ -203,10 +219,10 @@ temporary revoke block.
   limits.
 - Playwright tests cover captured email-link request/redemption, fresh-browser
   login, session restoration, sign-out, admin denial/grant/revocation,
-  admin-specific sign-in acknowledgement, same-account continuation,
-  different-account switch/keep choices, malformed new-link credential clearing,
-  invalid-link recovery, blocked client user updates, mobile layout, and
-  keyboard access.
+  admin-specific sign-in acknowledgement, same-account continuation with
+  explicit link invalidation, different-account switch/keep choices, malformed
+  new-link credential clearing, invalid-link recovery, blocked client user
+  updates, mobile layout, and keyboard access.
 
 ## Current Limits
 

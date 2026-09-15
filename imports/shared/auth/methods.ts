@@ -1,6 +1,7 @@
 export const AUTH_METHODS = {
   requestAdminSignInLink: 'auth.requestAdminSignInLink',
   requestSignInLink: 'auth.requestSignInLink',
+  invalidateSameAccountSignInLink: 'auth.invalidateSameAccountSignInLink',
   currentAccess: 'auth.currentAccess',
 } as const;
 
@@ -24,6 +25,15 @@ export interface RequestSignInLinkInput {
 export interface RequestSignInLinkResult {
   readonly acknowledged: true;
   readonly expiresInMinutes: number;
+}
+
+export interface InvalidateSameAccountSignInLinkInput {
+  readonly email: string;
+  readonly token: string;
+}
+
+export interface InvalidateSameAccountSignInLinkResult {
+  readonly invalidated: true;
 }
 
 export interface CurrentAccessResult {

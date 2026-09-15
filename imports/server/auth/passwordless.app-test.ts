@@ -11,6 +11,7 @@ import {
   ADMIN_METHODS,
   AUTH_METHODS,
   type CurrentAccessResult,
+  type InvalidateSameAccountSignInLinkResult,
   TEST_AUTH_METHODS,
 } from '/imports/shared/auth/methods';
 import { resolveSafeReturnPath } from '/imports/shared/auth/redirects';
@@ -125,6 +126,12 @@ const requestLink = async (
 const requestAdminLink = async (email: string, invocation = makeInvocation()) =>
   callMethod(AUTH_METHODS.requestAdminSignInLink, [{ email }], invocation);
 
+const createVerifiedUser = async (email: string) =>
+  callMethod<{ readonly email: string; readonly userId: string }>(
+    TEST_AUTH_METHODS.createVerifiedUser,
+    [email],
+  );
+
 const directPackageRequest = async (
   payload: unknown,
   invocation = makeInvocation(),
@@ -160,6 +167,22 @@ const loginWithLink = async (
     [
       {
         selector: { email },
+        token,
+      },
+    ],
+    invocation,
+  );
+
+const invalidateSameAccountLink = async (
+  email: string,
+  token: string,
+  invocation = makeInvocation(),
+) =>
+  callMethod<InvalidateSameAccountSignInLinkResult>(
+    AUTH_METHODS.invalidateSameAccountSignInLink,
+    [
+      {
+        email,
         token,
       },
     ],
@@ -487,6 +510,156 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
       await Meteor.users.find({ 'emails.address': email }).countAsync(),
       1,
     );
+  });
+
+  it('invalidates a valid same-account link without ending the current session', async () => {
+    const email = uniqueEmail('same-account-invalidate');
+    const sessionInvocation = makeInvocation('same-account-invalidate');
+
+    await requestLink(email);
+    const firstLink = getLinkParts(email);
+    const firstLogin = await loginWithLink(
+      firstLink.email,
+      firstLink.token,
+      sessionInvocation,
+    );
+
+    await requestLink(email);
+    const linkToInvalidate = getLinkParts(email);
+    assert.ok(
+      await getPasswordlessStateForEmail(email),
+      'fresh same-account link is stored before invalidation',
+    );
+
+    assert.deepEqual(
+      await invalidateSameAccountLink(
+        linkToInvalidate.email,
+        linkToInvalidate.token,
+        sessionInvocation,
+      ),
+      {
+        invalidated: true,
+      },
+    );
+
+    assert.equal(sessionInvocation.userId, firstLogin.id);
+    assert.equal(await getPasswordlessStateForEmail(email), null);
+
+    const access = await callMethod<CurrentAccessResult>(
+      AUTH_METHODS.currentAccess,
+      [],
+      sessionInvocation,
+    );
+
+    assert.equal(access.isAuthenticated, true);
+    assert.equal(access.isVerified, true);
+    assert.equal(access.email, email);
+
+    await assert.rejects(
+      () => loginWithLink(linkToInvalidate.email, linkToInvalidate.token),
+      /Something went wrong|invalid|expired|used|replaced/i,
+    );
+
+    await requestLink(email);
+    const freshSignedOutLink = getLinkParts(email);
+    const signedOutLogin = await loginWithLink(
+      freshSignedOutLink.email,
+      freshSignedOutLink.token,
+    );
+
+    assert.equal(signedOutLogin.id, firstLogin.id);
+  });
+
+  it('blocks anonymous, unverified, and different-account invalidation callers', async () => {
+    const targetEmail = uniqueEmail('invalidate-target');
+    const unverifiedCallerEmail = uniqueEmail('invalidate-unverified');
+    const differentCallerEmail = uniqueEmail('invalidate-different');
+
+    const targetUser = await createVerifiedUser(targetEmail);
+    const differentUser = await createVerifiedUser(differentCallerEmail);
+    await requestLink(targetEmail);
+    const targetLink = getLinkParts(targetEmail);
+
+    await assert.rejects(
+      () =>
+        invalidateSameAccountLink(
+          targetLink.email,
+          targetLink.token,
+          makeInvocation('anonymous-invalidate'),
+        ),
+      /Sign in to continue|not-authenticated/i,
+    );
+
+    await requestLink(unverifiedCallerEmail);
+    const unverifiedCaller = await findUserByEmail(unverifiedCallerEmail, {
+      _id: 1,
+    });
+    const unverifiedInvocation = makeInvocation('unverified-invalidate');
+    unverifiedInvocation.userId = unverifiedCaller?._id ?? null;
+
+    await assert.rejects(
+      () =>
+        invalidateSameAccountLink(
+          targetLink.email,
+          targetLink.token,
+          unverifiedInvocation,
+        ),
+      /Verify your email|email-not-verified/i,
+    );
+
+    const differentInvocation = makeInvocation('different-invalidate');
+    differentInvocation.userId = differentUser.userId;
+
+    await assert.rejects(
+      () =>
+        invalidateSameAccountLink(
+          targetLink.email,
+          targetLink.token,
+          differentInvocation,
+        ),
+      /invalid|expired|replaced|new link/i,
+    );
+
+    assert.ok(
+      await getPasswordlessStateForEmail(targetEmail),
+      'failed invalidation attempts leave the target link active',
+    );
+
+    const targetLogin = await loginWithLink(targetLink.email, targetLink.token);
+
+    assert.equal(targetLogin.id, targetUser.userId);
+  });
+
+  it('does not let a stale token invalidate a newer same-account link', async () => {
+    const email = uniqueEmail('stale-invalidate');
+    const user = await createVerifiedUser(email);
+    const invocation = makeInvocation('stale-invalidate');
+    invocation.userId = user.userId;
+
+    await requestLink(email);
+    const staleLink = getLinkParts(email);
+    await requestLink(email);
+    const newerLink = getLinkParts(email);
+
+    await assert.rejects(
+      () =>
+        invalidateSameAccountLink(staleLink.email, staleLink.token, invocation),
+      /invalid|expired|replaced|new link/i,
+    );
+
+    assert.ok(
+      await getPasswordlessStateForEmail(email),
+      'newer token remains stored after stale invalidation attempt',
+    );
+
+    await assert.rejects(
+      () => loginWithLink(staleLink.email, staleLink.token),
+      /Something went wrong|invalid|expired/i,
+    );
+
+    const newerLogin = await loginWithLink(newerLink.email, newerLink.token);
+
+    assert.equal(newerLogin.id, user.userId);
   });
 
   it('normalizes case and whitespace without stripping plus addressing', async () => {
