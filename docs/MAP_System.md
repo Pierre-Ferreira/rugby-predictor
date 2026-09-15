@@ -9,6 +9,7 @@
 - `docs/CORE_Scoring_Rules.md` - authoritative CCPP-003 scoring rules, validation rules, live/final scoring policy, worked examples, and unresolved scoring-adjacent policies.
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
+- `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
@@ -17,10 +18,15 @@
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
 - `docs/AUDIT_003A_Scoring_Validation_Corrections.md` - CCPP-003A validation correction evidence.
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
-- `docs/AUDIT_004A_Login_Navigation_Fix.md` - CCPP-004A in-progress login-navigation and test-stability checkpoint.
-- `docs/AUDIT_004A_Database_Verification_Closure.md` - CCPP-004A database verification closure attempt and remaining real-adapter blocker.
-- `docs/AUDIT_004A_HMR_Workaround_Resolution.md` - CCPP-004A evidence for removing the client `Meteor.isTest` override and verifying auth browser tests with normal client identity.
-- `docs/TEMP_004A_Resume.md` - temporary CCPP-004A resume checkpoint; remove when CCPP-004A is complete.
+- `docs/AUDIT_004A_Completion.md` - CCPP-004A final reconciliation and completion evidence.
+- `docs/AUDIT_004B_Development_Email.md` - CCPP-004B Postmark development email configuration and verification evidence.
+- `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
+- `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
+- `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
+- `docs/AUDIT_004A_Database_Verification_Closure.md` - historical CCPP-004A database verification closure attempt and topology blocker.
+- `docs/AUDIT_004A_Database_Topology_Correction.md` - historical CCPP-004A topology correction evidence.
+- `docs/AUDIT_004A_HMR_Workaround_Resolution.md` - historical CCPP-004A evidence for removing the client `Meteor.isTest` override and verifying auth browser tests with normal client identity.
+- `docs/TEMP_004A_Resume.md` - historical CCPP-004A resume checkpoint retained for provenance; superseded by `docs/AUDIT_004A_Completion.md`.
 
 ## Application Entry Points
 
@@ -45,12 +51,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 
 - `imports/shared/auth/` - auth constants, method names, email normalization, and safe return-path helpers.
 - `imports/shared/auth/config.ts` - framework-independent auth runtime settings validation, isolated-test environment contract, and throttle setting resolution.
+- `imports/shared/auth/postmark.ts` - framework-independent Postmark payload and mocked-send adapter logic.
 - `imports/shared/auth/testDatabaseIdentity.ts` - framework-independent comparison of expected and observed isolated-test MongoDB endpoint/database identity.
 - `imports/server/auth/accounts.ts` - Meteor account configuration, passwordless email templates, local mail delivery wiring, package method hardening, throttling, and token redemption locks.
 - `imports/server/auth/methods.ts` - public auth and restricted admin Meteor methods.
 - `imports/server/auth/authorization.ts` - verified-player and platform-admin server checks.
 - `imports/server/auth/settings.ts` - server auth settings and production safety validation.
 - `imports/server/auth/mongoConnectionIdentity.ts` - Meteor MongoDB connection identity adapter for isolated test helpers.
+- `imports/server/auth/postmarkTransport.ts` - server adapter that installs the selected Postmark custom transport.
 - `imports/server/auth/testSupport.ts` - private-settings-gated local test helpers registered only after isolated database verification.
 - `imports/server/auth/mailSink.ts` - local/test email capture.
 - `imports/ui/auth/` - client auth state, sign-out, and method-call helpers.
@@ -83,6 +91,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/routes.test.ts` - route resolution unit tests.
 - `tests/unit/auth-helpers.test.ts` - auth helper unit tests.
 - `tests/unit/auth-config.test.ts` - auth runtime configuration tests.
+- `tests/unit/postmark-email.test.ts` - Postmark email adapter unit tests.
 - `tests/unit/test-database-identity.test.ts` - isolated test MongoDB endpoint/database identity comparison tests.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
@@ -108,4 +117,6 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/` - framework-independent unit tests.
 - `tests/e2e/` - Playwright browser smoke tests.
 - `tests/support/` - shared verification helpers.
+- `config/examples/` - tracked placeholder settings examples.
+- `config/local/` - ignored local settings files for developer machines.
 - `docs/` - prefixed project documentation.

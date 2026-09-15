@@ -4,11 +4,11 @@
 
 Testing strategy: agreed for CCPP-002.
 
-Implementation evidence: locally verified on September 14, 2026 in `docs/AUDIT_002_Testing_Infrastructure.md`, extended for scoring in CCPP-003/003A, and extended for passwordless account integration/browser coverage in CCPP-004.
-
-CCPP-004A has an in-progress login-navigation/test-stability checkpoint in
-`docs/AUDIT_004A_Login_Navigation_Fix.md`. That checkpoint is not final
-completion evidence.
+Implementation evidence: locally verified on September 14, 2026 in
+`docs/AUDIT_002_Testing_Infrastructure.md`, extended for scoring in
+CCPP-003/003A, extended for passwordless account integration/browser coverage in
+CCPP-004, and reconciled for CCPP-004A in
+`docs/AUDIT_004A_Completion.md`.
 
 Remote CI status: configured but not yet observed running in GitHub Actions from this workspace.
 
@@ -67,7 +67,10 @@ Current unit test files:
 - `tests/unit/scoring-engine.test.ts` - CCPP-003/003A scoring rules, validation, public helper boundaries, snapshots, pending/provisional/final observations, custom questions, first-try observation consistency, malformed public requests, and worked examples.
 - `tests/unit/auth-helpers.test.ts` - email identity normalization and safe auth return paths.
 - `tests/unit/auth-config.test.ts` - auth runtime settings validation,
-  isolated-test helper contract checks, and throttle setting validation.
+  isolated-test helper contract checks, email delivery provider selection, and
+  throttle setting validation.
+- `tests/unit/postmark-email.test.ts` - Postmark payload mapping, mocked send,
+  invalid-send prevention, and sanitized provider-failure handling.
 - `tests/unit/test-database-identity.test.ts` - isolated MongoDB endpoint,
   database, and supported topology verification.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment,
@@ -166,7 +169,9 @@ meteor npm run test:integration
 
 Current integration settings live in `tests/settings/integration-settings.json`
 and enable local mail capture plus test-only auth helpers. Integration tests must
-never connect to production services.
+never connect to production services. Postmark credentials, when present in
+other settings files, must not alter isolated integration or browser tests
+because local capture takes precedence.
 
 `meteor npm run test:integration` runs `scripts/run-integration-tests.mjs`. The
 launcher refuses inherited Mongo connection variables, sets

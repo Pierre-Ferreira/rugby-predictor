@@ -3,7 +3,10 @@ import { Meteor } from 'meteor/meteor';
 import {
   type AuthRuntimeConfig,
   type AuthRuntimeEnvironment,
+  type EmailDeliverySettingsInput,
   type IsolatedTestEnvironment,
+  POSTMARK_PACKAGE_SETTINGS_KEY,
+  type PostmarkEmailSettingsInput,
   type RugbyRoosterSettingsInput,
   validateAuthRuntimeConfig,
 } from '/imports/shared/auth/config';
@@ -25,6 +28,13 @@ interface RugbyRoosterSettings extends RugbyRoosterSettingsInput {
 export const getRugbyRoosterSettings = (): RugbyRoosterSettings =>
   (Meteor.settings.private?.rugbyRooster ?? {}) as RugbyRoosterSettings;
 
+export const getEmailDeliverySettings = (): EmailDeliverySettingsInput =>
+  (Meteor.settings.email ?? {}) as EmailDeliverySettingsInput;
+
+export const getPostmarkEmailSettings = (): PostmarkEmailSettingsInput =>
+  (Meteor.settings.packages?.[POSTMARK_PACKAGE_SETTINGS_KEY] ??
+    {}) as PostmarkEmailSettingsInput;
+
 let cachedAuthRuntimeConfig: AuthRuntimeConfig | null = null;
 
 const runtimeEnvironment = (): AuthRuntimeEnvironment => ({
@@ -34,29 +44,27 @@ const runtimeEnvironment = (): AuthRuntimeEnvironment => ({
   MONGO_URL: process.env.MONGO_URL,
   NODE_ENV: process.env.NODE_ENV,
   ROOT_URL: process.env.ROOT_URL,
-  RUGBY_ROOSTER_TEST_DATABASE_ID:
-    process.env.RUGBY_ROOSTER_TEST_DATABASE_ID,
+  RUGBY_ROOSTER_TEST_DATABASE_ID: process.env.RUGBY_ROOSTER_TEST_DATABASE_ID,
   RUGBY_ROOSTER_TEST_DATABASE_NAME:
     process.env.RUGBY_ROOSTER_TEST_DATABASE_NAME,
   RUGBY_ROOSTER_TEST_MODE: process.env.RUGBY_ROOSTER_TEST_MODE,
-  RUGBY_ROOSTER_TEST_MONGO_HOST:
-    process.env.RUGBY_ROOSTER_TEST_MONGO_HOST,
-  RUGBY_ROOSTER_TEST_MONGO_PORT:
-    process.env.RUGBY_ROOSTER_TEST_MONGO_PORT,
+  RUGBY_ROOSTER_TEST_MONGO_HOST: process.env.RUGBY_ROOSTER_TEST_MONGO_HOST,
+  RUGBY_ROOSTER_TEST_MONGO_PORT: process.env.RUGBY_ROOSTER_TEST_MONGO_PORT,
   RUGBY_ROOSTER_TEST_RUN_ID: process.env.RUGBY_ROOSTER_TEST_RUN_ID,
 });
 
-export const validateRugbyRoosterAuthConfiguration =
-  (): AuthRuntimeConfig => {
-    cachedAuthRuntimeConfig = validateAuthRuntimeConfig({
-      env: runtimeEnvironment(),
-      hasMeteorEmailPackageSettings: Boolean(Meteor.settings.packages?.email),
-      isProduction: Meteor.isProduction,
-      settings: getRugbyRoosterSettings(),
-    });
+export const validateRugbyRoosterAuthConfiguration = (): AuthRuntimeConfig => {
+  cachedAuthRuntimeConfig = validateAuthRuntimeConfig({
+    email: getEmailDeliverySettings(),
+    env: runtimeEnvironment(),
+    hasMeteorEmailPackageSettings: Boolean(Meteor.settings.packages?.email),
+    isProduction: Meteor.isProduction,
+    postmark: getPostmarkEmailSettings(),
+    settings: getRugbyRoosterSettings(),
+  });
 
-    return cachedAuthRuntimeConfig;
-  };
+  return cachedAuthRuntimeConfig;
+};
 
 export const getAuthRuntimeConfig = (): AuthRuntimeConfig =>
   cachedAuthRuntimeConfig ?? validateRugbyRoosterAuthConfiguration();
@@ -146,10 +154,22 @@ export const assertVerifiedAuthTestEnvironment = async () => {
   return testEnvironment;
 };
 
-export const getMailFromAddress = (): string =>
-  getRugbyRoosterSettings().mail?.from ??
-  'Rugby Rooster <no-reply@rugbyrooster.local>';
+export const getMailFromAddress = (): string => {
+  const postmarkFrom = getPostmarkEmailSettings().from?.trim();
+  const rugbyRoosterFrom = getRugbyRoosterSettings().mail?.from;
+
+  return (
+    postmarkFrom ||
+    rugbyRoosterFrom ||
+    'Rugby Rooster <no-reply@rugbyrooster.local>'
+  );
+};
+
+export const getMailReplyToAddress = (): string | undefined =>
+  getPostmarkEmailSettings().supportEmail?.trim() || undefined;
 
 export const shouldCaptureMailLocally = (): boolean => {
   return getAuthRuntimeConfig().shouldCaptureMailLocally;
 };
+
+export const getPostmarkMailSettings = () => getAuthRuntimeConfig().postmark;

@@ -10,6 +10,7 @@ coverage/
 playwright-report/
 test-results/
 artifacts/
+config/local/*.json
 
 # Meteor custom local directory (METEOR_LOCAL_DIR)
 .meteor/local-integration

@@ -8,6 +8,22 @@ export interface MailSettingsInput {
   readonly from?: string;
 }
 
+export interface EmailDeliverySettingsInput {
+  readonly enabled?: boolean;
+}
+
+export interface PostmarkEmailSettingsInput {
+  readonly apiToken?: string;
+  readonly from?: string;
+  readonly supportEmail?: string;
+}
+
+export interface ResolvedPostmarkEmailSettings {
+  readonly apiToken: string;
+  readonly from: string;
+  readonly supportEmail?: string;
+}
+
 export interface TestSettingsInput {
   readonly enableTestHelpers?: boolean;
 }
@@ -47,9 +63,11 @@ export interface AuthRuntimeEnvironment {
 }
 
 export interface AuthRuntimeConfigInput {
+  readonly email?: EmailDeliverySettingsInput;
   readonly env?: AuthRuntimeEnvironment;
   readonly hasMeteorEmailPackageSettings?: boolean;
   readonly isProduction: boolean;
+  readonly postmark?: PostmarkEmailSettingsInput;
   readonly settings?: RugbyRoosterSettingsInput;
 }
 
@@ -65,6 +83,8 @@ export interface IsolatedTestEnvironment {
 export interface AuthRuntimeConfig {
   readonly canonicalAppUrl: string;
   readonly mailDeliveryMode: 'capture' | 'transport';
+  readonly mailTransportProvider: 'meteor' | 'postmark' | null;
+  readonly postmark: ResolvedPostmarkEmailSettings | null;
   readonly shouldCaptureMailLocally: boolean;
   readonly testEnvironment: IsolatedTestEnvironment | null;
   readonly testHelpersEnabled: boolean;
@@ -84,11 +104,21 @@ export interface ResolvedThrottleRule {
 }
 
 const FALLBACK_APP_URL = 'http://127.0.0.1:3000';
+export const POSTMARK_PACKAGE_SETTINGS_KEY = 'quave:email-postmark';
 const TEST_MODE = 'isolated';
 const TEST_DATABASE_NAME = 'meteor';
 const TEST_RUN_ID_PATTERN = /^rr-(integration|e2e)-[a-zA-Z0-9_.:-]{6,80}$/;
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
 const MINUTE_MS = 60 * 1000;
+const EMAIL_ADDRESS_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const POSTMARK_PLACEHOLDER_TOKENS = new Set([
+  'POSTMARK_API_TEST',
+  'POSTMARK_API_TOKEN',
+  'REPLACE_LOCALLY',
+  'REPLACE_ME',
+  'SERVER_TOKEN',
+  'YOUR_POSTMARK_API_TOKEN',
+]);
 
 const DEFAULT_THROTTLE_LIMITS: AuthThrottleLimits = {
   linkRequestByAddressAggregate: {
@@ -149,10 +179,60 @@ const canonicalizeAppUrl = (
   return parsed.toString().replace(/\/$/, '');
 };
 
-const hasMailTransport = (
+const hasMeteorMailTransport = (
   env: AuthRuntimeEnvironment,
   hasMeteorEmailPackageSettings: boolean,
 ): boolean => Boolean(env.MAIL_URL) || hasMeteorEmailPackageSettings;
+
+const cleanOptionalString = (value: string | undefined): string | undefined => {
+  const cleanedValue = value?.trim();
+
+  return cleanedValue || undefined;
+};
+
+export const isPlaceholderPostmarkApiToken = (
+  value: string | undefined,
+): boolean => {
+  const apiToken = cleanOptionalString(value);
+
+  return (
+    !apiToken ||
+    POSTMARK_PLACEHOLDER_TOKENS.has(apiToken.toUpperCase()) ||
+    /^REPLACE[_-]/i.test(apiToken)
+  );
+};
+
+export const resolvePostmarkEmailSettings = (
+  settings: PostmarkEmailSettingsInput | undefined,
+): ResolvedPostmarkEmailSettings => {
+  if (isPlaceholderPostmarkApiToken(settings?.apiToken)) {
+    throw new Error(
+      `Postmark email delivery requires Meteor.settings.packages["${POSTMARK_PACKAGE_SETTINGS_KEY}"].apiToken to contain a real server token.`,
+    );
+  }
+
+  const from = cleanOptionalString(settings?.from);
+
+  if (!from) {
+    throw new Error(
+      `Postmark email delivery requires Meteor.settings.packages["${POSTMARK_PACKAGE_SETTINGS_KEY}"].from.`,
+    );
+  }
+
+  const supportEmail = cleanOptionalString(settings?.supportEmail);
+
+  if (supportEmail && !EMAIL_ADDRESS_PATTERN.test(supportEmail)) {
+    throw new Error(
+      `Meteor.settings.packages["${POSTMARK_PACKAGE_SETTINGS_KEY}"].supportEmail must be an email address.`,
+    );
+  }
+
+  return {
+    apiToken: cleanOptionalString(settings?.apiToken) as string,
+    from,
+    supportEmail,
+  };
+};
 
 const assertLoopbackUrl = (value: string, label: string) => {
   let parsed: URL;
@@ -239,7 +319,8 @@ const resolveThrottleRule = (
   settings: ThrottleRuleSettingsInput | undefined,
 ): ResolvedThrottleRule => {
   const limit = settings?.limit ?? defaults.limit;
-  const windowMinutes = settings?.windowMinutes ?? defaults.windowMs / MINUTE_MS;
+  const windowMinutes =
+    settings?.windowMinutes ?? defaults.windowMs / MINUTE_MS;
   const windowMs = Number.isFinite(windowMinutes)
     ? Math.round(windowMinutes * MINUTE_MS)
     : Number.NaN;
@@ -290,9 +371,11 @@ export const resolveAuthThrottleLimits = (
 });
 
 export const validateAuthRuntimeConfig = ({
+  email = {},
   env = {},
   hasMeteorEmailPackageSettings = false,
   isProduction,
+  postmark,
   settings = {},
 }: AuthRuntimeConfigInput): AuthRuntimeConfig => {
   const canonicalAppUrl = canonicalizeAppUrl(
@@ -300,7 +383,7 @@ export const validateAuthRuntimeConfig = ({
     isProduction,
   );
   const explicitCapture = settings.mail?.capture === true;
-  const transportConfigured = hasMailTransport(
+  const meteorTransportConfigured = hasMeteorMailTransport(
     env,
     hasMeteorEmailPackageSettings,
   );
@@ -317,24 +400,61 @@ export const validateAuthRuntimeConfig = ({
     );
   }
 
-  if (isProduction && !transportConfigured) {
-    throw new Error(
-      'Production mail delivery requires MAIL_URL or Meteor.settings.packages.email.',
-    );
-  }
-
-  const shouldCaptureMailLocally =
-    explicitCapture || (!isProduction && !transportConfigured);
   const testEnvironment =
     settings.test?.enableTestHelpers === true
       ? resolveIsolatedTestEnvironment(env, canonicalAppUrl)
       : null;
+  const shouldForceLocalCapture = explicitCapture || Boolean(testEnvironment);
+  let mailTransportProvider: AuthRuntimeConfig['mailTransportProvider'] = null;
+  let postmarkSettings: ResolvedPostmarkEmailSettings | null = null;
+  let shouldCaptureMailLocally = shouldForceLocalCapture;
+
+  if (!shouldForceLocalCapture && email.enabled === false) {
+    if (isProduction) {
+      throw new Error(
+        'Production passwordless email delivery cannot be disabled.',
+      );
+    }
+
+    shouldCaptureMailLocally = true;
+  }
+
+  if (!shouldCaptureMailLocally && email.enabled === true) {
+    if (meteorTransportConfigured) {
+      throw new Error(
+        'Postmark email delivery cannot be combined with MAIL_URL or Meteor.settings.packages.email.',
+      );
+    }
+
+    postmarkSettings = resolvePostmarkEmailSettings(postmark);
+    mailTransportProvider = 'postmark';
+  }
+
+  if (
+    !shouldCaptureMailLocally &&
+    !mailTransportProvider &&
+    meteorTransportConfigured
+  ) {
+    mailTransportProvider = 'meteor';
+  }
+
+  if (!shouldCaptureMailLocally && !mailTransportProvider) {
+    if (isProduction) {
+      throw new Error(
+        'Production mail delivery requires MAIL_URL, Meteor.settings.packages.email, or enabled Postmark settings.',
+      );
+    }
+
+    shouldCaptureMailLocally = true;
+  }
 
   resolveAuthThrottleLimits(settings);
 
   return {
     canonicalAppUrl,
     mailDeliveryMode: shouldCaptureMailLocally ? 'capture' : 'transport',
+    mailTransportProvider,
+    postmark: postmarkSettings,
     shouldCaptureMailLocally,
     testEnvironment,
     testHelpersEnabled: Boolean(testEnvironment),

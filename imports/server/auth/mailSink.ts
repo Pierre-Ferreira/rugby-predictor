@@ -4,8 +4,10 @@ import { normalizeEmailIdentity } from '/imports/shared/auth/email';
 
 interface CapturedMail {
   readonly createdAt: Date;
+  readonly from?: string;
   readonly html?: string;
   readonly id: string;
+  readonly replyTo?: string;
   readonly subject?: string;
   readonly testRunId?: string;
   readonly text?: string;
@@ -14,7 +16,9 @@ interface CapturedMail {
 }
 
 interface EmailTransportOptions {
+  readonly from?: string;
   readonly html?: string;
+  readonly replyTo?: string;
   readonly subject?: string;
   readonly text?: string;
   readonly to?: string | readonly string[];
@@ -61,8 +65,10 @@ export const configureLocalMailSink = (options?: {
 
     capturedMail.push({
       createdAt: new Date(),
+      from: options.from,
       html,
       id: `local-mail-${nextMailId}`,
+      replyTo: options.replyTo,
       subject: options.subject,
       testRunId: currentTestRunId?.() ?? undefined,
       text,

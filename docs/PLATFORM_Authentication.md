@@ -55,6 +55,8 @@ Authoritative auth code lives under `imports/server/auth/`.
 - `settings.ts` reads Rugby Rooster private settings and validates auth runtime
   safety before auth methods and test helpers are registered.
 - `mailSink.ts` captures local/test emails without sending real mail.
+- `postmarkTransport.ts` installs the guarded Postmark transport only when
+  runtime settings select it.
 - `testSupport.ts` registers test-only helper methods only when private test
   settings enable them and the app is in a verified isolated test environment.
 
@@ -95,11 +97,19 @@ Private settings live under `private.rugbyRooster`:
 }
 ```
 
-Production mail delivery requires `MAIL_URL` or Meteor email package settings.
-Production startup rejects explicit local mail capture, explicit test-helper
-enablement, missing mail transport, and missing canonical app URL. Local and
-test runs capture mail when configured or when no production mail transport is
-present.
+Email delivery configuration and precedence are documented in
+`docs/PLATFORM_Email.md`. Production mail delivery requires `MAIL_URL`,
+Meteor email package settings, or enabled Postmark settings. Production startup
+rejects explicit local mail capture, explicit test-helper enablement, disabled
+passwordless delivery, missing mail transport, and missing canonical app URL.
+Local and test runs capture mail when configured or when no production mail
+transport is present.
+
+For Postmark development delivery, the app reads
+`email.enabled` and `packages["quave:email-postmark"]` settings directly. The
+configured Postmark `from` address is used for passwordless email, and
+`supportEmail` is mapped to Reply-To only. Enabled Postmark delivery is rejected
+when `MAIL_URL` or `Meteor.settings.packages.email` is also configured.
 
 Auth throttles are configured under `private.rugbyRooster.throttle`. Each
 throttle rule accepts `limit` as an integer from 1 to 10000 and `windowMinutes`

@@ -1,6 +1,19 @@
 # TEMP 004A Resume
 
-## Current Checkpoint - 2026-09-15 HMR Workaround Resolution
+## Final Status - 2026-09-15 Completion Closeout
+
+CCPP-004A is complete. The active completion audit is
+`docs/AUDIT_004A_Completion.md`.
+
+The checkpoint sections below are historical evidence. Their older
+remaining-work and next-step instructions are superseded by the completion audit
+where they conflict with this final status. They are preserved to keep the
+checkpoint provenance intact.
+
+No commit, push, deployment, production verification, real email delivery, or
+next-milestone work was performed as part of the completion closeout.
+
+## Historical Checkpoint - 2026-09-15 HMR Workaround Resolution
 
 This file is a temporary CCPP-004A handoff checkpoint. Keep it under `docs/`
 until CCPP-004A is either completed or deliberately abandoned.
@@ -52,7 +65,8 @@ Actual check results in this checkpoint:
 - Browser output emitted the existing Node warning that `NO_COLOR` is ignored
   when `FORCE_COLOR` is set; it did not fail the checks.
 
-Current remaining work:
+Historical remaining work, now superseded by
+`docs/AUDIT_004A_Completion.md`:
 
 - The `Meteor.isTest` workaround issue is resolved for this checkpoint: the
   override was removed and auth browser tests passed with normal client
@@ -60,9 +74,9 @@ Current remaining work:
 - The accepted database baseline remains preserved: 9 database-identity unit
   tests, 16 server integration tests, and TypeScript passed in the prior
   database topology checkpoint.
-- Full CCPP-004A completion still requires any broader acceptance checks listed
-  by the active plan; do not claim production delivery or deployment readiness
-  from this focused auth-browser verification alone.
+- The later completion audit reconciles the exact remaining requirements:
+  throttle correction evidence, database topology evidence, HMR workaround
+  resolution evidence, maintained-doc updates, and changed-file formatting.
 - No commit, push, deployment, email sending, production verification, database
   suite rerun, or full test-suite run was performed in this checkpoint.
 

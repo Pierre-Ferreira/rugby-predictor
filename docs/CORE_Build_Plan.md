@@ -110,13 +110,18 @@ Not implemented:
 
 ## CCPP-004A Scope
 
-Milestone status: in progress and checkpointed for review in
-`docs/AUDIT_004A_Login_Navigation_Fix.md`,
-`docs/AUDIT_004A_Database_Topology_Correction.md`, and
-`docs/AUDIT_004A_HMR_Workaround_Resolution.md`. These checkpoints are not full
-CCPP-004A completion evidence.
+Milestone status: complete. Final reconciliation and completion evidence is
+recorded in `docs/AUDIT_004A_Completion.md`.
 
-Current checkpointed work:
+Historical checkpoint evidence is preserved in
+`docs/AUDIT_004A_Login_Navigation_Fix.md`,
+`docs/AUDIT_004A_Database_Isolation_Verification.md`,
+`docs/AUDIT_004A_Database_Verification_Closure.md`,
+`docs/AUDIT_004A_Database_Topology_Correction.md`,
+`docs/AUDIT_004A_Throttle_Correction.md`, and
+`docs/AUDIT_004A_HMR_Workaround_Resolution.md`.
+
+Completed work:
 
 - Account-aware `/auth/email-link` navigation for same-account continuation and
   different-account switch-or-keep decisions.
@@ -128,11 +133,22 @@ Current checkpointed work:
 - Isolated-E2E Rspack HMR/live-reload suppression without overriding
   `Meteor.isTest`, `Meteor.isDevelopment`, or `Meteor.isProduction`.
 
-Not complete:
+Accepted verification:
 
-- Full final verification beyond the focused auth browser suite has not been
-  re-run after this checkpoint.
-- No commit, push, deployment, or production verification has been performed.
+- Throttle correction checkpoint: `meteor npm run test:unit` passed `6` files
+  and `57` tests, and `meteor npm run typecheck` passed.
+- Database topology checkpoint:
+  `meteor npm run test:unit -- --run tests/unit/test-database-identity.test.ts`
+  passed `1` file and `9` tests; `meteor npm run test:integration` passed with
+  `16 passing`; and `meteor npm run typecheck` passed.
+- HMR workaround resolution checkpoint:
+  `npm run test:e2e -- tests/e2e/auth.spec.ts -g "requests a real email link, redeems it in a fresh browser, restores the session, and signs out"`
+  passed `1` Chromium test; `npm run test:e2e -- tests/e2e/auth.spec.ts`
+  passed `10` Chromium tests; `npm run typecheck`, `npm run lint`, and the
+  final changed-file Prettier check passed.
+- Completion closeout used existing evidence and changed documentation only.
+  No commit, push, deployment, production verification, real email delivery, or
+  next-milestone work was performed.
 
 ## Roadmap Discipline
 

@@ -8,6 +8,7 @@
     "lint:project": "node scripts/check-project-invariants.mjs",
     "typecheck": "tsc --noEmit --incremental false",
     "start": "meteor run",
+    "start:email": "ROOT_URL=http://127.0.0.1:3000 meteor run --port 127.0.0.1:3000 --settings config/local/development.settings.json",
     "test": "npm run test:unit",
     "test:integration": "node scripts/run-integration-tests.mjs",
     "test:unit": "vitest run --config vitest.config.mts",

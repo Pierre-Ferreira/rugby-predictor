@@ -22,9 +22,12 @@ import {
   buildCanonicalUrl,
   getAuthTestRunId,
   getMailFromAddress,
+  getMailReplyToAddress,
+  getPostmarkMailSettings,
   shouldCaptureMailLocally,
 } from './settings';
 import { configureLocalMailSink } from './mailSink';
+import { configurePostmarkMailTransport } from './postmarkTransport';
 
 export const AUTH_PACKAGE_VERSIONS = {
   accountsBase: '3.3.1',
@@ -234,13 +237,11 @@ const findUserOwnershipByEmail = async (
         'rugbyRoosterTest.ownerRunId': 1,
       },
     },
-  )) as
-    | {
-        readonly rugbyRoosterTest?: {
-          readonly ownerRunId?: string;
-        };
-      }
-    | null;
+  )) as {
+    readonly rugbyRoosterTest?: {
+      readonly ownerRunId?: string;
+    };
+  } | null;
 
   if (!user) {
     return null;
@@ -316,6 +317,13 @@ export const configureEmailDelivery = () => {
     configureLocalMailSink({
       getTestRunId: getAuthTestRunId,
     });
+    return;
+  }
+
+  const postmarkSettings = getPostmarkMailSettings();
+
+  if (postmarkSettings) {
+    configurePostmarkMailTransport(postmarkSettings);
   }
 };
 
@@ -370,15 +378,21 @@ export const configurePasswordlessEmails = () => {
 
     const emailUser = user as Meteor.User;
     const url = accounts.urls.loginToken(email, sequence, extra);
-    const emailOptions = await accounts.generateOptionsForEmail(
+    const emailOptions = (await accounts.generateOptionsForEmail(
       email,
       emailUser,
       url,
       'sendLoginToken',
       { sequence },
-    );
+    )) as Parameters<typeof Email.sendAsync>[0];
+    const replyTo = getMailReplyToAddress();
+    const deliveryOptions: Parameters<typeof Email.sendAsync>[0] = {
+      ...emailOptions,
+      from: getMailFromAddress(),
+      ...(replyTo ? { replyTo } : {}),
+    };
 
-    await Email.sendAsync(emailOptions);
+    await Email.sendAsync(deliveryOptions);
 
     return {
       email,

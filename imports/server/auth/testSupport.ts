@@ -38,8 +38,7 @@ interface AuthTestSupportDependencies {
   >;
 }
 
-type AuthTestSupportDependencyOverrides =
-  Partial<AuthTestSupportDependencies>;
+type AuthTestSupportDependencyOverrides = Partial<AuthTestSupportDependencies>;
 
 const resolveAuthTestSupportDependencies = (
   overrides: AuthTestSupportDependencyOverrides = {},
@@ -195,8 +194,10 @@ export const registerAuthTestMethods = async (
 
       return {
         createdAt: message.createdAt.toISOString(),
+        from: message.from,
         html: message.html,
         id: message.id,
+        replyTo: message.replyTo,
         subject: message.subject,
         text: message.text,
         to: message.to,
