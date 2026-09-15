@@ -38,6 +38,11 @@ interface FixturePaginationState {
   readonly previousCursors: readonly (FixturePageCursor | null)[];
 }
 
+interface FixtureEditSession {
+  readonly expectedRevision: number;
+  readonly fixtureId: string;
+}
+
 const emptyForm: FixtureFormState = {
   competitionDisplayName: '',
   scheduledKickoffLocal: '',
@@ -112,9 +117,12 @@ const formFromFixture = (fixture: FixtureDocument): FixtureFormState => ({
 });
 
 export const AdminFixtureManager = () => {
-  const [editingFixtureId, setEditingFixtureId] = useState<string | null>(null);
+  const [editSession, setEditSession] = useState<FixtureEditSession | null>(
+    null,
+  );
   const [form, setForm] = useState<FixtureFormState>(emptyForm);
   const [feedback, setFeedback] = useState<{
+    readonly code?: string;
     readonly kind: 'error' | 'success';
     readonly message: string;
   } | null>(null);
@@ -149,10 +157,13 @@ export const AdminFixtureManager = () => {
   const lastVisibleFixture = visibleFixtures[visibleFixtures.length - 1];
   const editingFixture = useMemo(
     () =>
-      visibleFixtures.find((fixture) => fixture._id === editingFixtureId) ??
-      null,
-    [editingFixtureId, visibleFixtures],
+      visibleFixtures.find(
+        (fixture) => fixture._id === editSession?.fixtureId,
+      ) ?? null,
+    [editSession?.fixtureId, visibleFixtures],
   );
+  const isEditing = Boolean(editSession);
+  const hasEditConflict = isEditing && feedback?.code === 'fixture-conflict';
 
   const updateField =
     (field: keyof FixtureFormState) =>
@@ -164,8 +175,35 @@ export const AdminFixtureManager = () => {
     };
 
   const resetForm = () => {
-    setEditingFixtureId(null);
+    setEditSession(null);
     setForm(emptyForm);
+  };
+
+  const cancelEdit = () => {
+    resetForm();
+    setFeedback(null);
+  };
+
+  const reloadEditSession = () => {
+    if (!editingFixture) {
+      setFeedback({
+        code: 'fixture-edit-unavailable',
+        kind: 'error',
+        message:
+          'The current fixture is not visible on this page. Cancel editing or return to its page before reloading.',
+      });
+      return;
+    }
+
+    setEditSession({
+      expectedRevision: editingFixture.revision,
+      fixtureId: editingFixture._id,
+    });
+    setForm(formFromFixture(editingFixture));
+    setFeedback({
+      kind: 'success',
+      message: 'Fixture form reloaded. Unsaved values were replaced.',
+    });
   };
 
   const detailsPayload = () => {
@@ -195,13 +233,14 @@ export const AdminFixtureManager = () => {
 
     try {
       const details = detailsPayload();
-      const result = editingFixture
+      const session = editSession;
+      const result = session
         ? await callMeteorMethod<FixtureMutationResult>(
             FIXTURE_METHODS.editDetails,
             {
               details,
-              expectedRevision: editingFixture.revision,
-              fixtureId: editingFixture._id,
+              expectedRevision: session.expectedRevision,
+              fixtureId: session.fixtureId,
             },
           )
         : await callMeteorMethod<FixtureMutationResult>(
@@ -221,6 +260,10 @@ export const AdminFixtureManager = () => {
       resetForm();
     } catch (error) {
       setFeedback({
+        code:
+          error && typeof error === 'object'
+            ? String((error as { readonly error?: unknown }).error ?? '')
+            : undefined,
         kind: 'error',
         message: messageFromError(error),
       });
@@ -302,7 +345,8 @@ export const AdminFixtureManager = () => {
       return;
     }
 
-    setEditingFixtureId(null);
+    resetForm();
+    setFeedback(null);
     setPagination((current) => ({
       cursor: cursorFromFixture(lastVisibleFixture),
       previousCursors: [...current.previousCursors, current.cursor],
@@ -310,7 +354,8 @@ export const AdminFixtureManager = () => {
   };
 
   const goToPreviousPage = () => {
-    setEditingFixtureId(null);
+    resetForm();
+    setFeedback(null);
     setPagination((current) => {
       const previousCursors = current.previousCursors.slice(0, -1);
       const cursor =
@@ -347,22 +392,40 @@ export const AdminFixtureManager = () => {
           <div className="flex items-start justify-between gap-4">
             <div>
               <h2 className="text-xl font-black text-rooster-ink">
-                {editingFixture ? 'Edit fixture' : 'Create draft fixture'}
+                {isEditing ? 'Edit fixture' : 'Create draft fixture'}
               </h2>
               <p className="mt-2 text-sm leading-6 text-rooster-muted">
                 Kickoff entry uses {ADMIN_FIXTURE_TIME_ZONE_LABEL}.
               </p>
             </div>
-            {editingFixture ? (
-              <button
-                className="focus-ring rounded-md px-3 py-2 text-sm font-bold text-rooster-muted hover:bg-rooster-paper"
-                type="button"
-                onClick={resetForm}
-              >
-                Clear
-              </button>
+            {isEditing ? (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="focus-ring rounded-md px-3 py-2 text-sm font-bold text-rooster-muted hover:bg-rooster-paper disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={Boolean(pendingAction) || !editingFixture}
+                  type="button"
+                  onClick={reloadEditSession}
+                >
+                  Reload and replace form
+                </button>
+                <button
+                  className="focus-ring rounded-md px-3 py-2 text-sm font-bold text-rooster-muted hover:bg-rooster-paper disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={Boolean(pendingAction)}
+                  type="button"
+                  onClick={cancelEdit}
+                >
+                  Cancel edit
+                </button>
+              </div>
             ) : null}
           </div>
+
+          {hasEditConflict ? (
+            <p className="mt-4 rounded-md border border-rooster-red/30 bg-rooster-red/10 px-3 py-2 text-sm font-bold text-rooster-red">
+              This edit still uses the original revision. Reload fixture
+              replaces unsaved values.
+            </p>
+          ) : null}
 
           <div className="mt-5 grid gap-4">
             <label className="grid gap-2 text-sm font-bold text-rooster-ink">
@@ -423,7 +486,7 @@ export const AdminFixtureManager = () => {
           >
             {pendingAction === 'save'
               ? 'Saving'
-              : editingFixture
+              : isEditing
                 ? 'Save fixture'
                 : 'Create draft'}
           </button>
@@ -495,7 +558,10 @@ export const AdminFixtureManager = () => {
                           disabled={disabled || fixture.isCancelled}
                           type="button"
                           onClick={() => {
-                            setEditingFixtureId(fixture._id);
+                            setEditSession({
+                              expectedRevision: fixture.revision,
+                              fixtureId: fixture._id,
+                            });
                             setForm(formFromFixture(fixture));
                             setFeedback(null);
                           }}

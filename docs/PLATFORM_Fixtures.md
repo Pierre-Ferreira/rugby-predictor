@@ -84,6 +84,29 @@ exist. The backfill is idempotent and does not change timestamps, actor IDs,
 ruleset snapshots, fixture details, visibility, cancellation metadata, or test
 ownership.
 
+## Admin Edit Sessions
+
+The admin fixture form keeps edit identity separate from the reactive visible
+list. Clicking Edit captures an explicit session containing the fixture ID and
+the expected revision from that moment. While that session is active, reactive
+updates can change the list row but do not replace the captured revision or
+overwrite unsaved form values.
+
+Saving with an active edit session always calls `fixtures.admin.editDetails`
+with the captured fixture ID and revision. Saving without an edit session creates
+a draft. A missing visible row must never make an active edit fall through to
+draft creation.
+
+On `fixture-conflict`, the form preserves the user's unsaved values and original
+captured revision. The admin can cancel the edit or explicitly `Reload and
+replace form`, which discards unsaved values and captures the latest revision
+from the currently visible fixture row. If the edited fixture has moved outside
+the visible page, reload is unavailable until the row is visible again, but Save
+still targets the captured fixture ID/revision and may receive the normal server
+conflict/error.
+
+Admin Next/Previous pagination clears the edit session and form values together.
+
 ## Publications
 
 Fixture publications:

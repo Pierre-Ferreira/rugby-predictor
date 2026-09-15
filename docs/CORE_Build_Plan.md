@@ -303,6 +303,32 @@ Not part of this correction:
   behavior, prediction submission, results, match-event capture, or later game
   features.
 
+## CCPP-005B Scope
+
+Milestone status: implemented as a focused admin edit-form correction.
+Verification evidence is recorded in
+`docs/AUDIT_005B_Fixture_Edit_Session.md`.
+
+Implemented:
+
+- Admin fixture editing now captures an explicit fixture ID and expected revision
+  when Edit is clicked.
+- Reactive list updates no longer replace the captured revision or overwrite
+  unsaved form values.
+- Saving an active edit session always calls the edit method and never falls
+  through to draft creation when the row leaves the visible page.
+- Fixture conflict feedback preserves unsaved values and offers explicit cancel
+  or reload-and-replace actions.
+- Admin pagination clears edit state and form values together.
+- Focused fixture browser regressions cover stale edits, explicit reload,
+  pagination while editing, and edited rows leaving the visible page.
+
+Not part of this correction:
+
+- Server revision logic, cursor pagination, revision backfill, authentication,
+  email, HMR, database isolation, PWA behavior, prediction submission, results,
+  match-event capture, or later game features.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

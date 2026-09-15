@@ -165,12 +165,22 @@ The current browser suite covers:
 - Public fixture browsing for upcoming, past, and detail views.
 - Platform-admin fixture create, publish, and cancel workflow.
 - Public and admin fixture pagination controls.
+- Admin fixture edit-session regressions for stale revisions after reactive
+  updates, conflict value preservation, explicit reload-and-replace behavior,
+  pagination clearing edit state and form values together, and edited fixtures
+  leaving the visible page without falling through to draft creation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only
 `test.auth.loginTokenForEmail` helper. This avoids repeatedly exercising the
 deferred CCPP-004D passwordless navigation issue while leaving production
 authorization unchanged.
+
+Fixture browser tests use unique labels and sort-position-specific kickoff times
+for pagination scenarios. Public pagination tests use recent-past fixtures so
+older local test residue does not occupy the first past page; admin pagination
+tests use far-future fixtures so older local residue does not hide current-run
+admin rows.
 
 Failure diagnostics:
 
