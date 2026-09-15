@@ -8,12 +8,14 @@
 - `docs/CORE_Build_Plan.md` - milestone roadmap and CCPP scope boundaries.
 - `docs/CORE_Scoring_Rules.md` - authoritative CCPP-003 scoring rules, validation rules, live/final scoring policy, worked examples, and unresolved scoring-adjacent policies.
 - `docs/CORE_Fixtures.md` - CCPP-005 fixture user behavior, state transitions, timezone policy, public browsing, and deferred fixture features.
+- `docs/CORE_Predictions.md` - CCPP-006 prediction player flow, supported fields, kickoff locking, conflict/reload behavior, account switching, and animation boundary.
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
 - `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
 - `docs/PLATFORM_PWA.md` - minimal PWA manifest, icons, safe-area shell, installation notes, limitations, and verification guidance.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
+- `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, and animation boundary.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
@@ -31,6 +33,7 @@
 - `docs/AUDIT_005_Fixture_Management.md` - CCPP-005 fixture management and public browsing implementation and verification evidence.
 - `docs/AUDIT_005A_Fixture_Pagination_And_Concurrency.md` - CCPP-005A fixture pagination and revision-concurrency correction evidence.
 - `docs/AUDIT_005B_Fixture_Edit_Session.md` - CCPP-005B admin fixture edit-session identity, conflict, reload, and accidental-create correction evidence.
+- `docs/AUDIT_006_Prediction_Submission.md` - CCPP-006 prediction entry, submission, validation, ownership, locking, and verification evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -48,9 +51,11 @@
 - `client/main.html` - HTML shell and document title.
 - `client/main.tsx` - React startup and CSS import.
 - `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
-- `server/main.ts` - Meteor server startup plus auth and PWA server-module imports.
+- `server/main.ts` - Meteor server startup plus auth, fixture, prediction, and PWA server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
+- `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
 - `imports/server/fixtures/` - fixture methods, publications, indexes, ruleset snapshot attachment, and isolated fixture test helpers.
+- `imports/server/predictions/` - prediction submit method, private publications, indexes, and isolated prediction test helper.
 - `imports/server/pwa/server.ts` - manifest content-type hook for `/site.webmanifest`.
 - `public/site.webmanifest` - minimal PWA manifest that launches at `/games`.
 - `public/icons/` - temporary RR monogram PNG app icons and SVG source assets.
@@ -60,6 +65,7 @@
 - `/` - `imports/ui/pages/HomePage.tsx` in the public layout.
 - `/games` - `imports/ui/pages/GamesPage.tsx` in the public layout for published fixture browsing.
 - `/games/:fixtureId` - `imports/ui/pages/GameDetailPage.tsx` in the public layout for published fixture details.
+- `/games/:fixtureId/predict` - `imports/ui/pages/PredictionEntryPage.tsx` in the public layout for player prediction entry and saved-entry revisit.
 - `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout, including the admin-specific `mode=admin` request mode used from `/admin`.
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
 - `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
@@ -106,6 +112,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/fixtures/AdminFixtureManager.tsx` - admin fixture form, paginated list, publish, and cancel UI.
 - `imports/ui/fixtures/fixtureUi.ts` - shared fixture UI labels and paths.
 
+## Prediction Entry Points
+
+- `imports/shared/predictions/` - prediction method/publication names, domain types, submission validation, and storage normalization.
+- `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
+- `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
+- `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
+- `imports/ui/pages/PredictionEntryPage.tsx` - prediction entry, review, revision conflict, reload, and read-only locked-entry UI.
+
 ## Verification Entry Points
 
 - `eslint.config.mjs` - ESLint flat config for TypeScript syntax, React, hooks, JSX accessibility, JavaScript, and config files.
@@ -128,12 +142,15 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
-- `imports/server/app-tests.ts` - Meteor full-app test entry importing auth and fixture integration suites.
+- `tests/unit/predictions.test.ts` - prediction submission validation unit tests.
+- `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
+- `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing, public/admin pagination controls, and admin fixture create/publish/cancel workflow.
+- `tests/e2e/predictions.spec.ts` - browser tests for prediction return path, submit/revisit, edit before kickoff, locked read-only display, and conflict value preservation.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories
@@ -144,9 +161,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/` - shared route metadata.
 - `imports/server/auth/` - passwordless account and server authorisation implementation.
 - `imports/server/fixtures/` - fixture server methods, publications, indexes, and test helpers.
+- `imports/server/predictions/` - prediction server method, publications, indexes, and test helper.
 - `imports/server/pwa/` - minimal PWA server hook for static manifest response metadata.
 - `imports/shared/auth/` - shared auth constants and validation helpers.
 - `imports/shared/fixtures/` - shared fixture names, types, validation, and timezone helpers.
+- `imports/shared/predictions/` - shared prediction names, types, validation, and storage-normalization helpers.
 - `imports/shared/scoring/` - framework-independent scoring rules engine.
 - `imports/ui/auth/` - client auth state and auth action helpers.
 - `imports/ui/components/` - reusable UI primitives.

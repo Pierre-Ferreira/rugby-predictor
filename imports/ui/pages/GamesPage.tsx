@@ -12,6 +12,7 @@ import {
 import { AppLink } from '../components/AppLink';
 import {
   fixtureDetailPath,
+  fixturePredictionPath,
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
@@ -330,13 +331,12 @@ const FixtureListItem = ({
         >
           View fixture
         </AppLink>
-        <button
-          className="min-h-11 cursor-not-allowed rounded-md border border-rooster-line px-4 text-sm font-black text-rooster-muted opacity-70"
-          type="button"
-          disabled
+        <AppLink
+          className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+          to={fixturePredictionPath(fixture._id)}
         >
-          Predictions are not open yet
-        </button>
+          Predict
+        </AppLink>
       </div>
     </div>
   </li>

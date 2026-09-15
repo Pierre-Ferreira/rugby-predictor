@@ -6,7 +6,7 @@ const isFixturePath = (pathname: string): boolean =>
   /^\/fixtures(?:\/[a-zA-Z0-9_-]{1,80})?$/.test(pathname);
 
 const isGamePath = (pathname: string): boolean =>
-  /^\/games(?:\/[a-zA-Z0-9_-]{1,128})?$/.test(pathname);
+  /^\/games(?:\/[a-zA-Z0-9_-]{1,128}(?:\/predict)?)?$/.test(pathname);
 
 const isAllowedPath = (pathname: string): boolean =>
   pathname === '/' ||

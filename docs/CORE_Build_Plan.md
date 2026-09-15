@@ -329,6 +329,37 @@ Not part of this correction:
   email, HMR, database isolation, PWA behavior, prediction submission, results,
   match-event capture, or later game features.
 
+## CCPP-006 Scope
+
+Milestone status: implemented for prediction entry and submission locking.
+Verification evidence is recorded in
+`docs/AUDIT_006_Prediction_Submission.md`, and platform details live in
+`docs/PLATFORM_Predictions.md`.
+
+Implemented:
+
+- `/games/:fixtureId/predict` prediction route.
+- Existing passwordless sign-in return paths for prediction pages.
+- One owned prediction entry per verified player per fixture.
+- Server-side validation against the fixture's stored ruleset snapshot.
+- Strict server-time kickoff locking; equality and later writes are rejected.
+- Cancelled, draft, missing, invalid-snapshot, and snapshotless fixture
+  rejection.
+- Atomic creation, revision-checked updates, unique user/fixture index, and
+  stale revision conflict handling.
+- Narrow current-user entry publication and signed-in fixture-context
+  publication.
+- React form, review, saved-entry revisit, read-only locked display, explicit
+  reload, account-switch reset, and mobile-accessible controls.
+- Unit, Meteor integration, and focused Playwright coverage for the prediction
+  flow.
+
+Not implemented:
+
+- Match results, match-event capture, live/final scoring, leaderboards, leagues,
+  prizes, sponsorships, custom-question admin UI, AI, Kaplay animations,
+  service-worker caching, or permanent lock-after-reschedule policy.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

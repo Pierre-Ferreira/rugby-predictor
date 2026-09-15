@@ -26,3 +26,6 @@ export const kickoffLabel = (fixture: FixtureDocument): string =>
 
 export const fixtureDetailPath = (fixtureId: string): string =>
   `/games/${fixtureId}`;
+
+export const fixturePredictionPath = (fixtureId: string): string =>
+  `/games/${fixtureId}/predict`;

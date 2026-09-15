@@ -3,6 +3,7 @@ export type RouteId =
   | 'admin'
   | 'authEmailLink'
   | 'gameDetail'
+  | 'predictionEntry'
   | 'games'
   | 'home'
   | 'notFound'
@@ -64,6 +65,7 @@ export const notFoundRoute: AppRoute = {
 };
 
 const gameDetailPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}$/;
+const predictionEntryPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}\/predict$/;
 
 export const publicNavigationRoutes = appRoutes.filter(
   (route) => route.id === 'home' || route.id === 'games',
@@ -71,6 +73,15 @@ export const publicNavigationRoutes = appRoutes.filter(
 
 export const resolveRoute = (pathname: string): AppRoute => {
   const normalizedPath = normalizePath(pathname);
+
+  if (predictionEntryPattern.test(normalizedPath)) {
+    return {
+      id: 'predictionEntry',
+      label: 'Prediction',
+      layout: 'public',
+      path: normalizedPath,
+    };
+  }
 
   if (gameDetailPattern.test(normalizedPath)) {
     return {

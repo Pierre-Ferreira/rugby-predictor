@@ -8,6 +8,7 @@ import {
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
+  fixturePredictionPath,
 } from '../fixtures/fixtureUi';
 
 const fixtureIdFromLocation = (): string =>
@@ -131,8 +132,14 @@ export const GameDetailPage = () => {
 
         <div className="mt-6 rounded-md border border-rooster-line bg-rooster-paper p-4">
           <p className="text-sm font-black text-rooster-ink">
-            Predictions are not open yet.
+            Predictions are open until scheduled kickoff for signed-in players.
           </p>
+          <AppLink
+            className="focus-ring mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+            to={fixturePredictionPath(fixture._id)}
+          >
+            Enter prediction
+          </AppLink>
         </div>
       </article>
     </main>

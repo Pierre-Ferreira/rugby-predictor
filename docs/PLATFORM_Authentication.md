@@ -33,6 +33,8 @@ Rugby Tracker / Rucks and Mauls concepts.
 - `/auth/email-link` - confirmation page for passwordless link redemption.
 - `/account` - authenticated verified player account summary.
 - `/admin` - restricted platform-admin summary.
+- `/games/:fixtureId/predict` - CCPP-006 prediction entry route that can be
+  used as a validated player `returnTo` destination.
 
 The email-link route strips token and email query parameters from the browser URL
 after reading them. Pending link credentials are kept only in tab-scoped browser
@@ -99,6 +101,10 @@ Current implemented roles:
 
 - Verified player - any signed-in user with a verified account email.
 - Platform admin - a verified player with `roles.platformAdmin === true`.
+
+Prediction submission uses the verified-player role. The server derives
+prediction ownership from the authenticated invocation and never from client
+payload fields.
 
 The admin UI is not the authority. It calls `admin.accessSummary`, and the server
 requires a verified user plus a platform-admin grant before returning the

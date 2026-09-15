@@ -69,6 +69,23 @@ Out of scope for this product:
   unpublishing, restoration, team/competition management, custom question UI,
   service-worker caching, or offline fixture browsing.
 
+## Implemented In CCPP-006
+
+- Player prediction entry route at `/games/:fixtureId/predict`.
+- Existing passwordless sign-in flow returns anonymous players to a selected
+  fixture prediction page through validated return paths.
+- One prediction entry per verified player per fixture.
+- Server-authorized submission and revision before scheduled kickoff.
+- Stored predictions validated against the fixture's existing ruleset snapshot.
+- Kickoff equality and later writes are rejected; locked saved entries remain
+  readable by their owners.
+- Cancelled, draft, missing, and snapshotless fixtures reject prediction writes.
+- Revision conflicts preserve unsaved browser answers and require explicit
+  reload to replace local values.
+- Prediction state is independent of future Kaplay animation.
+- No results, leaderboards, leagues, custom-question administration, AI,
+  service-worker caching, or Kaplay implementation.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
@@ -89,7 +106,8 @@ Out of scope for this product:
 These require precise specifications before implementation:
 
 - Extra-time treatment. CCPP-003 scores the supplied observation set only; whether upstream observations are regulation-time or extra-time-inclusive remains unresolved before match-event integration.
-- Prediction submission and reopening policies.
+- Permanent prediction locking policy independent of the fixture's current
+  scheduled kickoff.
 - Leaderboard tie-breaking.
 - Detailed optional question configuration constraints.
 - Account deletion, support, and long-term email preference lifecycle beyond sign-in access.

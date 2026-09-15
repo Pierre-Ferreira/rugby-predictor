@@ -15,6 +15,7 @@ import { GameDetailPage } from './pages/GameDetailPage';
 import { GamesPage } from './pages/GamesPage';
 import { HomePage } from './pages/HomePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PredictionEntryPage } from './pages/PredictionEntryPage';
 import { SignInPage } from './pages/SignInPage';
 import { ErrorState, LoadingState } from './components/Status';
 
@@ -26,6 +27,7 @@ const routePages: Record<RouteId, () => ReactNode> = {
   admin: AdminPage,
   authEmailLink: AuthEmailLinkPage,
   notFound: NotFoundPage,
+  predictionEntry: PredictionEntryPage,
   signIn: SignInPage,
 };
 
@@ -111,7 +113,11 @@ const RoutedPage = ({ route }: { readonly route: AppRoute }) => {
 
   return (
     <PublicLayout
-      currentPath={route.id === 'gameDetail' ? '/games' : route.path}
+      currentPath={
+        route.id === 'gameDetail' || route.id === 'predictionEntry'
+          ? '/games'
+          : route.path
+      }
     >
       <Page />
     </PublicLayout>

@@ -78,6 +78,9 @@ Current unit test files:
 - `tests/unit/fixtures.test.ts` - fixture validation, Team 1 / Team 2
   normalization, public/admin pagination option validation, expected-revision
   validation, and South African time to UTC conversion.
+- `tests/unit/predictions.test.ts` - prediction submission input validation,
+  captured revision validation, server-owned field rejection, and delegation to
+  the shared scoring validation contract.
 
 Commands:
 
@@ -169,6 +172,9 @@ The current browser suite covers:
   updates, conflict value preservation, explicit reload-and-replace behavior,
   pagination clearing edit state and form values together, and edited fixtures
   leaving the visible page without falling through to draft creation.
+- Prediction entry return-path support, valid submit and saved-entry revisit,
+  edit before kickoff, locked read-only saved-entry display, and stale revision
+  conflict value preservation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only
@@ -251,16 +257,17 @@ The integration suite includes coverage for:
   and admin cursor pagination, public draft exclusion, public field projection,
   ruleset snapshot independence, fixture revision backfill, invalid default
   ruleset rejection, and admin fixture publication authorization.
+- Prediction mutation authorization, owner-only publication boundaries, draft /
+  cancelled / missing / snapshotless fixture rejection, stored-snapshot
+  validation, strict before/equal/after kickoff boundaries with a controlled
+  clock, concurrent first submissions, stale revisions, server-owned field
+  injection rejection, and locked saved-entry readability.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
-both the existing auth integration suite and the fixture integration suite.
+the existing auth, fixture, and prediction integration suites.
 
 Future Meteor/database integration tests must cover:
 
-- Prediction ownership.
-- Submission deadlines.
-- Duplicate-request handling.
-- Fixture rule snapshots.
 - Match-event corrections and recalculated results.
 
 Database-backed tests will require isolated test data, explicit test configuration, and cleanup limited to test-owned data. They must never connect to production services.

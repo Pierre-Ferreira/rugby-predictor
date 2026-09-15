@@ -162,6 +162,11 @@ Public fields:
 Actor IDs, timestamps other than kickoff, test ownership, cancellation actor
 metadata, stored revisions, and `rulesetSnapshot` are not public.
 
+CCPP-006 keeps `rulesetSnapshot` out of public fixture publications. The
+signed-in prediction route uses `predictions.fixtureContext` to publish one
+published fixture with the stored ruleset snapshot to a verified player so the
+prediction form can render the fixture's actual questions.
+
 ## Indexes
 
 The fixture server creates indexes for the implemented queries:
@@ -184,6 +189,13 @@ stored fixture snapshots.
 
 The protection is provided by server write paths and snapshot cloning. This is
 not database-level immutability.
+
+Prediction submission validates against this stored snapshot. Ordinary fixture
+edits do not replace it.
+
+For CCPP-006, prediction lock eligibility follows the fixture's current
+`scheduledKickoffAt`. Correcting a kickoff from the past into the future can
+reopen prediction editing; a separate permanent lock policy is deferred.
 
 ## Query Limits
 

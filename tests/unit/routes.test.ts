@@ -36,6 +36,14 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves public prediction entry routes under games', () => {
+    expect(resolveRoute('/games/abc_123/predict')).toMatchObject({
+      id: 'predictionEntry',
+      layout: 'public',
+      path: '/games/abc_123/predict',
+    });
+  });
+
   it('resolves account and passwordless sign-in routes', () => {
     expect(resolveRoute('/sign-in')).toMatchObject({
       id: 'signIn',

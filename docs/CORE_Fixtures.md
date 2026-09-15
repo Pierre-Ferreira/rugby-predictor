@@ -11,10 +11,11 @@ CCPP-005 adds the first usable fixture workflow for Rugby Rooster:
 - Anonymous visitors browse published upcoming and past scheduled fixtures.
 - Anonymous visitors open public fixture detail pages under `/games/:fixtureId`.
 
-This milestone does not add prediction submission, results, match events,
-automatic live/completed transitions, unpublishing, deletion, restoration,
-leagues, rosters, competition management, club directories, sponsorships, AI, or
-offline fixture caching.
+CCPP-006 later adds prediction submission for published fixtures. Fixture
+results, match events, automatic live/completed transitions, unpublishing,
+deletion, restoration, leagues, rosters, competition management, club
+directories, sponsorships, AI, and offline fixture caching remain outside
+CCPP-005/006.
 
 ## Fixture Model
 
@@ -100,12 +101,14 @@ Fixture cards and detail pages show Team 1, Team 2, competition, kickoff, venue
 when present, and cancellation status. They do not expose admin actor IDs,
 internal test ownership, stored revisions, or ruleset snapshots.
 
-Prediction submission is not implemented. Public fixture screens state that
-predictions are not open yet.
+CCPP-006 fixture cards and detail pages link to `/games/:fixtureId/predict` for
+prediction entry and saved-entry revisit. Prediction submission still uses the
+fixture's stored ruleset snapshot on the server; that snapshot remains out of
+public fixture publications.
 
 ## Deferred Decisions
 
-- Prediction submission deadlines and reopening.
+- Permanent prediction locking policy after fixture rescheduling.
 - Fixture deletion, unpublishing, and restoration.
 - Results entry and automatic live/completed transitions.
 - Match-event capture.
