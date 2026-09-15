@@ -19,7 +19,7 @@ const isTransientLocalNavigationError = (error: unknown) =>
     error.message.includes('Execution context was destroyed'));
 
 const waitForMeteorClient = async (page: Page) => {
-  await page.waitForFunction(() => Boolean(window.Meteor), {
+  await page.waitForFunction(() => Boolean(window.Meteor), undefined, {
     timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
   });
 };

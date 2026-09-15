@@ -66,7 +66,7 @@ export const AdminPage = () => {
       <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
         <SignInRequiredState
           currentPath="/admin"
-          message="Platform administration is available only after email-link sign-in and a server-side admin grant."
+          message="Admin access is available only after email-link sign-in with an authorised account."
           signInPath={adminSignInPathForReturnTo('/admin')}
           title="Sign in to continue"
         />
@@ -86,7 +86,7 @@ export const AdminPage = () => {
               redirectTo={adminSignInPathForReturnTo('/admin')}
             />
           }
-          message="This account does not currently have a platform-admin grant."
+          message="Admin access is available only to authorised accounts."
           title="Admin access is restricted"
         />
       </main>
@@ -107,8 +107,7 @@ export const AdminPage = () => {
             </p>
             <h1 className="mt-3 text-3xl font-black">Admin access summary</h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-rooster-muted">
-              This server-checked summary proves the current account has the
-              platform-admin grant.
+              This summary is available only to authorised admin accounts.
             </p>
           </div>
           <SignOutButton />

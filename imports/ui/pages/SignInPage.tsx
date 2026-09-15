@@ -114,7 +114,7 @@ export const SignInPage = () => {
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-rooster-muted">
             {isAdminMode
-              ? 'Enter the email address for an existing verified platform-admin account.'
+              ? 'Enter the email address for an authorised admin account.'
               : 'Enter your email address and Rugby Rooster will send one secure sign-in link for this browser or another one.'}
           </p>
 
@@ -181,9 +181,6 @@ export const SignInPage = () => {
               </p>
               <p className="mt-2 text-sm leading-6 text-rooster-muted">
                 The link expires in {PASSWORDLESS_LINK_EXPIRY_MINUTES} minutes.
-                {isAdminMode
-                  ? ' This acknowledgement is the same for eligible and ineligible addresses.'
-                  : ' This acknowledgement is the same for new and returning players.'}
               </p>
             </div>
           ) : null}
@@ -204,7 +201,7 @@ export const SignInPage = () => {
           </h2>
           <p className="mt-3 text-sm leading-6 text-rooster-muted">
             {isAdminMode
-              ? 'Admin access still depends on the server-side platform-admin grant at the moment protected data is requested.'
+              ? 'Admin access is available only to authorised accounts.'
               : 'This access email is separate from future optional marketing preferences.'}
           </p>
         </aside>

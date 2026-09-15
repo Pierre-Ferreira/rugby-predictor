@@ -103,3 +103,42 @@ Commands run on September 15, 2026:
 - No production email was sent. Automated verification used captured local/test
   mail only.
 - No real admin grants were created, revoked, committed, pushed, or deployed.
+
+## Follow-up - 2026-09-15 Browser Wait and Copy Cleanup
+
+Scope:
+
+- Corrected `tests/e2e/auth.spec.ts` so `waitForMeteorClient` passes
+  `undefined` as the browser-function argument and
+  `{ timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS }` as the third
+  `page.waitForFunction` options argument.
+- Inspected the other `waitForFunction` calls in `tests/e2e/auth.spec.ts`; no
+  matching misplaced-timeout calls were present.
+- Preserved the exact admin acknowledgement:
+  “If this account is eligible for admin access, we’ve sent a sign-in link.”
+- Removed explanatory acknowledgement-equivalence copy from the sign-in success
+  state.
+- Replaced user-facing platform-admin grant implementation wording in the
+  sign-in/admin access UI with plain authorised-account wording.
+
+Commands run on September 15, 2026:
+
+| Command                                                                                                                                                                               | Outcome                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `meteor npm exec prettier -- --write imports/ui/pages/SignInPage.tsx imports/ui/pages/AdminPage.tsx tests/e2e/auth.spec.ts`                                                           | Passed; `tests/e2e/auth.spec.ts` was formatted and the two UI files were unchanged by Prettier.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `meteor npm run test:e2e -- auth.spec.ts`                                                                                                                                             | Failed after all 11 tests executed: 9 passed, 2 failed, 0 skipped. This did not reproduce the earlier `window.Meteor` setup wait failure. The failures were URL assertions after clicking `Continue signing in`: `continues an already signed-in same-account session without consuming the link` remained on `/auth/email-link?returnTo=%2Faccount` at `tests/e2e/auth.spec.ts:432`; `blocks forbidden client user updates after sign-in` remained on `/auth/email-link?returnTo=%2Faccount` in `signInWithEmailLink` at line 138.                                               |
+| Playwright trace inspection for the 2 browser failures                                                                                                                                | Raw traces were inspected locally and not copied into docs. In the same-account failure, the trace showed local `GET /__rspack__/build-chunks-local-playwright/main.css` and `GET /__rspack__/client-rspack.js` returning `503 Service Unavailable` with `net::ERR_ABORTED`, plus browser console `Failed to load resource` errors; the final observed URL was `/auth/email-link?returnTo=%2Faccount`. In the client-update failure, the trace showed the sanitized URL `/auth/email-link?returnTo=%2Faccount` and the browser error text `This sign-in link is missing details.` |
+| `meteor npm run typecheck`                                                                                                                                                            | Passed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `meteor npm run lint`                                                                                                                                                                 | Passed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `meteor npm exec prettier -- --write imports/ui/pages/SignInPage.tsx imports/ui/pages/AdminPage.tsx tests/e2e/auth.spec.ts docs/AUDIT_004D_Admin_Sign_In.md docs/TEMP_004D_Resume.md` | Passed; docs were formatted.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `meteor npm exec prettier -- --check imports/ui/pages/SignInPage.tsx imports/ui/pages/AdminPage.tsx tests/e2e/auth.spec.ts docs/AUDIT_004D_Admin_Sign_In.md docs/TEMP_004D_Resume.md` | Passed: all matched changed files use Prettier style.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+
+Follow-up status:
+
+- CCPP-004D remains open because the required full auth browser suite did not
+  pass.
+- The new trace-supported blocker is auth-link redemption after credential URL
+  cleanup, not the previously observed `window.Meteor` startup wait.
+- No retries, timeout increases, weakened assertions, authentication behaviour
+  changes, real emails, grant changes, commits, pushes, deployments, PWA work,
+  or fixture work were performed in this follow-up.
