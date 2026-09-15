@@ -166,6 +166,12 @@ email during startup:
 
 Provisioning skips grant requests when the account does not exist or is not
 verified. Settings files must not contain production secrets in source control.
+After a grant succeeds, the stored `roles.platformAdmin` flag remains on the
+user account; remove the temporary `adminProvisioning` block from local settings
+after confirming access. To deliberately undo a grant, change the same block to
+`"action": "revoke"` for that verified email, restart the local app once so the
+server unsets the stored role, confirm `/admin` is denied, and then remove the
+temporary revoke block.
 
 ## Verification Coverage
 
