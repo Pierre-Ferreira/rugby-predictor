@@ -161,20 +161,45 @@ revision.
 The page refreshes time-sensitive UI every 15 seconds so an open page reflects
 kickoff passing. Server checks remain authoritative.
 
-## Animation Boundary
+When `isReadOnly` becomes true because scheduled kickoff has passed or the
+fixture is cancelled, the read-only saved-entry view derives its review values
+from the current persisted prediction entry. It does not read from mutable form
+state, so dirty unsaved values cannot be shown as saved answers. If the current
+user has no entry, the locked view shows the no-saved-prediction state.
 
-The CCPP-006 prediction flow has no Kaplay dependency. Prediction state is held
-in React form/session state and persisted only by Meteor methods. Navigation,
-input, validation, conflict handling, and submission cannot depend on an
-animation module loading or finishing.
+## Prediction Presentation Architecture
 
-Future Kaplay work must keep this boundary:
+Future Rugby Rooster prediction presentation has two complete experiences:
 
-- Lazy-load animation code outside the data-entry path.
-- Provide a user-visible animations toggle.
-- Respect reduced-motion preferences.
-- Fail gracefully when animations are disabled, unavailable, or delayed.
-- Never store prediction answers in animation state.
+- `kaplay` - the default animated experience. Kaplay may own the visual scene,
+  rooster animations, transitions, reactions, effects, and animated
+  interactions.
+- `standard` - the complete non-animated prediction experience. It must provide
+  the full usable prediction sequence without Kaplay and act as the resilient
+  fallback for user-disabled animations, reduced-motion preference, unsuitable
+  device or browser capability, Kaplay initialization failure, and Kaplay
+  runtime failure.
+
+Both experiences must consume the same prediction domain/state model. Shared
+code must own prediction answers/state, validation and rules, fixture ruleset
+snapshot interpretation, navigation and step semantics where applicable, and the
+server API/submission contract. The animated experience must not contain
+independent validation or business behavior that can drift from the standard
+experience.
+
+Presentation switching and fallback must preserve the player's answers. Kaplay
+initialization or runtime failure must never lose answers, block progression, or
+prevent submission. Submission must never depend on an animation completing.
+
+Player-facing controls should describe animation state, such as "Animations On"
+and "Animations Off." Avoid exposing implementation labels such as "React mode"
+to players. Internal labels such as `kaplay` and `standard` are acceptable when
+that future milestone implements them.
+
+CCPP-006A documents this architecture only. It does not implement Kaplay,
+animation toggles, reduced-motion or capability detection, sprite loading,
+lazy-loading, runtime fallback machinery, animation lifecycle, or hidden-page
+pausing.
 
 ## Test Support
 

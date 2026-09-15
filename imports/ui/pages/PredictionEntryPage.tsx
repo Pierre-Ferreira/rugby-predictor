@@ -706,7 +706,6 @@ const PredictionEntrySession = ({
         <ReadOnlyPrediction
           entry={currentEntry}
           fixture={fixture}
-          form={form}
           reason={readOnlyReason}
           ruleset={ruleset}
         />
@@ -1216,32 +1215,40 @@ const deriveScoresFromForm = (
 const ReadOnlyPrediction = ({
   entry,
   fixture,
-  form,
   reason,
   ruleset,
 }: {
   readonly entry: PredictionEntryDocument | null | undefined;
   readonly fixture: FixtureDocument;
-  readonly form: PredictionFormState;
   readonly reason: string;
   readonly ruleset: RulesetSnapshot;
-}) => (
-  <section className="rounded-md border border-rooster-line bg-white p-5">
-    <h2 className="text-xl font-black text-rooster-ink">Saved prediction</h2>
-    <p className="mt-2 text-sm leading-6 text-rooster-muted">{reason}</p>
-    {entry ? (
-      <>
-        <p className="mt-2 text-sm font-bold text-rooster-muted">
-          Saved revision {entry.revision}.
+}) => {
+  const savedForm = entry
+    ? formFromPrediction(entry.prediction, ruleset)
+    : null;
+
+  return (
+    <section className="rounded-md border border-rooster-line bg-white p-5">
+      <h2 className="text-xl font-black text-rooster-ink">Saved prediction</h2>
+      <p className="mt-2 text-sm leading-6 text-rooster-muted">{reason}</p>
+      {entry && savedForm ? (
+        <>
+          <p className="mt-2 text-sm font-bold text-rooster-muted">
+            Saved revision {entry.revision}.
+          </p>
+          <div className="mt-5">
+            <PredictionReview
+              fixture={fixture}
+              form={savedForm}
+              ruleset={ruleset}
+            />
+          </div>
+        </>
+      ) : (
+        <p className="mt-5 rounded-md border border-dashed border-rooster-line bg-rooster-paper p-4 text-sm font-semibold text-rooster-muted">
+          No saved prediction exists for this fixture.
         </p>
-        <div className="mt-5">
-          <PredictionReview fixture={fixture} form={form} ruleset={ruleset} />
-        </div>
-      </>
-    ) : (
-      <p className="mt-5 rounded-md border border-dashed border-rooster-line bg-rooster-paper p-4 text-sm font-semibold text-rooster-muted">
-        No saved prediction exists for this fixture.
-      </p>
-    )}
-  </section>
-);
+      )}
+    </section>
+  );
+};

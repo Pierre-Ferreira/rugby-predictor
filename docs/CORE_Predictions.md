@@ -16,6 +16,12 @@ Rugby Rooster remains separate from Rugby Tracker / Rucks and Mauls. This
 milestone does not add results, leaderboards, leagues, prizes, sponsorships,
 custom-question administration, AI, service workers, or Kaplay animation.
 
+CCPP-006A corrects the locked saved-entry display: when a page becomes
+read-only because kickoff passes or the fixture is cancelled, the visible saved
+prediction is derived from the persisted entry. Dirty local form values are not
+auto-saved and are not presented as though they were saved. If no saved entry
+exists, the locked view says that no saved prediction exists.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -88,17 +94,43 @@ do not replace the captured revision or unsaved answers. If a stale revision is
 submitted, the server returns a conflict and the browser offers an explicit
 reload that intentionally replaces unsaved values with the saved entry.
 
+When the fixture becomes read-only while a player has unsaved local changes, the
+editable form is removed and the "Saved prediction" display shows the current
+persisted entry. This applies to kickoff locking and cancellation. The client
+must not fabricate a saved prediction from dirty form state.
+
 When the authenticated account changes or signs out, displayed prediction form
 state is cleared and repopulated only from the new account's own subscription.
 
-## Animation Boundary
+## Prediction Presentation Architecture
 
-The CCPP-006 React prediction flow is fully usable without Kaplay. Inputs,
-navigation, validation, saved-entry display, revision handling, and submission
-do not depend on animation state or on animations completing.
+Rugby Rooster will have two complete prediction presentation experiences.
 
-Future animation work can enhance the experience, but disabling, delaying, or
-failing animations must not lose answers or prevent submission.
+The animated Kaplay experience will be the default prediction experience. It can
+own the visual scene, rooster animations, transitions, reactions, effects, and
+animated interactions.
+
+The standard non-animated experience is also a complete prediction experience.
+It is not temporary scaffolding and not merely an accessibility afterthought. It
+provides the whole usable prediction sequence without Kaplay and is the
+resilient fallback when animations are disabled by the player, reduced motion is
+preferred, device or browser capability is unsuitable, Kaplay initialization
+fails, or Kaplay fails at runtime.
+
+Both experiences must share one prediction domain and state model. They must use
+the same prediction answers, validation rules, fixture ruleset snapshot
+interpretation, navigation and step semantics where applicable, and Meteor
+submission contract. Kaplay must not implement separate business validation that
+can diverge from the standard experience.
+
+Switching or falling back between experiences must preserve the player's
+answers. Kaplay initialization or runtime failure must never lose answers, block
+progression, or prevent submission. Nothing essential to successful prediction
+submission may depend on an animation completing.
+
+Player-facing controls should be framed around animation, such as "Animations
+On" and "Animations Off." Implementation terms such as `kaplay` and `standard`
+may be used internally when that future milestone implements them.
 
 ## Deferred Decisions
 
@@ -107,4 +139,5 @@ failing animations must not lose answers or prevent submission.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
 - Admin configuration for custom fixture questions.
-- Kaplay animation design and mascot behavior.
+- Kaplay animation design, mascot behavior, capability detection, fallback
+  machinery, and player animation controls.

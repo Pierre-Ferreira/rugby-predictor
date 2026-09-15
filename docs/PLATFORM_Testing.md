@@ -173,8 +173,8 @@ The current browser suite covers:
   pagination clearing edit state and form values together, and edited fixtures
   leaving the visible page without falling through to draft creation.
 - Prediction entry return-path support, valid submit and saved-entry revisit,
-  edit before kickoff, locked read-only saved-entry display, and stale revision
-  conflict value preservation.
+  edit before kickoff, persisted locked saved-entry display after dirty local
+  edits, and stale revision conflict value preservation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

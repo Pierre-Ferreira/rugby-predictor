@@ -193,8 +193,7 @@ const loginAsAdminPage = async (browser: Browser, setupPage: Page) => {
 const farFutureKickoff = () =>
   new Date(Date.UTC(2098, 5, 1, 12, 0, 0)).toISOString();
 
-const recentPastKickoff = () =>
-  new Date(Date.now() - 2 * 60 * 1000).toISOString();
+const nearFutureKickoff = () => new Date(Date.now() + 2_000).toISOString();
 
 const predictionPath = (fixtureId: string) => `/games/${fixtureId}/predict`;
 
@@ -369,7 +368,7 @@ test.describe('prediction entry and submission', () => {
     await expect(page.getByLabel(`Team 2: ${team2} tries`)).toHaveValue('2');
   });
 
-  test('shows a saved entry read-only after kickoff locking', async ({
+  test('shows persisted saved entry after dirty local values lock at kickoff', async ({
     browser,
     page,
   }) => {
@@ -388,6 +387,16 @@ test.describe('prediction entry and submission', () => {
     await gotoLocal(page, predictionPath(fixtureId));
     await fillValidPredictionForm(page, { team1, team2 });
     await submitForm(page, 'Submit prediction');
+    await expect(page.getByRole('status')).toContainText('Prediction saved.');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await expect(
+      page.getByRole('button', { name: 'Save revised prediction' }),
+    ).toBeVisible();
+    await expect(page.getByText(`${team1}: 17`)).toBeVisible();
+
+    await page.getByLabel(`Team 1: ${team1} tries`).fill('3');
+    await page.getByLabel(`Team 1: ${team1} conversions`).fill('3');
+    await expect(page.getByText(`${team1}: 24`)).toBeVisible();
 
     const admin = await loginAsAdminPage(browser, page);
 
@@ -395,7 +404,7 @@ test.describe('prediction entry and submission', () => {
       await callMeteor(admin.page, FIXTURE_METHODS.editDetails, {
         details: {
           ...fixtureDetails,
-          scheduledKickoffAt: recentPastKickoff(),
+          scheduledKickoffAt: nearFutureKickoff(),
         },
         expectedRevision: 1,
         fixtureId,
@@ -404,12 +413,14 @@ test.describe('prediction entry and submission', () => {
       await admin.close();
     }
 
-    await gotoLocal(page, predictionPath(fixtureId));
-    await expect(page.getByText('Scheduled kickoff has passed')).toBeVisible();
+    await expect(page.getByText('Scheduled kickoff has passed')).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       page.getByRole('button', { name: 'Save revised prediction' }),
     ).toHaveCount(0);
     await expect(page.getByText(`${team1}: 17`)).toBeVisible();
+    await expect(page.getByText(`${team1}: 24`)).toHaveCount(0);
   });
 
   test('preserves unsaved answers after a stale revision conflict', async ({
