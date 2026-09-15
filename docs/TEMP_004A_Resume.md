@@ -8,6 +8,46 @@ until CCPP-004A is either completed or deliberately abandoned.
 This checkpoint session did not restart debugging, rerun browser suites, commit,
 push, deploy, or mark CCPP-004A complete.
 
+## Checkpoint - 2026-09-15 Throttle Correction
+
+This checkpoint corrected only the passwordless-auth throttle mismatch and
+throttle-window validation. It did not investigate or modify HMR, Rspack,
+browser navigation, database isolation, or test launchers.
+
+Changed files:
+
+- `imports/shared/auth/config.ts`
+- `tests/unit/auth-config.test.ts`
+- `docs/PLATFORM_Authentication.md`
+- `docs/AUDIT_004A_Throttle_Correction.md`
+- `docs/TEMP_004A_Resume.md`
+
+Actual check results:
+
+- `meteor npm run test:unit` passed: 6 test files, 57 tests.
+- `meteor npm run typecheck` passed: `tsc --noEmit --incremental false`.
+- Both commands emitted npm's existing
+  `Unknown env config "nodedir"` warning.
+
+Preserved findings:
+
+- The `Meteor.isTest` override remains unaccepted.
+- `RSPACK_NATIVE` was investigated but NOT established as a suitable
+  replacement.
+- Rspack reload, Meteor HMR, and Meteor hot-code-push have distinct controls.
+- Do not treat a proposed workaround as implemented or verified.
+
+Remaining work:
+
+- Decide whether the `Meteor.isTest` client override is acceptable, needs a
+  narrower implementation, or should be replaced with a supported mechanism.
+- Run final CCPP-004A verification in a future session that explicitly resumes
+  browser/full-suite testing.
+- Do not mark CCPP-004A complete until the workaround decision, final
+  verification, and durable completion documentation are done.
+- No commit, push, deployment, email sending, browser suite, full suite, or
+  completion action was performed in this checkpoint.
+
 ### Prior-Session Reported Results
 
 The interrupted prior session reported the following results. They are preserved

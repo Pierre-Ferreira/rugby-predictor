@@ -101,6 +101,20 @@ enablement, missing mail transport, and missing canonical app URL. Local and
 test runs capture mail when configured or when no production mail transport is
 present.
 
+Auth throttles are configured under `private.rugbyRooster.throttle`. Each
+throttle rule accepts `limit` as an integer from 1 to 10000 and `windowMinutes`
+from 1 to 1440. Defaults are:
+
+- `linkRequestByEmail`: 3 attempts per 15 minutes.
+- `linkRequestByAddressAggregate`: 40 attempts per shared address per 15
+  minutes.
+- `redemptionByEmail`: 8 attempts per 15 minutes.
+- `redemptionByAddress`: 40 attempts per shared address per 15 minutes.
+
+The shared-address link-request and redemption defaults intentionally match so a
+supported shared-IP request cohort has a coherent redemption allowance.
+Per-email limits remain narrower to protect individual account identities.
+
 Test helpers require `private.rugbyRooster.test.enableTestHelpers: true` plus an
 isolated launcher environment with loopback `ROOT_URL`, generated
 `RUGBY_ROOSTER_TEST_RUN_ID`, expected Meteor-managed database identity, and

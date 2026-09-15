@@ -155,4 +155,41 @@ describe('auth runtime configuration', () => {
       }),
     ).toThrow(/Invalid auth throttle limit/);
   });
+
+  it('keeps shared-address defaults coherent while preserving per-email limits', () => {
+    const limits = resolveAuthThrottleLimits();
+
+    expect(limits.linkRequestByAddressAggregate).toMatchObject({
+      limit: 40,
+      windowMs: 900_000,
+    });
+    expect(limits.redemptionByAddress).toMatchObject({
+      limit: 40,
+      windowMs: 900_000,
+    });
+    expect(limits.linkRequestByEmail.limit).toBe(3);
+    expect(limits.redemptionByEmail.limit).toBe(8);
+  });
+
+  it('rejects throttle windows outside the documented minute range', () => {
+    expect(() =>
+      resolveAuthThrottleLimits({
+        throttle: {
+          redemptionByAddress: {
+            windowMinutes: Number.MIN_VALUE,
+          },
+        },
+      }),
+    ).toThrow(/Use minutes from 1 to 1440/);
+
+    expect(() =>
+      resolveAuthThrottleLimits({
+        throttle: {
+          linkRequestByEmail: {
+            windowMinutes: 0.5,
+          },
+        },
+      }),
+    ).toThrow(/Use minutes from 1 to 1440/);
+  });
 });

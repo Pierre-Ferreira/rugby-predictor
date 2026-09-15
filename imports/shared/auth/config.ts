@@ -95,7 +95,7 @@ const DEFAULT_THROTTLE_LIMITS: AuthThrottleLimits = {
   },
   redemptionByAddress: {
     keyPrefix: 'redeem-address',
-    limit: 20,
+    limit: 40,
     windowMs: 15 * MINUTE_MS,
   },
   redemptionByEmail: {
@@ -226,6 +226,9 @@ const resolveThrottleRule = (
 ): ResolvedThrottleRule => {
   const limit = settings?.limit ?? defaults.limit;
   const windowMinutes = settings?.windowMinutes ?? defaults.windowMs / MINUTE_MS;
+  const windowMs = Number.isFinite(windowMinutes)
+    ? Math.round(windowMinutes * MINUTE_MS)
+    : Number.NaN;
 
   if (!Number.isInteger(limit) || limit < 1 || limit > 10_000) {
     throw new Error(
@@ -235,8 +238,9 @@ const resolveThrottleRule = (
 
   if (
     !Number.isFinite(windowMinutes) ||
-    windowMinutes <= 0 ||
-    windowMinutes > 24 * 60
+    windowMinutes < 1 ||
+    windowMinutes > 24 * 60 ||
+    windowMs < 1
   ) {
     throw new Error(
       `Invalid auth throttle window for ${defaults.keyPrefix}. Use minutes from 1 to 1440.`,
@@ -246,7 +250,7 @@ const resolveThrottleRule = (
   return {
     keyPrefix: defaults.keyPrefix,
     limit,
-    windowMs: Math.round(windowMinutes * MINUTE_MS),
+    windowMs,
   };
 };
 
