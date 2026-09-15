@@ -28,6 +28,24 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves account and passwordless sign-in routes', () => {
+    expect(resolveRoute('/sign-in')).toMatchObject({
+      id: 'signIn',
+      layout: 'public',
+      path: '/sign-in',
+    });
+    expect(resolveRoute('/auth/email-link')).toMatchObject({
+      id: 'authEmailLink',
+      layout: 'public',
+      path: '/auth/email-link',
+    });
+    expect(resolveRoute('/account')).toMatchObject({
+      id: 'account',
+      layout: 'public',
+      path: '/account',
+    });
+  });
+
   it('normalizes trailing slashes before matching', () => {
     expect(normalizePath('/games/')).toBe('/games');
     expect(resolveRoute('/games/')).toMatchObject({ id: 'games' });

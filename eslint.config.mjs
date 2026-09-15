@@ -9,6 +9,7 @@ const ignores = [
   '.meteor/**',
   '.playwright-mcp/**',
   '_build/**',
+  '_build-local-playwright/**',
   'coverage/**',
   'node_modules/**',
   'playwright-report/**',

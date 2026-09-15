@@ -9,16 +9,22 @@ import {
 import { AdminLayout } from './layouts/AdminLayout';
 import { PublicLayout } from './layouts/PublicLayout';
 import { AdminPage } from './pages/AdminPage';
+import { AccountPage } from './pages/AccountPage';
+import { AuthEmailLinkPage } from './pages/AuthEmailLinkPage';
 import { GamesPage } from './pages/GamesPage';
 import { HomePage } from './pages/HomePage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { SignInPage } from './pages/SignInPage';
 import { ErrorState, LoadingState } from './components/Status';
 
 const routePages: Record<RouteId, () => ReactNode> = {
+  account: AccountPage,
   home: HomePage,
   games: GamesPage,
   admin: AdminPage,
+  authEmailLink: AuthEmailLinkPage,
   notFound: NotFoundPage,
+  signIn: SignInPage,
 };
 
 interface ErrorBoundaryState {
@@ -53,15 +59,22 @@ class AppErrorBoundary extends Component<
   }
 }
 
-const getBrowserPath = (): string => window.location.pathname;
+const getBrowserLocation = (): string =>
+  `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
 export const App = () => {
-  const [pathname, setPathname] = useState(getBrowserPath);
-  const route = useMemo(() => resolveRoute(pathname), [pathname]);
+  const [browserLocation, setBrowserLocation] = useState(getBrowserLocation);
+  const route = useMemo(
+    () =>
+      resolveRoute(
+        new URL(browserLocation, 'https://rugby-rooster.local').pathname,
+      ),
+    [browserLocation],
+  );
 
   useEffect(() => {
     const onLocationChange = () => {
-      setPathname(getBrowserPath());
+      setBrowserLocation(getBrowserLocation());
       window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 

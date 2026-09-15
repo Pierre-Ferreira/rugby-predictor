@@ -22,7 +22,7 @@ Implementation guardrails:
 
 - Meteor methods and publications own authoritative operations and controlled data access.
 - Do not add unrestricted client database writes or broad publications.
-- Keep admin routes free of privileged data and actions until authentication and server-side authorisation are implemented.
+- Keep admin routes and privileged data/actions behind server-side authentication and authorisation.
 - Install Jotai, simpl-schema, and Kaplay only when a milestone actually needs them.
 - Keep scoring and prediction validation independent of React and Kaplay.
 - Introduce AI services later only behind server-side integrations.

@@ -4,7 +4,7 @@
 
 Testing strategy: agreed for CCPP-002.
 
-Implementation evidence: locally verified on September 14, 2026 in `docs/AUDIT_002_Testing_Infrastructure.md`.
+Implementation evidence: locally verified on September 14, 2026 in `docs/AUDIT_002_Testing_Infrastructure.md`, extended for scoring in CCPP-003/003A, and extended for passwordless account integration/browser coverage in CCPP-004.
 
 Remote CI status: configured but not yet observed running in GitHub Actions from this workspace.
 
@@ -61,6 +61,7 @@ Current unit test files:
 - `tests/unit/routes.test.ts` - route resolution.
 - `tests/unit/playwright-target.test.ts` - local-only Playwright target guard.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003/003A scoring rules, validation, public helper boundaries, snapshots, pending/provisional/final observations, custom questions, first-try observation consistency, malformed public requests, and worked examples.
+- `tests/unit/auth-helpers.test.ts` - email identity normalization and safe auth return paths.
 
 Commands:
 
@@ -106,9 +107,15 @@ The current browser suite covers:
 - Direct `/games` loading and refresh.
 - Browser back and forward navigation.
 - Focused keyboard navigation through the main navigation to `/games`.
-- `/admin` non-functional placeholder.
+- `/admin` sign-in requirement before protected content.
 - Unknown-path not-found handling.
 - Desktop and mobile horizontal-overflow checks for public and admin layouts.
+- Passwordless email-link request using captured local mail.
+- Link redemption in a fresh browser, session restoration, and sign-out.
+- Restricted admin denial, grant, and revocation behavior.
+- Invalid-link recovery without retaining token/email query parameters in the final URL.
+- Blocked client attempts to update protected user fields.
+- Mobile and keyboard access for sign-in.
 
 Failure diagnostics:
 
@@ -117,15 +124,35 @@ Failure diagnostics:
 
 Browser checks do not prove backend security. Server code must still be inspected for privileged operations, and future domain features need server-side tests.
 
-## Future Integration-Test Boundary
+## Integration Tests
 
-Boundary decision: agreed. Implementation is deferred until database-backed features exist.
+Runner: Meteor full-app tests with `meteortesting:mocha`.
 
-Do not build speculative database test infrastructure before database-backed features exist.
+Command:
+
+```sh
+meteor npm run test:integration
+```
+
+Current integration settings live in `tests/settings/integration-settings.json`
+and enable local mail capture plus test-only auth helpers. Integration tests must
+never connect to production services.
+
+Current coverage:
+
+- Passwordless account creation and verification.
+- Returning-player account reuse and resend invalidation.
+- Case/whitespace normalization while preserving plus addressing.
+- Invalid, expired, replayed, and concurrent token redemption.
+- Direct package method hardening against arbitrary selectors and user data.
+- Link-request and redemption throttling.
+- Mail delivery failure reporting.
+- Player/admin permission boundaries and admin revocation.
+- Narrow current-user publication fields.
+- Central safe return-path validation.
 
 Future Meteor/database integration tests must cover:
 
-- Authentication and server-side permissions.
 - Prediction ownership.
 - Submission deadlines.
 - Duplicate-request handling.
@@ -151,6 +178,7 @@ The workflow:
 - Runs `meteor npm ci`.
 - Installs Playwright Chromium with browser system dependencies.
 - Runs formatting, ESLint, project-invariant, TypeScript, Vitest, and Playwright checks.
+- Runs the Meteor full-app integration suite before Playwright.
 - Uploads Playwright artifacts only on failure.
 
 No deployment steps or production secrets are required.
@@ -171,6 +199,8 @@ Remediate these in a bounded dependency-maintenance task that can assess Meteor 
 - npm may emit `Unknown env config "nodedir"` in this environment. It is noisy but did not fail local checks.
 - Playwright must have a browser installed. If `test:e2e` reports a missing executable under `.cache/ms-playwright`, run the browser install command above.
 - Local sandboxed runs may block Meteor port binding. On a normal developer machine, run the same commands directly from the repository root.
+- Browser checks that start a local Meteor/Rspack web server may need normal loopback access. In restricted automation sandboxes, rerun `meteor npm run test:e2e` with permission for local loopback if the web server listens but Playwright cannot reach it.
+- Generated Meteor/Rspack browser-test directories (`.meteor/local-playwright/`, `_build-local-playwright/`, local build chunks/assets, `test-results/`, and `playwright-report/`) are ignored by source checks and must not be included in handover archives.
 - If port `3200` is already in use, stop the conflicting local process or set `PORT` to another local port. If using `PLAYWRIGHT_BASE_URL`, keep it on a local loopback host.
 
 ## References

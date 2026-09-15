@@ -103,21 +103,20 @@ test.describe('Rugby Rooster foundation', () => {
     ).toBeVisible();
   });
 
-  test('admin route shows only the non-functional placeholder', async ({
+  test('admin route requires sign-in before showing protected content', async ({
     page,
   }) => {
     await page.goto('/admin');
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Admin area placeholder' }),
+      page.getByRole('heading', { level: 1, name: 'Sign in to continue' }),
     ).toBeVisible();
     await expect(
-      page.getByText(
-        'Authentication and server-side authorisation are future work.',
-      ),
+      page.getByText('Platform administration is available only'),
     ).toBeVisible();
-    await expect(page.locator('form')).toHaveCount(0);
-    await expect(page.locator('input, textarea, select')).toHaveCount(0);
+    await expect(
+      page.getByRole('link', { name: 'Email me a sign-in link' }),
+    ).toBeVisible();
   });
 
   test('unknown paths display the not-found page', async ({ page }) => {
@@ -140,7 +139,7 @@ test.describe('Rugby Rooster foundation', () => {
         width: viewport.width,
       });
 
-      for (const path of ['/', '/games', '/admin']) {
+      for (const path of ['/', '/games', '/sign-in', '/account', '/admin']) {
         await page.goto(path);
         await expectNoHorizontalOverflow(page);
       }

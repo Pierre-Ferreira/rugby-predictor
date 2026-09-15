@@ -33,7 +33,7 @@
     },
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "types": ["node"],
+    "types": ["node", "mocha"],
     "esModuleInterop": true,
     "preserveSymlinks": true,
     "skipLibCheck": true
@@ -42,7 +42,12 @@
     "./.meteor/**",
     "./packages/**",
     "./_build/**",
+    "./_build-local-playwright/**",
     "./public/build-chunks/**",
-    "./public/build-assets/**"
+    "./public/build-chunks-local-playwright/**",
+    "./public/build-assets/**",
+    "./public/build-assets-local-playwright/**",
+    "./playwright-report/**",
+    "./test-results/**"
   ]
 }

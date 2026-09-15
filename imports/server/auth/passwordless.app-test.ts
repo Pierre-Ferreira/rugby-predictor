@@ -1,0 +1,509 @@
+import assert from 'node:assert/strict';
+import { Accounts } from 'meteor/accounts-base';
+import { Meteor } from 'meteor/meteor';
+import { Random } from 'meteor/random';
+
+import {
+  PASSWORDLESS_LINK_EXPIRY_MINUTES,
+  SESSION_EXPIRY_DAYS,
+} from '/imports/shared/auth/constants';
+import {
+  ADMIN_METHODS,
+  AUTH_METHODS,
+  type CurrentAccessResult,
+} from '/imports/shared/auth/methods';
+import { resolveSafeReturnPath } from '/imports/shared/auth/redirects';
+import { failNextLocalMailForTests, latestCapturedMailFor } from './mailSink';
+import { resetTestAuthData } from './testSupport';
+import {
+  grantPlatformAdminByEmail,
+  revokePlatformAdminByEmail,
+} from './authorization';
+
+type MethodHandler = (
+  this: Meteor.MethodThisType,
+  ...args: unknown[]
+) => Promise<unknown>;
+
+interface LoginResult {
+  readonly id: string;
+  readonly token: string;
+  readonly tokenExpires: Date;
+}
+
+interface TestInvocation extends Meteor.MethodThisType {
+  userId: string | null;
+}
+
+const handlers = (): Record<string, MethodHandler> =>
+  (
+    Meteor as unknown as {
+      server: {
+        method_handlers: Record<string, MethodHandler>;
+      };
+    }
+  ).server.method_handlers;
+
+const makeInvocation = (
+  label = Random.id(),
+  clientAddress = '127.0.0.1',
+): TestInvocation => {
+  const invocation: {
+    connection: {
+      clientAddress: string;
+      close: () => undefined;
+      id: string;
+    };
+    isSimulation: false;
+    setUserId: (userId: string | null) => Promise<void>;
+    unblock: () => undefined;
+    userId: string | null;
+  } = {
+    connection: {
+      clientAddress,
+      close: () => undefined,
+      id: `test-${label}`,
+    },
+    isSimulation: false,
+    setUserId(userId: string | null) {
+      invocation.userId = userId;
+      return Promise.resolve();
+    },
+    unblock: () => undefined,
+    userId: null,
+  };
+
+  return invocation as unknown as TestInvocation;
+};
+
+const callMethod = async <TResult>(
+  name: string,
+  args: readonly unknown[] = [],
+  invocation = makeInvocation(),
+): Promise<TResult> => {
+  const handler = handlers()[name];
+
+  assert.equal(typeof handler, 'function', `${name} method exists`);
+
+  return (await handler.apply(invocation, [...args])) as TResult;
+};
+
+const uniqueEmail = (prefix: string): string =>
+  `ccpp004-${prefix}-${Random.id().toLowerCase()}@example.test`;
+
+const requestLink = async (
+  email: string,
+  returnTo = '/account',
+  invocation = makeInvocation(),
+) =>
+  callMethod(AUTH_METHODS.requestSignInLink, [{ email, returnTo }], invocation);
+
+const directPackageRequest = async (
+  payload: unknown,
+  invocation = makeInvocation(),
+) => callMethod('requestLoginTokenForUser', [payload], invocation);
+
+const getLinkParts = (email: string) => {
+  const mail = latestCapturedMailFor(email);
+  assert.ok(mail?.url, 'captured passwordless email link exists');
+
+  const url = new URL(mail.url);
+  const linkEmail = url.searchParams.get('email');
+  const token = url.searchParams.get('token');
+  const returnTo = url.searchParams.get('returnTo');
+
+  assert.ok(linkEmail, 'link includes email');
+  assert.ok(token, 'link includes token');
+
+  return {
+    email: linkEmail,
+    returnTo,
+    token,
+    url,
+  };
+};
+
+const loginWithLink = async (
+  email: string,
+  token: string,
+  invocation = makeInvocation(),
+) =>
+  callMethod<LoginResult>(
+    'login',
+    [
+      {
+        selector: { email },
+        token,
+      },
+    ],
+    invocation,
+  );
+
+const findUserByEmail = async (email: string, fields = {}) => {
+  const findUser = Accounts.findUserByEmail as unknown as (
+    emailAddress: string,
+    options: unknown,
+  ) => Promise<Meteor.User | null>;
+
+  return findUser(email, {
+    fields,
+  });
+};
+
+describe('CCPP-004 passwordless accounts and authorisation', function (this: Mocha.Suite) {
+  this.timeout(20_000);
+
+  beforeEach(async () => {
+    await resetTestAuthData();
+  });
+
+  it('creates a new unverified account on request and verifies it on link redemption', async () => {
+    const email = uniqueEmail('new-user');
+    const result = await requestLink(`  ${email.toUpperCase()}  `, '/account');
+
+    assert.deepEqual(result, {
+      acknowledged: true,
+      expiresInMinutes: PASSWORDLESS_LINK_EXPIRY_MINUTES,
+    });
+
+    const createdUser = await findUserByEmail(email, {
+      emails: 1,
+      roles: 1,
+      services: 1,
+    });
+
+    assert.ok(createdUser);
+    assert.equal(createdUser.emails?.[0]?.address, email);
+    assert.equal(createdUser.emails?.[0]?.verified, false);
+    assert.equal((createdUser as { roles?: unknown }).roles, undefined);
+    assert.ok(
+      (createdUser as { services?: { passwordless?: unknown } }).services
+        ?.passwordless,
+      'request stores a package passwordless token',
+    );
+
+    const link = getLinkParts(email);
+    assert.equal(link.returnTo, '/account');
+    assert.equal(link.url.pathname, '/auth/email-link');
+    assert.equal(link.url.searchParams.has('loginToken'), false);
+
+    const invocation = makeInvocation('new-user-login');
+    const login = await loginWithLink(link.email, link.token, invocation);
+
+    assert.equal(login.id, createdUser._id);
+    assert.equal(invocation.userId, createdUser._id);
+    assert.ok(login.token);
+    assert.ok(login.tokenExpires instanceof Date);
+
+    const expectedMs = SESSION_EXPIRY_DAYS * 24 * 60 * 60 * 1000;
+    const actualMs = login.tokenExpires.getTime() - Date.now();
+    assert.ok(actualMs > expectedMs - 60_000);
+    assert.ok(actualMs <= expectedMs + 60_000);
+
+    const verifiedUser = await findUserByEmail(email, {
+      emails: 1,
+      services: 1,
+    });
+
+    assert.equal(verifiedUser?.emails?.[0]?.verified, true);
+    assert.equal(
+      (verifiedUser as { services?: { passwordless?: unknown } }).services
+        ?.passwordless,
+      undefined,
+    );
+
+    await callMethod('logout', [], invocation);
+
+    assert.equal(invocation.userId, null);
+  });
+
+  it('returns an existing player to the same account and invalidates previous resend links', async () => {
+    const email = uniqueEmail('returning');
+
+    await requestLink(email);
+    const firstLink = getLinkParts(email);
+    const firstLogin = await loginWithLink(firstLink.email, firstLink.token);
+
+    await requestLink(email.toUpperCase(), '/games');
+    const staleLink = getLinkParts(email);
+    await requestLink(` ${email} `, '/account');
+    const latestLink = getLinkParts(email);
+
+    await assert.rejects(
+      () => loginWithLink(staleLink.email, staleLink.token),
+      /Something went wrong|invalid|expired/i,
+    );
+
+    const secondLogin = await loginWithLink(latestLink.email, latestLink.token);
+
+    assert.equal(secondLogin.id, firstLogin.id);
+    assert.equal(
+      await Meteor.users.find({ 'emails.address': email }).countAsync(),
+      1,
+    );
+  });
+
+  it('normalizes case and whitespace without stripping plus addressing', async () => {
+    const plusEmail = uniqueEmail('plus+tag');
+    const baseEmail = plusEmail.replace('+tag', '');
+
+    await requestLink(` ${plusEmail.toUpperCase()} `);
+    await requestLink(baseEmail);
+
+    assert.equal(
+      await Meteor.users
+        .find({
+          'emails.address': {
+            $in: [plusEmail, baseEmail],
+          },
+        })
+        .countAsync(),
+      2,
+    );
+  });
+
+  it('rejects invalid, expired, replayed, and concurrent token redemption', async () => {
+    const email = uniqueEmail('tokens');
+
+    await requestLink(email);
+    const link = getLinkParts(email);
+
+    await assert.rejects(
+      () => loginWithLink(link.email, 'BADTOKEN'),
+      /Something went wrong|invalid|expired/i,
+    );
+
+    await Meteor.users.updateAsync(
+      { 'emails.address': email },
+      {
+        $set: {
+          'services.passwordless.createdAt': new Date(
+            Date.now() - (PASSWORDLESS_LINK_EXPIRY_MINUTES + 1) * 60 * 1000,
+          ),
+        },
+      },
+    );
+
+    await assert.rejects(
+      () => loginWithLink(link.email, link.token),
+      /Something went wrong|invalid|expired/i,
+    );
+
+    await requestLink(email);
+    const replayLink = getLinkParts(email);
+    await loginWithLink(replayLink.email, replayLink.token);
+
+    await assert.rejects(
+      () => loginWithLink(replayLink.email, replayLink.token),
+      /Something went wrong|invalid|expired/i,
+    );
+
+    await requestLink(email);
+    const concurrentLink = getLinkParts(email);
+    const attempts = await Promise.allSettled([
+      loginWithLink(
+        concurrentLink.email,
+        concurrentLink.token,
+        makeInvocation('concurrent-a'),
+      ),
+      loginWithLink(
+        concurrentLink.email,
+        concurrentLink.token,
+        makeInvocation('concurrent-b'),
+      ),
+    ]);
+
+    assert.equal(
+      attempts.filter((attempt) => attempt.status === 'fulfilled').length,
+      1,
+    );
+    assert.equal(
+      attempts.filter((attempt) => attempt.status === 'rejected').length,
+      1,
+    );
+  });
+
+  it('protects direct package entry points from arbitrary selectors and malicious user data', async () => {
+    const email = uniqueEmail('abuse');
+
+    await assert.rejects(
+      () =>
+        directPackageRequest({
+          selector: { id: 'target-user-id' },
+          userData: {
+            email,
+            profile: { roles: { platformAdmin: true } },
+          },
+        }),
+      /email/i,
+    );
+
+    await directPackageRequest({
+      options: {
+        extra: {
+          returnTo: 'https://evil.example/admin',
+        },
+      },
+      selector: { email },
+      userData: {
+        email,
+        profile: { roles: { platformAdmin: true } },
+        roles: { platformAdmin: true },
+      },
+    });
+
+    const user = (await findUserByEmail(email, {
+      emails: 1,
+      profile: 1,
+      roles: 1,
+    })) as Meteor.User & { profile?: unknown; roles?: unknown };
+
+    assert.ok(user);
+    assert.equal(user.profile, undefined);
+    assert.equal(user.roles, undefined);
+    assert.equal(getLinkParts(email).returnTo, '/games');
+
+    const link = getLinkParts(email);
+    await assert.rejects(
+      () =>
+        callMethod('login', [
+          {
+            selector: { id: user._id },
+            token: link.token,
+          },
+        ]),
+      /invalid-login-selector|invalid/i,
+    );
+  });
+
+  it('throttles link requests by email identity and by connection address', async () => {
+    const email = uniqueEmail('throttle-email');
+
+    await requestLink(email);
+    await requestLink(email);
+    await requestLink(email);
+
+    await assert.rejects(() => requestLink(email), /Too many attempts/i);
+
+    await resetTestAuthData();
+
+    const invocation = makeInvocation('same-address', '198.51.100.44');
+
+    for (let index = 0; index < 8; index += 1) {
+      await requestLink(
+        uniqueEmail(`throttle-ip-${index}`),
+        '/games',
+        invocation,
+      );
+    }
+
+    await assert.rejects(
+      () =>
+        requestLink(uniqueEmail('throttle-ip-blocked'), '/games', invocation),
+      /Too many attempts/i,
+    );
+  });
+
+  it('throttles token redemption attempts for the package login path', async () => {
+    const email = uniqueEmail('redeem-throttle');
+
+    await requestLink(email);
+
+    for (let index = 0; index < 8; index += 1) {
+      await assert.rejects(
+        () => loginWithLink(email, `BAD${index}`),
+        /Something went wrong|invalid|expired/i,
+      );
+    }
+
+    await assert.rejects(
+      () => loginWithLink(email, 'BAD-FINAL'),
+      /Too many attempts/i,
+    );
+  });
+
+  it('reports mail delivery failure without returning a false success', async () => {
+    const email = uniqueEmail('mail-failure');
+
+    failNextLocalMailForTests();
+
+    await assert.rejects(
+      () => requestLink(email),
+      /could not send a sign-in link/i,
+    );
+    assert.equal(latestCapturedMailFor(email), undefined);
+  });
+
+  it('enforces player and platform-admin permission boundaries with revocation', async () => {
+    const playerEmail = uniqueEmail('player');
+
+    await assert.rejects(
+      () => callMethod(ADMIN_METHODS.accessSummary),
+      /Sign in to continue/i,
+    );
+
+    await requestLink(playerEmail);
+    const playerLink = getLinkParts(playerEmail);
+    const playerInvocation = makeInvocation('player-session');
+    await loginWithLink(playerLink.email, playerLink.token, playerInvocation);
+
+    const access = await callMethod<CurrentAccessResult>(
+      AUTH_METHODS.currentAccess,
+      [],
+      playerInvocation,
+    );
+
+    assert.equal(access.isAuthenticated, true);
+    assert.equal(access.isVerified, true);
+    assert.equal(access.isPlatformAdmin, false);
+
+    await assert.rejects(
+      () => callMethod(ADMIN_METHODS.accessSummary, [], playerInvocation),
+      /admin area|access/i,
+    );
+
+    assert.equal(await grantPlatformAdminByEmail(playerEmail), true);
+
+    const adminSummary = await callMethod(
+      ADMIN_METHODS.accessSummary,
+      [],
+      playerInvocation,
+    );
+
+    assert.ok(adminSummary);
+
+    assert.equal(await revokePlatformAdminByEmail(playerEmail), true);
+    await assert.rejects(
+      () => callMethod(ADMIN_METHODS.accessSummary, [], playerInvocation),
+      /admin area|access/i,
+    );
+  });
+
+  it('keeps the current-user publication field set narrow', () => {
+    const projection = (
+      Accounts as unknown as {
+        _defaultPublishFields: { projection: Record<string, 0 | 1> };
+      }
+    )._defaultPublishFields.projection;
+
+    assert.deepEqual(projection, {
+      emails: 1,
+      roles: 1,
+    });
+    assert.equal('services' in projection, false);
+    assert.equal('profile' in projection, false);
+  });
+
+  it('validates safe return destinations centrally', () => {
+    assert.equal(resolveSafeReturnPath('/account'), '/account');
+    assert.equal(resolveSafeReturnPath('/admin'), '/admin');
+    assert.equal(
+      resolveSafeReturnPath('/fixtures/abc_123?tab=predictions&utm=ad'),
+      '/fixtures/abc_123?tab=predictions',
+    );
+    assert.equal(resolveSafeReturnPath('https://evil.example/admin'), '/games');
+    assert.equal(resolveSafeReturnPath('//evil.example/admin'), '/games');
+    assert.equal(resolveSafeReturnPath('javascript:alert(1)'), '/games');
+    assert.equal(resolveSafeReturnPath('/unknown'), '/games');
+  });
+});

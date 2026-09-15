@@ -1,10 +1,13 @@
 .meteor/
 .playwright-mcp/
 _build/
+_build-local-playwright/
 coverage/
 node_modules/
 playwright-report/
 public/build-assets/
 public/build-chunks/
+public/build-assets-local-playwright/
+public/build-chunks-local-playwright/
 test-results/
 tsconfig.tsbuildinfo

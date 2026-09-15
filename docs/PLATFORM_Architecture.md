@@ -8,7 +8,7 @@ Current boundaries:
 
 - `client/` owns browser startup and global styles.
 - `server/` owns Meteor server startup.
-- `imports/shared/` holds framework-light shared metadata used by client and future server code.
+- `imports/shared/` holds framework-light shared metadata used by client and server code.
 - `imports/shared/scoring/` holds the CCPP-003 framework-independent scoring engine.
 - `imports/ui/` owns React layouts, route pages, links, and status states.
 - `docs/` owns prefixed project documentation.
@@ -31,11 +31,13 @@ Planned platform responsibilities:
 - Scoring and prediction validation must remain independent of React and Kaplay.
 - AI services will be introduced later behind server-side integrations.
 
-CCPP-001 does not define domain collections, publications, methods, accounts, scoring, predictions, or leaderboards. `insecure` and `autopublish` must remain absent.
+At the CCPP-001 foundation boundary, no domain collections, publications, methods, accounts, scoring, predictions, or leaderboards were defined. `insecure` and `autopublish` must remain absent.
 
 CCPP-002 adds verification infrastructure only. It does not change data authority or introduce domain persistence.
 
 CCPP-003 adds scoring rules and a pure shared scoring engine. It does not introduce domain persistence, Meteor methods, publications, fixture administration, prediction submission, live event capture, or leaderboard aggregation. Future server code must call the engine from authoritative Meteor methods and bind predictions to immutable fixture ruleset snapshots.
+
+CCPP-004 adds passwordless accounts, local/test mail capture, account and admin routes, auth methods, server-side authorisation helpers, and Meteor full-app integration tests. Auth remains separate from fixture and prediction persistence.
 
 ## Dependency Discipline
 
@@ -61,11 +63,11 @@ Final mascot assets and approved branding are not established in CCPP-001.
 
 ## Security Notes
 
-- The admin page is a placeholder only.
-- Authentication and server-side authorisation are future work.
-- Do not expose privileged data or actions through client-only checks.
+- The admin page is restricted by the server-side `admin.accessSummary` method.
+- Passwordless email-link operations are validated, throttled, and wrapped on the server.
+- Client-side auth state is a UI hint only; privileged data and actions must remain behind Meteor methods/publications with server-side checks.
 - Keep secrets out of source control and documentation.
-- Browser tests can confirm placeholder UI behaviour, but backend security must be verified through server code review and future integration tests.
+- Browser tests confirm user-facing auth flows, and Meteor integration tests verify server-side auth boundaries.
 
 ## Verification Architecture
 
@@ -83,3 +85,7 @@ Implementation evidence: local verification is recorded in `docs/AUDIT_002_Testi
 ## Scoring Engine
 
 The scoring engine architecture is documented in `docs/PLATFORM_Scoring_Engine.md`. The authoritative product rules are in `docs/CORE_Scoring_Rules.md`.
+
+## Authentication
+
+The account and authorisation architecture is documented in `docs/PLATFORM_Authentication.md`.

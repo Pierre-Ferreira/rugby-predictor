@@ -17,14 +17,15 @@ export default defineConfig({
   },
   webServer: shouldStartWebServer
     ? {
-        command: `meteor run --port ${testPort}`,
+        command: `meteor run --port ${testPort} --settings tests/settings/playwright-settings.json`,
         env: {
+          METEOR_LOCAL_DIR: '.meteor/local-playwright',
           NODE_ENV: 'test',
           PORT: String(testPort),
           ROOT_URL: baseURL,
         },
         reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
+        timeout: 300_000,
         url: baseURL,
       }
     : undefined,

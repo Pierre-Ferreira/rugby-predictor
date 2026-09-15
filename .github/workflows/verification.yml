@@ -51,6 +51,9 @@ jobs:
       - name: Run Unit Tests
         run: meteor npm run test:unit
 
+      - name: Run Integration Tests
+        run: meteor npm run test:integration
+
       - name: Run Browser Smoke Tests
         run: meteor npm run test:e2e
 

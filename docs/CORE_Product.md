@@ -24,7 +24,7 @@ Out of scope for this product:
 - Public React routes for `/`, `/games`, and unmatched paths.
 - Separate admin layout at `/admin`.
 - Honest empty states and placeholders.
-- No implemented fixtures, predictions, scoring, accounts, leagues, leaderboards, prizes, sponsorships, animations, quizzes, or AI reports.
+- Accounts, scoring, fixtures, predictions, leagues, leaderboards, prizes, sponsorships, animations, quizzes, and AI reports were not part of the CCPP-001 implementation scope.
 
 ## Implemented In CCPP-002
 
@@ -39,6 +39,21 @@ Out of scope for this product:
 - Unit coverage for scoring rules, validation failures, pending/provisional/final observations, ruleset snapshots, and worked examples.
 - No UI, accounts, database collections, fixture administration, prediction submission, match-event reducer, live event capture, league aggregation, AI, deployment, or admin configuration permissions.
 
+## Implemented In CCPP-004
+
+- Passwordless email-link account access using Meteor accounts.
+- Email identity normalization that preserves plus addressing.
+- Safe in-app return-path validation for sign-in redirects.
+- Local/test mail capture without sending real emails.
+- Server-side hardening around passwordless package request and login methods.
+- Link-request and token-redemption throttling.
+- Token expiry, replay rejection, resend invalidation, and concurrent redemption protection.
+- Verified player account route at `/account`.
+- Restricted platform-admin route at `/admin` backed by a server-authorised method.
+- Test-only auth helpers guarded by private local settings and disabled in production.
+- Unit, Meteor full-app integration, and Playwright coverage for account and authorisation behavior.
+- No fixtures, predictions, leagues, leaderboards, prizes, sponsorships, animation, quizzes, AI reports, payment features, or Rugby Tracker / Rucks and Mauls concepts.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
@@ -47,7 +62,7 @@ Out of scope for this product:
 - Live scores are labelled "If it ended now"; unresolved predictions remain pending. Final scores become official after confirmation.
 - Fixture question sets and scoring rules need versioned snapshots to protect existing competitions from later configuration changes.
 - Permanent score and card questions, configurable optional questions, and fixture-specific custom questions are planned. Exact configuration constraints remain to be specified.
-- Prediction access will use passwordless email links. The detailed account and session flow requires its own implementation milestone.
+- Prediction access uses passwordless email links. Future prediction submission must bind submissions to authenticated verified player accounts through server methods.
 - Leagues, cumulative results, matches played, average points, placements, and prizes are planned.
 - Venue branding and sponsorship placements must be considered as the system grows.
 - Message variations and the rooster's animations will enrich the prediction flow.
@@ -62,5 +77,6 @@ These require precise specifications before implementation:
 - Prediction submission and reopening policies.
 - Leaderboard tie-breaking.
 - Detailed optional question configuration constraints.
-- Account and session lifecycle for passwordless email access.
+- Account deletion, support, and long-term email preference lifecycle beyond sign-in access.
+- Platform-admin management UI and audit policy.
 - Venue competition, prize, and sponsorship rules.

@@ -7,7 +7,7 @@ This is the current roadmap, not permission to implement later milestones inside
 1. Application foundation - this task.
 2. Testing infrastructure and foundation verification - CCPP-002.
 3. Detailed game rules and tested scoring engine - CCPP-003.
-4. Passwordless accounts and authorisation.
+4. Passwordless accounts and authorisation - CCPP-004.
 5. Fixture management and public fixture browsing.
 6. Prediction sequence and submission locking.
 7. Match-event capture, corrections, and live/final leaderboard scoring.
@@ -23,7 +23,7 @@ Implemented:
 - Documentation convention and initial system documents.
 - Static verification commands for linting, formatting, and TypeScript.
 
-Not implemented:
+Not part of this milestone:
 
 - Accounts or passwordless email links.
 - Fixture administration or fixture data.
@@ -42,7 +42,7 @@ Implemented:
 - Unit tests for existing framework-independent route resolution.
 - Browser tests for current public/admin route behaviour, navigation, refresh, not-found handling, keyboard navigation, and responsive overflow.
 
-Not implemented:
+Not part of this milestone:
 
 - Accounts, fixtures, predictions, leaderboards, leagues, sponsorships, animations, quizzes, or AI reports.
 - Database-backed integration tests for future domain features.
@@ -61,7 +61,7 @@ Implemented:
 - Custom numeric and categorical question support without executable formulas.
 - Unit tests for scoring, validation, snapshots, and documented examples.
 
-Not implemented:
+Not part of this milestone:
 
 - UI, accounts, database collections, fixture administration, prediction submission, match-event capture, event normalization, league aggregation, leaderboards, AI, deployment, or admin configuration permissions.
 - Database immutability for fixture ruleset snapshots.
@@ -80,11 +80,33 @@ Implemented:
 - ESLint parser split so `.ts` generic arrows and `.tsx` JSX both parse correctly.
 - Documentation corrections for public API boundaries, pending-data limits, mixed pending/zero scoring, and snapshot cloning guarantees.
 
-Not implemented:
+Not part of this milestone:
 
 - Accounts, persistence, fixtures, submission, event capture, UI, leaderboard functionality, deployment, or admin configuration permissions.
 - Runtime object freezing or database immutability for rulesets.
 - Extra-time, cancellation, or leaderboard policy decisions.
+
+## CCPP-004 Scope
+
+Milestone status: implemented for passwordless account access and platform-admin authorisation. Verification evidence is recorded in `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md`.
+
+Implemented:
+
+- Passwordless email-link request and redemption routes.
+- Server-owned account operations through Meteor accounts and methods.
+- Safe return-path handling and email identity normalization.
+- Local/test mail capture with no real email delivery in test settings.
+- Link/request throttling and token redemption throttling.
+- Token expiry, replay rejection, resend invalidation, concurrent redemption protection, and package method input hardening.
+- Authenticated verified account page.
+- Server-authorised platform-admin summary page.
+- Test-only auth helpers enabled only by private local settings outside production.
+- Unit, Meteor integration, and Playwright browser coverage for account and authorisation behavior.
+
+Not implemented:
+
+- Fixture management, prediction submission, scoring persistence, match-event capture, league aggregation, leaderboards, prizes, sponsorships, animations, quizzes, AI reports, payment features, or rich admin user management.
+- Account deletion, support workflows, marketing preferences UI, or long-term consent/audit policy.
 
 ## Roadmap Discipline
 
