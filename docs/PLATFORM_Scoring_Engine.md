@@ -36,6 +36,7 @@ It does not implement:
 - `imports/shared/scoring/rulesets.ts` - default ruleset snapshot.
 - `imports/shared/scoring/primitives.ts` - numeric and categorical deduction primitives plus safe arithmetic helpers.
 - `imports/shared/scoring/derived.ts` - team score, match result, question-field, and observation-status helpers.
+- `imports/shared/scoring/errors.ts` - public structured validation error type.
 - `imports/shared/scoring/validation.ts` - structured ruleset, prediction, and observation validation.
 - `imports/shared/scoring/engine.ts` - fixture score calculation.
 - `imports/shared/scoring/index.ts` - public exports.
@@ -48,7 +49,12 @@ Primary imports:
 import {
   createRulesetSnapshot,
   defaultRuleset,
+  deriveMatchResult,
+  deriveTeamScore,
+  scoreCategoricalAnswer,
   scoreFixture,
+  scoreNumericDifference,
+  ScoringValidationError,
   validateObservations,
   validatePrediction,
   validateRuleset,
@@ -70,15 +76,27 @@ Use `calculationMode: 'final'` only when match status and every enabled observat
 
 Invalid input throws `ScoringValidationError`, which carries structured `issues` with `code`, `path`, and `message`.
 
+Public calculation helpers are validated at runtime:
+
+- `scoreNumericDifference` rejects negative, fractional, non-finite, unsafe numeric values and non-positive rates.
+- `scoreCategoricalAnswer` rejects empty/non-string answers and non-positive incorrect-answer deductions.
+- `deriveTeamScore` rejects invalid component counts, unsafe arithmetic, and conversions greater than tries.
+- `deriveMatchResult` rejects invalid derived scores instead of treating invalid comparisons as Draw.
+- `addSafe` and `combineObservationStatuses` reject invalid public inputs.
+
+These helpers use the same `ScoringValidationError` issue contract as `scoreFixture`. TypeScript annotations are helpful for callers but are not the runtime validation boundary.
+
 ## Snapshot Policy
 
 Every calculation must receive an explicit validated ruleset snapshot. The engine returns the ruleset `schemaVersion`, `id`, `version`, and question count with each result.
 
 `defaultRuleset` is a template for CCPP-003 fixtures, not a mutable current-rules global for historical predictions. Server-side persistence must eventually bind each fixture and submitted prediction to the intended ruleset snapshot.
 
+`createRulesetSnapshot` validates and clones the supplied ruleset, including nested custom categorical options. Later mutations to the source object do not change the snapshot or scoring behaviour. This is cloning/isolation, not runtime object freezing, and it is not database immutability.
+
 ## Representative Output
 
-The result shape is deterministic and intended for future UI explanations and AI reports without generating commentary:
+The result shape is deterministic and intended for future UI explanations and AI reports without generating commentary. This abbreviated JSON is an excerpt from the full result shape; omitted breakdown entries reconcile with `totalDeductions`:
 
 ```json
 {
@@ -117,6 +135,48 @@ The result shape is deterministic and intended for future UI explanations and AI
 Numeric team questions include one item per team with `prediction`, `observed`, `difference`, `rate`, `deduction`, and `status`.
 
 Pending observations use `deduction: null` and appear in `pendingQuestionIds`; they are not treated as zero deductions for correctness.
+
+Mixed pending and explicit-zero output excerpt for the tries question:
+
+```json
+{
+  "totalDeductions": 50,
+  "score": 9950,
+  "calculationStatus": "provisional",
+  "pendingQuestionIds": ["tries"],
+  "breakdown": [
+    {
+      "questionId": "tries",
+      "label": "Tries",
+      "type": "built-in-team-numeric",
+      "status": "partially-pending",
+      "deduction": 50,
+      "items": [
+        {
+          "team": "team1",
+          "prediction": 1,
+          "observed": 0,
+          "difference": 1,
+          "rate": 50,
+          "deduction": 50,
+          "status": "provisional"
+        },
+        {
+          "team": "team2",
+          "prediction": 1,
+          "observed": null,
+          "difference": null,
+          "rate": 50,
+          "deduction": null,
+          "status": "pending"
+        }
+      ]
+    }
+  ]
+}
+```
+
+First-try observations are semantically checked against supplied try totals when the selected ruleset already requires those totals. Pending supporting totals remain unknown, and no additional observation dependency is introduced solely for this check.
 
 ## Future Integration Responsibilities
 

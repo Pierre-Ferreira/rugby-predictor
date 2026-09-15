@@ -67,6 +67,25 @@ Not implemented:
 - Database immutability for fixture ruleset snapshots.
 - Upstream regulation-time versus extra-time observation policy.
 
+## CCPP-003A Scope
+
+Milestone status: implemented as focused corrections to CCPP-003. Verification evidence is recorded in `docs/AUDIT_003A_Scoring_Validation_Corrections.md`.
+
+Implemented:
+
+- First-try observation consistency validation against supplied try totals.
+- Runtime validation for public scoring helper entry points.
+- Structured outer-request validation for `scoreFixture`.
+- Direct ruleset snapshot-isolation regression tests, including nested custom categorical options.
+- ESLint parser split so `.ts` generic arrows and `.tsx` JSX both parse correctly.
+- Documentation corrections for public API boundaries, pending-data limits, mixed pending/zero scoring, and snapshot cloning guarantees.
+
+Not implemented:
+
+- Accounts, persistence, fixtures, submission, event capture, UI, leaderboard functionality, deployment, or admin configuration permissions.
+- Runtime object freezing or database immutability for rulesets.
+- Extra-time, cancellation, or leaderboard policy decisions.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

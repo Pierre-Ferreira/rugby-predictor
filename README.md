@@ -74,3 +74,4 @@ Project documentation lives under `docs/`:
 - `docs/AUDIT_001_Project_Foundation.md`
 - `docs/AUDIT_002_Testing_Infrastructure.md`
 - `docs/AUDIT_003_Scoring_Engine.md`
+- `docs/AUDIT_003A_Scoring_Validation_Corrections.md`

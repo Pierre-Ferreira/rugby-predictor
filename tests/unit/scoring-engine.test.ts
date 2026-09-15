@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addSafe,
+  combineObservationStatuses,
   createRulesetSnapshot,
   defaultRuleset,
+  deriveMatchResult,
+  deriveTeamScore,
   scoreFixture,
+  scoreCategoricalAnswer,
+  scoreNumericDifference,
   ScoringValidationError,
+  validateObservations,
   validatePrediction,
   validateRuleset,
   type FixtureObservations,
@@ -15,16 +22,12 @@ import {
   type RulesetSnapshot,
 } from '../../imports/shared/scoring';
 
-function observed<T>(
+const observed = <T>(
   value: T,
   status: 'provisional' | 'confirmed' = 'confirmed',
-): ObservedValue<T> {
-  return { status, value };
-}
+): ObservedValue<T> => ({ status, value });
 
-function pending<T>(): ObservedValue<T> {
-  return { status: 'pending' };
-}
+const pending = <T>(): ObservedValue<T> => ({ status: 'pending' });
 
 const basePrediction: FixturePrediction = {
   team1: {
@@ -143,16 +146,18 @@ const expectScoringError = (
   action: () => unknown,
   expectedCodes: readonly string[],
 ): void => {
+  const error = captureScoringError(action);
+  const codes = error.issues.map((issue) => issue.code);
+
+  expectedCodes.forEach((code) => expect(codes).toContain(code));
+};
+
+const captureScoringError = (action: () => unknown): ScoringValidationError => {
   try {
     action();
   } catch (error) {
     expect(error).toBeInstanceOf(ScoringValidationError);
-    const codes = (error as ScoringValidationError).issues.map(
-      (issue) => issue.code,
-    );
-
-    expectedCodes.forEach((code) => expect(codes).toContain(code));
-    return;
+    return error as ScoringValidationError;
   }
 
   throw new Error('Expected scoring validation error');
@@ -707,6 +712,156 @@ describe('Rugby Rooster scoring engine', () => {
     ).toContain('unsafe_arithmetic');
   });
 
+  it('validates public numeric, categorical, and derived scoring helpers', () => {
+    expect(scoreNumericDifference(1, 0, 50)).toEqual({
+      difference: 1,
+      deduction: 50,
+    });
+    expect(scoreNumericDifference(0, 0, 50)).toEqual({
+      difference: 0,
+      deduction: 0,
+    });
+    expect(scoreCategoricalAnswer('team1', 'team2', 250)).toEqual({
+      deduction: 250,
+    });
+    expect(
+      deriveTeamScore({
+        tries: 1,
+        conversions: 1,
+        penaltyKicks: 0,
+        dropGoals: 0,
+      }),
+    ).toBe(7);
+    expect(deriveMatchResult(7, 0)).toBe('team1');
+    expect(deriveMatchResult(7, 7)).toBe('draw');
+    expect(combineObservationStatuses(['provisional', 'confirmed'])).toBe(
+      'provisional',
+    );
+    expect(addSafe([0, 50, 250])).toBe(300);
+
+    expectScoringError(
+      () => scoreNumericDifference(1, 0, -50),
+      ['invalid_rate'],
+    );
+    expectScoringError(
+      () => scoreNumericDifference(-1, 0, 50),
+      ['invalid_numeric_answer'],
+    );
+    expectScoringError(
+      () => scoreNumericDifference(1.5, 0, 50),
+      ['invalid_numeric_answer'],
+    );
+    expectScoringError(
+      () => scoreNumericDifference(Number.POSITIVE_INFINITY, 0, 50),
+      ['invalid_numeric_answer'],
+    );
+    expectScoringError(
+      () => scoreNumericDifference(Number.MAX_SAFE_INTEGER, 0, 2),
+      ['unsafe_arithmetic'],
+    );
+    expectScoringError(
+      () => scoreCategoricalAnswer('', 'team1', 250),
+      ['invalid_answer'],
+    );
+    expectScoringError(
+      () => scoreCategoricalAnswer('team1', 'team2', -250),
+      ['invalid_deduction'],
+    );
+    expectScoringError(
+      () =>
+        deriveTeamScore({
+          tries: -1,
+          conversions: 0,
+          penaltyKicks: 0,
+          dropGoals: 0,
+        }),
+      ['invalid_numeric_answer'],
+    );
+    expectScoringError(
+      () =>
+        deriveTeamScore({
+          tries: 1,
+          conversions: 2,
+          penaltyKicks: 0,
+          dropGoals: 0,
+        }),
+      ['conversion_count_exceeds_tries'],
+    );
+    expectScoringError(
+      () =>
+        deriveTeamScore({
+          tries: Number.MAX_SAFE_INTEGER,
+          conversions: 0,
+          penaltyKicks: 0,
+          dropGoals: 0,
+        }),
+      ['unsafe_arithmetic'],
+    );
+    expectScoringError(
+      () => deriveMatchResult(Number.NaN, 0),
+      ['invalid_numeric_answer'],
+    );
+    expectScoringError(
+      () => combineObservationStatuses([]),
+      ['invalid_observation_status'],
+    );
+    expectScoringError(
+      () => combineObservationStatuses(['confirmed', 'done' as never]),
+      ['invalid_observation_status'],
+    );
+    expectScoringError(() => addSafe([10, -1]), ['invalid_numeric_answer']);
+  });
+
+  it('returns structured validation errors for malformed scoreFixture requests', () => {
+    const malformedRequests = [
+      null,
+      undefined,
+      42,
+      'request',
+      true,
+      [],
+    ] as const;
+
+    for (const request of malformedRequests) {
+      expectScoringError(
+        () => scoreFixture(request),
+        ['invalid_score_request'],
+      );
+    }
+
+    const emptyObjectError = captureScoringError(() => scoreFixture({}));
+
+    expect(emptyObjectError.issues.map((issue) => issue.code)).toEqual([
+      'missing_required_field',
+      'missing_required_field',
+      'missing_required_field',
+      'missing_required_field',
+    ]);
+    expect(
+      emptyObjectError.issues.map((issue) => issue.path.join('.')),
+    ).toEqual(['ruleset', 'prediction', 'observations', 'calculationMode']);
+
+    expectScoringError(
+      () =>
+        scoreFixture({
+          ruleset: defaultRuleset,
+          prediction: basePrediction,
+          observations: observationsFromPrediction(basePrediction),
+        }),
+      ['missing_required_field'],
+    );
+    expectScoringError(
+      () =>
+        scoreFixture({
+          ruleset: defaultRuleset,
+          prediction: basePrediction,
+          observations: observationsFromPrediction(basePrediction),
+          calculationMode: 'later',
+        }),
+      ['invalid_calculation_mode'],
+    );
+  });
+
   it('distinguishes explicit zero observations from pending observations', () => {
     const triesOnlyRuleset = rulesetWithOnlyEnabled(['tries'], 'tries-only');
     const prediction: FixturePrediction = {
@@ -737,6 +892,118 @@ describe('Rugby Rooster scoring engine', () => {
     });
     expect(result.pendingQuestionIds).toEqual(['tries']);
     expect(result.totalDeductions).toBe(50);
+  });
+
+  it('rejects observed no-tries first-try answers that contradict supplied positive try counts', () => {
+    const observations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      firstTry: observed('no-tries'),
+    };
+
+    const error = captureScoringError(() =>
+      score(basePrediction, observations, defaultRuleset, 'final'),
+    );
+
+    expect(error.issues.map((issue) => issue.code)).toContain(
+      'first_try_observation_contradicts_tries',
+    );
+    expect(error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining([
+        'observations.team1.tries.value',
+        'observations.team2.tries.value',
+      ]),
+    );
+  });
+
+  it('rejects observed first-try teams that contradict a supplied zero try count', () => {
+    const observations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      team1: {
+        ...observationsFromPrediction(basePrediction).team1,
+        tries: observed(0),
+        conversions: observed(0),
+      },
+      firstTry: observed('team1'),
+    };
+
+    const error = captureScoringError(() =>
+      score(basePrediction, observations, defaultRuleset, 'final'),
+    );
+
+    expect(error.issues.map((issue) => issue.code)).toContain(
+      'first_try_observation_contradicts_tries',
+    );
+    expect(error.issues.map((issue) => issue.path.join('.'))).toContain(
+      'observations.team1.tries.value',
+    );
+  });
+
+  it('applies first-try observation consistency checks to provisional values', () => {
+    const observations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction, 'provisional'),
+      team1: {
+        ...observationsFromPrediction(basePrediction, 'provisional').team1,
+        tries: observed(0, 'provisional'),
+        conversions: observed(0, 'provisional'),
+      },
+      firstTry: observed('team1', 'provisional'),
+    };
+
+    expectScoringError(
+      () => score(basePrediction, observations, defaultRuleset),
+      ['first_try_observation_contradicts_tries'],
+    );
+  });
+
+  it('keeps pending first-try and pending try observations distinct from zero', () => {
+    const pendingFirstTryObservations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      firstTry: pending(),
+    };
+    const pendingTryObservations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      team1: {
+        ...observationsFromPrediction(basePrediction).team1,
+        tries: pending(),
+        conversions: pending(),
+      },
+      firstTry: observed('team1'),
+    };
+
+    expect(
+      validateObservations(pendingFirstTryObservations, defaultRuleset).valid,
+    ).toBe(true);
+    expect(
+      validateObservations(pendingTryObservations, defaultRuleset).valid,
+    ).toBe(true);
+  });
+
+  it('does not require try totals solely to validate first-try observations', () => {
+    const firstTryOnlyRuleset = rulesetWithOnlyEnabled(
+      ['first-try'],
+      'first-try-only',
+    );
+    const prediction: FixturePrediction = {
+      team1: { tries: 1, conversions: 1, penaltyKicks: 0, dropGoals: 0 },
+      team2: { tries: 0, conversions: 0, penaltyKicks: 0, dropGoals: 0 },
+      firstTry: 'team1',
+    };
+    const observations: FixtureObservations = {
+      matchStatus: 'confirmed',
+      team1: {},
+      team2: {},
+      firstTry: observed('team1'),
+    };
+
+    const result = score(
+      prediction,
+      observations,
+      firstTryOnlyRuleset,
+      'final',
+    );
+
+    expect(result.score).toBe(10_000);
+    expect(question(result.breakdown, 'first-try').deduction).toBe(0);
   });
 
   it('labels provisional and confirmed breakdowns independently', () => {
@@ -800,6 +1067,109 @@ describe('Rugby Rooster scoring engine', () => {
     expect(question(changed.breakdown, 'tries').deduction).toBe(500);
     expect(first.ruleset.version).toBe('ccpp-003-v1');
     expect(changed.ruleset.version).toBe('tries-rate-500');
+  });
+
+  it('isolates snapshots from later source ruleset rate mutations', () => {
+    const sourceRuleset = {
+      schemaVersion: 1,
+      id: 'mutable-rate-source',
+      version: 'v1',
+      questions: [
+        {
+          id: 'tries',
+          label: 'Tries',
+          type: 'built-in-team-numeric',
+          enabled: true,
+          rate: 50,
+        },
+      ],
+    };
+    const snapshot = createRulesetSnapshot(sourceRuleset as RulesetSnapshot);
+
+    sourceRuleset.questions[0].rate = 500;
+
+    const prediction: FixturePrediction = {
+      team1: { tries: 1, conversions: 0, penaltyKicks: 0, dropGoals: 0 },
+      team2: { tries: 0, conversions: 0, penaltyKicks: 0, dropGoals: 0 },
+    };
+    const observations: FixtureObservations = {
+      matchStatus: 'provisional',
+      team1: { tries: observed(0, 'provisional') },
+      team2: { tries: observed(0, 'provisional') },
+    };
+    const result = score(prediction, observations, snapshot);
+
+    expect(question(result.breakdown, 'tries').deduction).toBe(50);
+    expect(snapshot.questions[0]).toMatchObject({ rate: 50 });
+  });
+
+  it('isolates snapshots from nested custom categorical option and deduction mutations', () => {
+    const sourceRuleset = {
+      schemaVersion: 1,
+      id: 'mutable-custom-source',
+      version: 'v1',
+      questions: [
+        {
+          id: 'weather',
+          label: 'Weather',
+          type: 'custom-categorical',
+          enabled: true,
+          incorrectDeduction: 75,
+          options: [
+            { id: 'dry', label: 'Dry' },
+            { id: 'wet', label: 'Wet' },
+          ],
+        },
+      ],
+    };
+    const snapshot = createRulesetSnapshot(sourceRuleset as RulesetSnapshot);
+
+    sourceRuleset.questions[0].incorrectDeduction = 999;
+    sourceRuleset.questions[0].options[1].id = 'mud';
+    sourceRuleset.questions[0].options[1].label = 'Mud';
+
+    const prediction: FixturePrediction = {
+      team1: { tries: 0, conversions: 0, penaltyKicks: 0, dropGoals: 0 },
+      team2: { tries: 0, conversions: 0, penaltyKicks: 0, dropGoals: 0 },
+      customAnswers: { weather: 'wet' },
+    };
+    const observations: FixtureObservations = {
+      matchStatus: 'confirmed',
+      team1: {},
+      team2: {},
+      customAnswers: { weather: observed('dry') },
+    };
+    const result = score(prediction, observations, snapshot, 'final');
+    const weather = question(result.breakdown, 'weather');
+
+    expect(weather.deduction).toBe(75);
+    expect(weather.items[0]).toMatchObject({
+      prediction: 'wet',
+      observed: 'dry',
+      incorrectDeduction: 75,
+    });
+    expect(snapshot.questions[0]).toMatchObject({
+      incorrectDeduction: 75,
+      options: [
+        { id: 'dry', label: 'Dry' },
+        { id: 'wet', label: 'Wet' },
+      ],
+    });
+  });
+
+  it('does not mutate the supplied snapshot, prediction, or observations while scoring', () => {
+    const snapshot = createRulesetSnapshot(defaultRuleset);
+    const prediction = basePrediction;
+    const observations = observationsFromPrediction(basePrediction);
+    const snapshotBefore = JSON.stringify(snapshot);
+    const predictionBefore = JSON.stringify(prediction);
+    const observationsBefore = JSON.stringify(observations);
+
+    score(prediction, observations, snapshot, 'final');
+
+    expect(JSON.stringify(snapshot)).toBe(snapshotBefore);
+    expect(JSON.stringify(prediction)).toBe(predictionBefore);
+    expect(JSON.stringify(observations)).toBe(observationsBefore);
   });
 
   it('verifies worked example A from the scoring rules documentation', () => {

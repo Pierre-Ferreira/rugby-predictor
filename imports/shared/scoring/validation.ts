@@ -19,6 +19,7 @@ import {
   type ValidationIssue,
   type ValidationResult,
 } from './types';
+import { ScoringValidationError, validationIssue } from './errors';
 import {
   deriveMatchResult,
   deriveTeamScore,
@@ -47,11 +48,7 @@ const highestScoringHalfAnswers = new Set(['first', 'second', 'equal']);
 const observationStatuses = new Set(['pending', 'provisional', 'confirmed']);
 const matchObservationStatuses = new Set(['provisional', 'confirmed']);
 
-const issue = (
-  code: string,
-  path: readonly (string | number)[],
-  message: string,
-): ValidationIssue => ({ code, path, message });
+const issue = validationIssue;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -89,16 +86,6 @@ const addNumericIssue = (
 
 const pathToString = (path: readonly (string | number)[]): string =>
   path.join('.');
-
-export class ScoringValidationError extends Error {
-  readonly issues: readonly ValidationIssue[];
-
-  constructor(issues: readonly ValidationIssue[]) {
-    super(`Scoring input is invalid: ${issues.length} issue(s).`);
-    this.name = 'ScoringValidationError';
-    this.issues = issues;
-  }
-}
 
 export const assertValid = (result: ValidationResult): void => {
   if (!result.valid) {
@@ -675,7 +662,20 @@ const tryDeriveTeamScore = (
 ): number | undefined => {
   try {
     return deriveTeamScore(values);
-  } catch {
+  } catch (error) {
+    if (error instanceof ScoringValidationError) {
+      for (const validationError of error.issues) {
+        const remappedPath =
+          validationError.path[0] === 'components'
+            ? [...path, ...validationError.path.slice(1)]
+            : path;
+
+        issues.push({ ...validationError, path: remappedPath });
+      }
+
+      return undefined;
+    }
+
     issues.push(
       issue(
         'unsafe_arithmetic',
@@ -972,6 +972,7 @@ export const validateObservations = (
 
   validateTeamObservations(observations, ruleset, issues);
   validateBuiltInCategoricalObservations(observations, ruleset, issues);
+  validateFirstTryObservationConsistency(observations, ruleset, issues);
   validateCustomObservations(observations, ruleset, issues);
 
   return validationResult(issues);
@@ -1270,6 +1271,86 @@ const validateCategoricalObservation = (
         'unexpected_observation',
         ['observations', field],
         `Observation '${field}' is not enabled by this ruleset.`,
+      ),
+    );
+  }
+};
+
+const validateFirstTryObservationConsistency = (
+  observations: Record<string, unknown>,
+  ruleset: RulesetSnapshot,
+  issues: ValidationIssue[],
+): void => {
+  if (!isBuiltInEnabled(ruleset, 'first-try')) {
+    return;
+  }
+
+  const firstTryObservation = observations.firstTry;
+
+  if (!isRecord(firstTryObservation)) {
+    return;
+  }
+
+  if (firstTryObservation.status === 'pending') {
+    return;
+  }
+
+  if (
+    firstTryObservation.status !== 'provisional' &&
+    firstTryObservation.status !== 'confirmed'
+  ) {
+    return;
+  }
+
+  if (
+    typeof firstTryObservation.value !== 'string' ||
+    !firstTryAnswers.has(firstTryObservation.value)
+  ) {
+    return;
+  }
+
+  const firstTryValue = firstTryObservation.value as FirstTryAnswer;
+
+  const teamTryCounts = Object.fromEntries(
+    teamSides.map((side) => {
+      const team = observations[side];
+
+      return [
+        side,
+        isRecord(team)
+          ? readConfirmedOrProvisionalNumber(team.tries)
+          : undefined,
+      ];
+    }),
+  ) as Partial<Record<'team1' | 'team2', number>>;
+
+  if (firstTryValue === 'no-tries') {
+    for (const side of teamSides) {
+      const tries = teamTryCounts[side];
+
+      if (tries !== undefined && tries > 0) {
+        issues.push(
+          issue(
+            'first_try_observation_contradicts_tries',
+            ['observations', side, 'tries', 'value'],
+            `Observed no-tries first-try answer contradicts ${side} try count.`,
+          ),
+        );
+      }
+    }
+
+    return;
+  }
+
+  const selectedTeam = firstTryValue;
+  const selectedTeamTries = teamTryCounts[selectedTeam];
+
+  if (selectedTeamTries === 0) {
+    issues.push(
+      issue(
+        'first_try_observation_contradicts_tries',
+        ['observations', selectedTeam, 'tries', 'value'],
+        `Observed first-try team ${selectedTeam} contradicts its zero try count.`,
       ),
     );
   }

@@ -8,10 +8,10 @@ import {
 } from './derived';
 import {
   addSafe,
-  ArithmeticSafetyError,
   scoreCategoricalAnswer,
   scoreNumericDifference,
 } from './primitives';
+import { ScoringValidationError, validationIssue } from './errors';
 import {
   STARTING_POINTS,
   type BreakdownStatus,
@@ -37,7 +37,6 @@ import {
   assertValid,
   createRulesetSnapshot,
   readObservation,
-  ScoringValidationError,
   validateObservations,
   validatePrediction,
   validateRuleset,
@@ -49,30 +48,16 @@ interface ObservedNumeric {
   readonly status: ObservationStatus;
 }
 
-export const scoreFixture = (input: ScoreFixtureInput): FixtureScoreResult => {
-  const initialIssues: ValidationIssue[] = [];
+export const scoreFixture = (input: unknown): FixtureScoreResult => {
+  const initialIssues = validateScoreFixtureRequest(input);
 
-  if (
-    input.calculationMode !== 'if-ended-now' &&
-    input.calculationMode !== 'final'
-  ) {
-    initialIssues.push({
-      code: 'invalid_calculation_mode',
-      path: ['calculationMode'],
-      message: 'Calculation mode must be if-ended-now or final.',
-    });
-  }
+  assertValid(validationResult(initialIssues));
 
-  initialIssues.push(...validateRuleset(input.ruleset).issues);
-
-  if (initialIssues.length > 0) {
-    throw new ScoringValidationError(initialIssues);
-  }
-
-  const ruleset = createRulesetSnapshot(input.ruleset);
-  const predictionValidation = validatePrediction(input.prediction, ruleset);
+  const request = input as ScoreFixtureInput;
+  const ruleset = createRulesetSnapshot(request.ruleset);
+  const predictionValidation = validatePrediction(request.prediction, ruleset);
   const observationValidation = validateObservations(
-    input.observations,
+    request.observations,
     ruleset,
   );
   const validationIssues = [
@@ -84,12 +69,12 @@ export const scoreFixture = (input: ScoreFixtureInput): FixtureScoreResult => {
 
   const breakdown = buildBreakdown(
     ruleset.questions.filter((question) => question.enabled),
-    input.prediction,
-    input.observations,
+    request.prediction,
+    request.observations,
   );
   const finalIssues = validateFinalReadiness(
-    input.calculationMode,
-    input.observations,
+    request.calculationMode,
+    request.observations,
     breakdown,
   );
 
@@ -108,7 +93,7 @@ export const scoreFixture = (input: ScoreFixtureInput): FixtureScoreResult => {
     totalDeductions,
     score,
     calculationStatus:
-      input.calculationMode === 'final' ? 'final' : 'provisional',
+      request.calculationMode === 'final' ? 'final' : 'provisional',
     pendingQuestionIds: breakdown
       .filter(
         (question) =>
@@ -124,6 +109,59 @@ export const scoreFixture = (input: ScoreFixtureInput): FixtureScoreResult => {
     },
     breakdown,
   };
+};
+
+const validateScoreFixtureRequest = (
+  input: unknown,
+): readonly ValidationIssue[] => {
+  if (!isRecord(input)) {
+    return [
+      validationIssue(
+        'invalid_score_request',
+        [],
+        'Score fixture request must be a non-array object.',
+      ),
+    ];
+  }
+
+  const issues: ValidationIssue[] = [];
+
+  for (const field of [
+    'ruleset',
+    'prediction',
+    'observations',
+    'calculationMode',
+  ]) {
+    if (!hasOwn(input, field)) {
+      issues.push(
+        validationIssue(
+          'missing_required_field',
+          [field],
+          `Score fixture request is missing '${field}'.`,
+        ),
+      );
+    }
+  }
+
+  if (
+    hasOwn(input, 'calculationMode') &&
+    input.calculationMode !== 'if-ended-now' &&
+    input.calculationMode !== 'final'
+  ) {
+    issues.push(
+      validationIssue(
+        'invalid_calculation_mode',
+        ['calculationMode'],
+        'Calculation mode must be if-ended-now or final.',
+      ),
+    );
+  }
+
+  if (hasOwn(input, 'ruleset')) {
+    issues.push(...validateRuleset(input.ruleset).issues);
+  }
+
+  return issues;
 };
 
 const buildBreakdown = (
@@ -396,25 +434,17 @@ const numericItem = ({
     };
   }
 
-  try {
-    const score = scoreNumericDifference(prediction, observed.value, rate);
+  const score = scoreNumericDifference(prediction, observed.value, rate);
 
-    return {
-      team,
-      prediction,
-      observed: observed.value,
-      difference: score.difference,
-      rate,
-      deduction: score.deduction,
-      status: observed.status,
-    };
-  } catch (error) {
-    if (error instanceof ArithmeticSafetyError) {
-      throw new ScoringValidationError(error.issues);
-    }
-
-    throw error;
-  }
+  return {
+    team,
+    prediction,
+    observed: observed.value,
+    difference: score.difference,
+    rate,
+    deduction: score.deduction,
+    status: observed.status,
+  };
 };
 
 const categoricalItem = ({
@@ -529,7 +559,11 @@ const safeDerivedTeamScore = (
 ): number => {
   try {
     return deriveTeamScore(components);
-  } catch {
+  } catch (error) {
+    if (error instanceof ScoringValidationError) {
+      throw error;
+    }
+
     throw new ScoringValidationError([
       {
         code: 'unsafe_arithmetic',
@@ -543,14 +577,10 @@ const safeDerivedTeamScore = (
 const safeAdd = (
   values: readonly number[],
   path: readonly (string | number)[] = [],
-): number => {
-  try {
-    return addSafe(values, path);
-  } catch (error) {
-    if (error instanceof ArithmeticSafetyError) {
-      throw new ScoringValidationError(error.issues);
-    }
+): number => addSafe(values, path);
 
-    throw error;
-  }
-};
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key);

@@ -57,6 +57,16 @@ First-try answers must agree with predicted tries:
 - `Team1` requires Team1 to have at least one predicted try.
 - `Team2` requires Team2 to have at least one predicted try.
 
+Observed first-try answers are also checked against supplied try totals when enough information is available:
+
+- An observed `No tries` answer contradicts any supplied provisional or confirmed positive try count for either team.
+- An observed `Team1` or `Team2` answer contradicts a supplied provisional or confirmed zero try count for the selected team.
+- A pending first-try observation remains valid.
+- A pending try count is unknown, not zero.
+- If the selected ruleset does not otherwise require try totals, the engine does not require new try observations solely to perform this semantic check.
+
+This semantic validation is limited to supplied normalized observations. Event-to-observation consistency remains an upstream match-event integration responsibility.
+
 ## Penalty Tries
 
 A penalty try counts as one try and one conversion for this game. It contributes seven points.
@@ -88,6 +98,8 @@ This configuration support is not the same as future administrator permission to
 
 Existing predictions must be scored with the ruleset snapshot bound to their fixture, never by looking up mutable current rules. Database immutability and binding submitted predictions to fixture snapshots are future server responsibilities.
 
+The CCPP-003A engine snapshot helper clones the supplied ruleset data so later source-object mutations do not alter the snapshot used for scoring. TypeScript `readonly` declarations are not a runtime freeze. The engine does not implement database immutability.
+
 ## Live And Final Scoring
 
 The agreed live UI label is `If it ended now`.
@@ -107,6 +119,15 @@ Final scoring requires confirmed match status and confirmed observations for eve
 Actual team scores and match result are derived from supplied normalized scoring totals where complete. The engine does not accept contradictory parallel actual scores or match-result answers. If required scoring components are pending, dependent team-score and match-result questions remain pending.
 
 Half-time leader, highest-scoring half, and first try are accepted as explicit observations. Future match-event reduction may derive them, but that reducer is outside CCPP-003.
+
+Mixed pending and explicit-zero example:
+
+- Question: tries.
+- Prediction: Team1 predicts 1 try; Team2 predicts 1 try.
+- Observation: Team1 has an explicit provisional try count of 0; Team2's try count is pending.
+- Breakdown: Team1 difference 1 at 50 = 50. Team2 observation, difference, and deduction are `null`.
+- The tries question is `partially-pending`, remains listed in `pendingQuestionIds`, and the known 50-point deduction contributes to the current total.
+- The overall live calculation remains provisional.
 
 ## Worked Example A
 

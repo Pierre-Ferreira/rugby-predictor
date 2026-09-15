@@ -37,7 +37,9 @@ Evidence recorded during CCPP-002 verification:
 - `meteor node --version` returned `v24.15.0`.
 - `meteor npm ls @babel/core @babel/eslint-parser eslint typescript @playwright/test vitest --depth=0` reported `@babel/core@8.0.5`, `@babel/eslint-parser@8.0.5`, `eslint@9.39.5`, `typescript@7.0.2`, `@playwright/test@1.63.0`, and `vitest@5.0.0`.
 - `meteor npm ls @typescript-eslint/parser typescript-eslint --depth=0` reported an empty tree.
-- `eslint.config.mjs` uses `@babel/eslint-parser` with `requireConfigFile: false` and Babel parser plugins for `jsx` and `typescript` with `isTSX: true`.
+- `eslint.config.mjs` uses `@babel/eslint-parser` with `requireConfigFile: false`.
+- CCPP-003A splits parser options by extension: `.ts` uses the TypeScript plugin without TSX ambiguity, `.tsx` uses TypeScript plus JSX, and JavaScript/config files keep JavaScript parsing with JSX support where needed.
+- The scoring unit test file contains a valid generic arrow helper in `.ts`, and the full lint run still parses existing TSX application files.
 
 ESLint 9 is pinned because the installed React and JSX accessibility plugin peer ranges in the lockfile do not yet cover ESLint 10. `meteor npm ci` warns that `eslint@9.39.5` is no longer supported. Track plugin support and move to a maintained ESLint major in a bounded dependency-maintenance task.
 
@@ -45,7 +47,7 @@ ESLint 9 is pinned because the installed React and JSX accessibility plugin peer
 
 Runner: Vitest.
 
-Current implementation: locally verified for CCPP-003.
+Current implementation: locally verified for CCPP-003A.
 
 Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation.
 
@@ -58,7 +60,7 @@ Current unit test files:
 
 - `tests/unit/routes.test.ts` - route resolution.
 - `tests/unit/playwright-target.test.ts` - local-only Playwright target guard.
-- `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring rules, validation, snapshots, pending/provisional/final observations, custom questions, and worked examples.
+- `tests/unit/scoring-engine.test.ts` - CCPP-003/003A scoring rules, validation, public helper boundaries, snapshots, pending/provisional/final observations, custom questions, first-try observation consistency, malformed public requests, and worked examples.
 
 Commands:
 

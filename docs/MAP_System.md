@@ -14,6 +14,7 @@
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
 - `docs/AUDIT_002_Testing_Infrastructure.md` - CCPP-002 completion evidence.
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
+- `docs/AUDIT_003A_Scoring_Validation_Corrections.md` - CCPP-003A validation correction evidence.
 
 ## Application Entry Points
 
@@ -38,6 +39,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/rulesets.ts` - default CCPP-003 ruleset snapshot.
 - `imports/shared/scoring/primitives.ts` - numeric and categorical scoring primitives.
 - `imports/shared/scoring/derived.ts` - derived team-score, result, and observation-status helpers.
+- `imports/shared/scoring/errors.ts` - structured scoring validation error.
 - `imports/shared/scoring/validation.ts` - ruleset, prediction, and observation validation.
 - `imports/shared/scoring/engine.ts` - fixture scoring function.
 
