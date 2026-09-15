@@ -169,10 +169,12 @@ never connect to production services.
 launcher refuses inherited Mongo connection variables, sets
 `.meteor/local-integration`, binds Meteor to `127.0.0.1:<port>`, uses
 Meteor-managed Mongo, derives the expected Mongo endpoint as `127.0.0.1` on
-`<port + 1>`, and passes an isolated `rr-integration-*` test run id to
-server-side auth helpers.
+`<port + 1>`, defaults to server-only execution with `TEST_CLIENT=0`, and
+passes an isolated `rr-integration-*` test run id to server-side auth helpers.
+The server auth integration file is also listed as `meteor.testModule.server`
+so the full-app test runner has an explicit supported server test entry.
 
-Current coverage:
+The integration suite includes coverage for:
 
 - Passwordless account creation and verification.
 - Returning-player account reuse and resend invalidation.

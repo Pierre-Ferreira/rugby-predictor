@@ -14,6 +14,8 @@ const env = createIsolatedTestEnvironment({
   localDir: '.meteor/local-integration',
   port,
 });
+env.TEST_CLIENT ??= '0';
+env.TEST_SERVER ??= '1';
 
 const result = spawnSync(
   'meteor',

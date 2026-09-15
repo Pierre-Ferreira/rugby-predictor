@@ -18,6 +18,7 @@
 - `docs/AUDIT_003A_Scoring_Validation_Corrections.md` - CCPP-003A validation correction evidence.
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - CCPP-004A in-progress login-navigation and test-stability checkpoint.
+- `docs/AUDIT_004A_Database_Verification_Closure.md` - CCPP-004A database verification closure attempt and remaining real-adapter blocker.
 - `docs/TEMP_004A_Resume.md` - temporary CCPP-004A resume checkpoint; remove when CCPP-004A is complete.
 
 ## Application Entry Points

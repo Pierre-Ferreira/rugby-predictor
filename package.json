@@ -59,6 +59,9 @@
       "client": "client/main.tsx",
       "server": "server/main.ts"
     },
+    "testModule": {
+      "server": "imports/server/auth/passwordless.app-test.ts"
+    },
     "modern": true
   }
 }

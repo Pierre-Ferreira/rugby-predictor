@@ -47,6 +47,30 @@ describe('isolated test database identity verification', () => {
     });
   });
 
+  it('accepts multiple loopback aliases on the expected MongoDB port', () => {
+    expect(
+      assertIsolatedMongoConnectionIdentity({
+        expected: expectedIdentity,
+        observed: observedIdentity({
+          endpoints: [
+            {
+              host: 'localhost',
+              port: 3401,
+            },
+            {
+              host: '127.0.0.1',
+              port: 3401,
+            },
+          ],
+          topology: 'multiple',
+        }),
+      }),
+    ).toMatchObject({
+      databaseName: 'meteor',
+      topology: 'multiple',
+    });
+  });
+
   it('rejects the right database on the wrong port', () => {
     expect(() =>
       assertIsolatedMongoConnectionIdentity({
@@ -105,7 +129,7 @@ describe('isolated test database identity verification', () => {
           endpoints: null,
         }),
       }),
-    ).toThrow(/exactly one active MongoDB endpoint/);
+    ).toThrow(/active MongoDB endpoint/);
 
     expect(() =>
       assertIsolatedMongoConnectionIdentity({
@@ -124,7 +148,7 @@ describe('isolated test database identity verification', () => {
           topology: 'multiple',
         }),
       }),
-    ).toThrow(/single local MongoDB endpoint/);
+    ).toThrow(/active MongoDB endpoint/);
 
     expect(() =>
       assertIsolatedMongoConnectionIdentity({
@@ -133,7 +157,7 @@ describe('isolated test database identity verification', () => {
           topology: 'srv',
         }),
       }),
-    ).toThrow(/single local MongoDB endpoint/);
+    ).toThrow(/supported local MongoDB topology/);
 
     expect(() =>
       assertIsolatedMongoConnectionIdentity({

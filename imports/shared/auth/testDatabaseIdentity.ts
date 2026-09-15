@@ -92,15 +92,19 @@ export const assertIsolatedMongoConnectionIdentity = ({
     );
   }
 
-  if (observed.topology !== 'single') {
+  if (
+    observed.topology === 'srv' ||
+    observed.topology === 'load-balanced' ||
+    observed.topology === 'unknown'
+  ) {
     throw new Error(
-      'Auth test helpers support only a single local MongoDB endpoint.',
+      'Auth test helpers require a supported local MongoDB topology.',
     );
   }
 
-  if (!observed.endpoints || observed.endpoints.length !== 1) {
+  if (!observed.endpoints || observed.endpoints.length < 1) {
     throw new Error(
-      'Auth test helpers require exactly one active MongoDB endpoint.',
+      'Auth test helpers require an active MongoDB endpoint.',
     );
   }
 
@@ -116,18 +120,24 @@ export const assertIsolatedMongoConnectionIdentity = ({
     );
   }
 
-  const [observedEndpoint] = observed.endpoints;
-  const observedHost = normalizeSupportedLoopbackHost(observedEndpoint.host);
+  const normalizedEndpoints = observed.endpoints.map((endpoint) => ({
+    host: normalizeSupportedLoopbackHost(endpoint.host),
+    port: endpoint.port,
+  }));
 
-  if (!observedHost) {
+  if (normalizedEndpoints.some((endpoint) => !endpoint.host)) {
     throw new Error(
       'Auth test helpers require the active MongoDB endpoint to be loopback.',
     );
   }
 
   if (
-    observedHost !== expected.endpoint.host ||
-    observedEndpoint.port !== expected.endpoint.port
+    normalizedEndpoints.some(
+      (endpoint) => endpoint.port !== expected.endpoint.port,
+    ) ||
+    normalizedEndpoints.every(
+      (endpoint) => endpoint.host !== expected.endpoint.host,
+    )
   ) {
     throw new Error(
       'Auth test helpers refused to run against the active MongoDB endpoint.',

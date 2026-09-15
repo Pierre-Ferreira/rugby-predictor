@@ -125,14 +125,15 @@ driver `Db`, and reads the connected endpoint from the driver's topology
 description. Helper mutations re-check the same active connection identity.
 Helpers must not be exposed from ordinary development or production settings.
 
-The isolated-helper database check supports the current local single-endpoint
-test setup only. It accepts explicitly supported loopback host forms
-`127.0.0.1`, `localhost`, `::1`, and `[::1]`, requires the expected port and
-database name to match, and rejects missing, ambiguous, SRV, load-balanced,
-multi-endpoint, unknown, or non-loopback metadata. This verifies the active
-endpoint plus database name used by Meteor; it does not independently prove the
-MongoDB filesystem storage directory or exclusive ownership of a MongoDB
-process.
+The isolated-helper database check supports local loopback MongoDB topology
+metadata only. It accepts explicitly supported loopback host forms
+`127.0.0.1`, `localhost`, `::1`, and `[::1]`, requires all reported endpoints to
+use the expected port, requires at least one endpoint on the expected host, and
+requires the database name to match. It rejects missing, SRV, load-balanced,
+unknown, non-loopback, wrong-port, or wrong-database metadata. This verifies the
+active endpoint plus database name used by Meteor; it does not independently
+prove the MongoDB filesystem storage directory or exclusive ownership of a
+MongoDB process.
 
 Optional admin provisioning can grant or revoke `roles.platformAdmin` by verified
 email during startup:

@@ -1,91 +1,89 @@
 # TEMP 004A Resume
 
-## Historical Checkpoint - 2026-09-15 Review Preservation
+## Current Checkpoint - 2026-09-15 Database-Verification Closure Attempt
 
 This file is a temporary CCPP-004A handoff checkpoint. Keep it under `docs/`
 until CCPP-004A is either completed or deliberately abandoned.
 
-This checkpoint session did not restart debugging, rerun browser suites, commit,
-push, deploy, or mark CCPP-004A complete.
-
-## Current Checkpoint - 2026-09-15 Database-Isolation Verification Follow-Up
-
-This checkpoint implemented the database-isolation verification correction for
-auth test helpers. It did not investigate or modify Rspack configuration, HMR,
-Meteor hot-code-push, the `Meteor.isTest` override, `RSPACK_NATIVE`,
-authentication navigation/account switching, throttle settings, scoring, product
-features, browser tests, deployment, commits, pushes, or email sending.
+This checkpoint attempted to close the two remaining database verification gaps
+only. It did not investigate or modify Rspack configuration, HMR, Meteor
+hot-code-push, the `Meteor.isTest` override, `RSPACK_NATIVE`, authentication
+navigation/account switching, throttle settings, scoring, product features,
+browser tests, deployment, commits, pushes, or email sending.
 
 Changed files in this checkpoint:
 
-- `imports/shared/auth/testDatabaseIdentity.ts`
-- `imports/shared/auth/config.ts`
-- `imports/server/auth/mongoConnectionIdentity.ts`
-- `imports/server/auth/settings.ts`
+- `package.json`
+- `scripts/run-integration-tests.mjs`
 - `imports/server/auth/testSupport.ts`
-- `imports/server/auth/server.ts`
 - `imports/server/auth/passwordless.app-test.ts`
-- `scripts/test-environment.mjs`
-- `playwright.config.ts`
-- `tests/unit/auth-config.test.ts`
+- `imports/shared/auth/testDatabaseIdentity.ts`
 - `tests/unit/test-database-identity.test.ts`
-- `tests/unit/test-launchers.test.ts`
-- `docs/AUDIT_004A_Database_Isolation_Verification.md`
+- `docs/AUDIT_004A_Database_Verification_Closure.md`
 - `docs/PLATFORM_Authentication.md`
 - `docs/PLATFORM_Testing.md`
-- `docs/MAP_System.md`
 - `docs/TEMP_004A_Resume.md`
 
 Current implementation state:
 
-- Isolated launchers now provide an expected MongoDB endpoint:
-  `RUGBY_ROOSTER_TEST_MONGO_HOST=127.0.0.1` and
-  `RUGBY_ROOSTER_TEST_MONGO_PORT=<app port + 1>`.
-- Auth runtime config requires expected MongoDB host, port, and the `meteor`
-  database when test helpers are explicitly enabled.
-- `imports/server/auth/mongoConnectionIdentity.ts` pings the Meteor MongoDB
-  `Db`, reads the active database name from that `Db`, and reads the connected
-  endpoint from
-  `client.topology.description.servers`.
-- Test helper methods are registered only after active endpoint/database
-  verification passes; helper operations re-check before mutations/reads.
-- Supported topology is intentionally narrow: one explicit loopback endpoint and
-  the expected database name. SRV, load-balanced, multi-endpoint, unknown,
-  missing, non-loopback, wrong-port, and wrong-database metadata are rejected.
-- This verifies endpoint plus database name only. It does not independently
-  prove MongoDB filesystem storage directory or exclusive ownership of a MongoDB
-  process.
+- `meteor.testModule.server` now explicitly selects
+  `imports/server/auth/passwordless.app-test.ts` as the supported server test
+  entry for Meteor full-app tests.
+- `scripts/run-integration-tests.mjs` still uses the isolated launcher and now
+  defaults integration runs to `TEST_CLIENT=0` and `TEST_SERVER=1`.
+- Auth test support has a small dependency-injection seam around environment
+  verification, method registration, and helper data operations.
+- Negative helper-gating tests were added:
+  - failed verification before registration asserts method registration was not
+    called;
+  - failed verification at helper invocation asserts `users.insertAsync` was
+    not called for `test.auth.createVerifiedUser`.
+- The shared MongoDB identity comparator now accepts multiple reported loopback
+  endpoint aliases only when all use the expected port and at least one endpoint
+  uses the expected host. It still rejects missing, SRV, load-balanced, unknown,
+  non-loopback, wrong-port, and wrong-database metadata.
+- The real-adapter app test now validates observed identity through the shared
+  comparator instead of assuming a single reported topology.
 
 Actual check results in this checkpoint:
 
-- `meteor npm run test:unit -- --run tests/unit/auth-config.test.ts tests/unit/test-database-identity.test.ts tests/unit/test-launchers.test.ts`
-  passed: 3 test files, 22 tests.
-- `meteor npm run typecheck` passed twice, including after extracting the
-  Meteor/MongoDB adapter module: `tsc --noEmit --incremental false`.
-- The scoped runtime command
-  `MOCHA_GREP='proves the isolated test environment before helpers run' TEST_CLIENT=0 meteor npm run test:integration`
-  first failed inside the sandbox with
-  `Error: listen EPERM: operation not permitted 127.0.0.1:3400`.
-- The same scoped runtime command was rerun with approved local-loopback
-  permission and exited 0 but reported `0 passing`; it did not verify the real
-  adapter.
-- One evidence-based retry,
-  `MOCHA_GREP=isolated TEST_CLIENT=0 meteor npm run test:integration`, also
-  exited 0 but reported `0 passing`; it did not verify the real adapter.
-- `ss -ltnp` showed no listeners on 3400, 3401, or 3402 afterward.
-- `pgrep -af "meteor|mongod|run-integration-tests|meteortesting"` returned no
-  task-owned Meteor/Mongo processes after the attempts; the only match was the
-  `pgrep` command itself.
+- `meteor npm run typecheck` first failed with `TS2352` for the fake Meteor
+  collection test double. The test double was corrected.
+- `meteor npm run typecheck` then passed:
+  `tsc --noEmit --incremental false`.
+- `meteor npm run test:unit -- --run tests/unit/test-database-identity.test.ts`
+  passed: 1 test file, 7 tests.
+- `meteor npm run typecheck` passed again after the database-identity
+  correction: `tsc --noEmit --incremental false`.
+- First allowed `meteor npm run test:integration` attempt selected the
+  `CCPP-004 passwordless accounts and authorisation` suite but failed before any
+  test body ran:
+  `0 passing`, `1 failing`, failing in the `beforeEach` hook for
+  `proves the isolated test environment before helpers run` with
+  `Auth test helpers support only a single local MongoDB endpoint.
+  [test-environment-mismatch]`.
+- Second and final allowed `meteor npm run test:integration` attempt selected
+  the same suite but again failed before any test body ran:
+  `0 passing`, `1 failing`, failing in the same `beforeEach` hook with
+  `Auth test helpers require a supported local MongoDB topology.
+  [test-environment-mismatch]`.
+- `pgrep -af '[m]eteor|[m]ongod|[r]un-integration-tests|[m]eteortesting'`
+  returned no task-owned Meteor, MongoDB, integration launcher, or
+  meteortesting processes after the integration attempts.
 - npm emitted the existing `Unknown env config "nodedir"` warning during npm
   commands.
 
 Current remaining work:
 
-- Database-isolation implementation and pure regression coverage are present,
-  but real Meteor adapter verification remains open because the scoped Mocha
-  filter selected zero app-server tests twice.
-- A future session should verify the real adapter/gate with a working
-  server-side integration selection or a deliberate full integration run.
+- Database verification is not complete. The test selection gap is partially
+  closed because the server suite is now selected, but the real-adapter test body
+  still does not execute.
+- The precise current blocker is the active Meteor/MongoDB topology metadata
+  observed by `imports/server/auth/mongoConnectionIdentity.ts`; the helper gate
+  rejects it as unsupported during `resetTestAuthData()` in the integration
+  suite `beforeEach`.
+- The negative helper-gating tests are present but did not execute in the
+  integration run because the shared `beforeEach` blocker fired first.
 - The `Meteor.isTest` client override remains explicitly unaccepted.
 - `RSPACK_NATIVE` remains explicitly unverified as a replacement.
 - Final CCPP-004A browser/full-suite verification and completion documentation

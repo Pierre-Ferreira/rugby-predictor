@@ -14,8 +14,9 @@ import {
   TEST_AUTH_METHODS,
 } from '/imports/shared/auth/methods';
 import { resolveSafeReturnPath } from '/imports/shared/auth/redirects';
+import { assertIsolatedMongoConnectionIdentity } from '/imports/shared/auth/testDatabaseIdentity';
 import { failNextLocalMailForTests, latestCapturedMailFor } from './mailSink';
-import { resetTestAuthData } from './testSupport';
+import { registerAuthTestMethods, resetTestAuthData } from './testSupport';
 import {
   AUTH_THROTTLE_LIMITS,
   checkAuthThrottle,
@@ -98,6 +99,18 @@ const callMethod = async <TResult>(
 
 const uniqueEmail = (prefix: string): string =>
   `ccpp004-${prefix}-${Random.id().toLowerCase()}@example.test`;
+
+const fakeVerifiedTestEnvironment = () => ({
+  appUrl: 'http://127.0.0.1:3400',
+  databaseId: 'meteor-managed:.meteor/local-integration:db',
+  databaseName: 'meteor',
+  localDir: '.meteor/local-integration',
+  mongoEndpoint: {
+    host: '127.0.0.1',
+    port: 3401,
+  },
+  runId: `rr-integration-${Random.id()}`,
+});
 
 const requestLink = async (
   email: string,
@@ -189,11 +202,96 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
     assert.equal(environment.mongoEndpoint.host, '127.0.0.1');
     assert.equal(environment.mongoEndpoint.port, expectedMongoPort);
     assert.match(environment.runId, /^rr-integration-/);
-    assert.deepEqual(observedIdentity, {
-      databaseName: environment.databaseName,
-      endpoints: [environment.mongoEndpoint],
-      topology: 'single',
+    assertIsolatedMongoConnectionIdentity({
+      expected: {
+        databaseName: environment.databaseName,
+        endpoint: environment.mongoEndpoint,
+      },
+      observed: observedIdentity,
     });
+    assert.equal(observedIdentity?.databaseName, environment.databaseName);
+    assert.ok(
+      observedIdentity?.endpoints?.some(
+        (endpoint) =>
+          endpoint.host === environment.mongoEndpoint.host &&
+          endpoint.port === environment.mongoEndpoint.port,
+      ),
+      'active MongoDB identity includes the expected endpoint',
+    );
+  });
+
+  it('does not register helper methods when database verification fails', async () => {
+    let registerCalled = false;
+
+    await assert.rejects(
+      () =>
+        registerAuthTestMethods({
+          areTestHelpersEnabled: () => true,
+          assertVerifiedAuthTestEnvironment: async () => {
+            throw new Meteor.Error(
+              'test-environment-mismatch',
+              'simulated database mismatch before registration',
+            );
+          },
+          registerMethods: () => {
+            registerCalled = true;
+          },
+        }),
+      /simulated database mismatch before registration/,
+    );
+
+    assert.equal(registerCalled, false);
+  });
+
+  it('checks database verification before helper mutations', async () => {
+    const registered: Record<string, MethodHandler> = {};
+    let insertCalled = false;
+    let verificationCalls = 0;
+
+    await registerAuthTestMethods({
+      areTestHelpersEnabled: () => true,
+      assertVerifiedAuthTestEnvironment: async () => {
+        verificationCalls += 1;
+
+        if (verificationCalls === 1) {
+          return fakeVerifiedTestEnvironment();
+        }
+
+        throw new Meteor.Error(
+          'test-environment-mismatch',
+          'simulated database mismatch before helper mutation',
+        );
+      },
+      registerMethods: (methods) => {
+        Object.assign(registered, methods);
+      },
+      users: ({
+        findOneAsync: async () => undefined,
+        insertAsync: async () => {
+          insertCalled = true;
+          return 'unexpected-user-id';
+        },
+        removeAsync: async () => 0,
+      } as unknown) as Pick<
+        typeof Meteor.users,
+        'findOneAsync' | 'insertAsync' | 'removeAsync'
+      >,
+    });
+
+    const createVerifiedUser =
+      registered[TEST_AUTH_METHODS.createVerifiedUser];
+
+    assert.equal(typeof createVerifiedUser, 'function');
+    await assert.rejects(
+      () =>
+        createVerifiedUser.apply(makeInvocation('blocked-helper-mutation'), [
+          uniqueEmail('blocked-helper-mutation'),
+        ]),
+      /simulated database mismatch before helper mutation/,
+    );
+
+    assert.equal(verificationCalls, 2);
+    assert.equal(insertCalled, false);
   });
 
   it('limits helper cleanup and mutations to current-run owned data', async () => {
