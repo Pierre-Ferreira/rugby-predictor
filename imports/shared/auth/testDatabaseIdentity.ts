@@ -110,9 +110,7 @@ export const assertIsolatedMongoConnectionIdentity = ({
   }
 
   if (!observed.endpoints || observed.endpoints.length < 1) {
-    throw new Error(
-      'Auth test helpers require an active MongoDB endpoint.',
-    );
+    throw new Error('Auth test helpers require an active MongoDB endpoint.');
   }
 
   if (observed.endpoints.length !== 1) {

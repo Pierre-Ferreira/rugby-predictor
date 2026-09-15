@@ -38,8 +38,9 @@ describe('test launcher environment', () => {
       PORT: '3400',
       ROOT_URL: 'http://127.0.0.1:3400',
       RSPACK_DEVSERVER_PORT: '3402',
-      RUGBY_ROOSTER_TEST_DATABASE_ID:
-        buildMeteorManagedTestDatabaseId('.meteor/local-integration'),
+      RUGBY_ROOSTER_TEST_DATABASE_ID: buildMeteorManagedTestDatabaseId(
+        '.meteor/local-integration',
+      ),
       RUGBY_ROOSTER_TEST_DATABASE_NAME: 'meteor',
       RUGBY_ROOSTER_TEST_MODE: 'isolated',
       RUGBY_ROOSTER_TEST_MONGO_HOST: '127.0.0.1',
@@ -57,9 +58,7 @@ describe('test launcher environment', () => {
 
   it('derives a supported numeric Rspack dev-server port', () => {
     expect(deriveRspackDevServerPort(3200)).toBe(3202);
-    expect(() => deriveRspackDevServerPort(65534)).toThrow(
-      /Rspack dev server/,
-    );
+    expect(() => deriveRspackDevServerPort(65534)).toThrow(/Rspack dev server/);
   });
 
   it('derives the Meteor-managed MongoDB port from the test port', () => {

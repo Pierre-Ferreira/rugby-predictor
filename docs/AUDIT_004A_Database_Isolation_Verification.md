@@ -172,8 +172,7 @@ but are not re-claimed here.
   - One evidence-based retry exited with code 0 but again reported
     `0 passing`, so it did not verify the adapter.
 - `ss -ltnp`
-  - No listeners remained on the task-owned integration ports 3400, 3401, or
-    3402.
+  - No listeners remained on the task-owned integration ports 3400, 3401, or 3402.
 - `pgrep -af "meteor|mongod|run-integration-tests|meteortesting"`
   - Returned no task-owned Meteor or MongoDB processes after the scoped
     integration attempts. The only match was the `pgrep` command itself.

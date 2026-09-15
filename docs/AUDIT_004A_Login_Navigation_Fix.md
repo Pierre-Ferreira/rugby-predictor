@@ -96,7 +96,7 @@ The `Meteor.isTest` client override is injected through Rspack's `DefinePlugin`:
 ```ts
 new DefinePlugin({
   'Meteor.isTest': JSON.stringify(true),
-})
+});
 ```
 
 The intended application path for this gate is the isolated Playwright launcher:
