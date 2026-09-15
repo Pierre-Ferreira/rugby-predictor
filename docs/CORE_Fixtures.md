@@ -30,6 +30,7 @@ Each fixture has:
 - Optional venue display name.
 - Visibility of `draft` or `published`.
 - Cancellation state separate from visibility.
+- Server-owned integer revision for optimistic conflict protection.
 - Server-owned created and updated timestamps.
 - Server-owned responsible admin IDs for create/update/publish/cancel.
 - A scoring ruleset snapshot once published.
@@ -85,9 +86,19 @@ switch between:
 - Upcoming fixtures, ordered by kickoff ascending.
 - Past scheduled fixtures, ordered by kickoff descending.
 
+Both lists use bounded cursor pagination instead of a total-result cap. A page
+is ordered by scheduled kickoff and then fixture ID, so fixtures with identical
+kickoff times keep a deterministic order and can cross page boundaries without
+being skipped. Visitors move with Next/Previous page controls.
+
+The public browsing boundary is refreshed every 30 seconds. When that refresh
+runs, the public list returns to the first page for the selected mode so the
+upcoming/past split is recalculated against one coherent boundary. Switching
+between Upcoming and Past also resets to the first page.
+
 Fixture cards and detail pages show Team 1, Team 2, competition, kickoff, venue
 when present, and cancellation status. They do not expose admin actor IDs,
-internal test ownership, or ruleset snapshots.
+internal test ownership, stored revisions, or ruleset snapshots.
 
 Prediction submission is not implemented. Public fixture screens state that
 predictions are not open yet.

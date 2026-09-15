@@ -1,6 +1,8 @@
 import {
   fixtureListModes,
   type FixtureDetailsInput,
+  type FixtureListCursor,
+  type FixtureListCursorInput,
   type FixtureListMode,
   type FixtureListOptions,
   type SanitizedFixtureDetails,
@@ -17,6 +19,7 @@ export const DEFAULT_PUBLIC_FIXTURE_LIMIT = 10;
 export const MAX_PUBLIC_FIXTURE_LIMIT = 50;
 export const DEFAULT_ADMIN_FIXTURE_LIMIT = 50;
 export const MAX_ADMIN_FIXTURE_LIMIT = 100;
+export const INITIAL_FIXTURE_REVISION = 1;
 
 const FIXTURE_ID_PATTERN = /^[a-zA-Z0-9_-]{1,128}$/;
 const MIN_KICKOFF_TIME = Date.UTC(2000, 0, 1);
@@ -143,8 +146,25 @@ export const sanitizeUtcInstant = (value: unknown, label: string): Date => {
   return date as Date;
 };
 
-export const sanitizeExpectedUpdatedAt = (value: unknown): Date =>
-  sanitizeUtcInstant(value, 'Expected updated time');
+export const sanitizeExpectedRevision = (value: unknown): number => {
+  if (typeof value !== 'number') {
+    fixtureError(
+      'invalid-fixture-revision',
+      'Expected fixture revision is invalid.',
+    );
+  }
+
+  const revision = value as number;
+
+  if (!Number.isSafeInteger(revision) || revision < INITIAL_FIXTURE_REVISION) {
+    fixtureError(
+      'invalid-fixture-revision',
+      'Expected fixture revision is invalid.',
+    );
+  }
+
+  return revision;
+};
 
 export const sanitizeFixtureDetailsInput = (
   input: unknown,
@@ -233,13 +253,13 @@ export const sanitizeEditDetailsInput = (input: unknown) => {
 
   assertAllowedKeys(
     record,
-    ['details', 'expectedUpdatedAt', 'fixtureId'],
+    ['details', 'expectedRevision', 'fixtureId'],
     'Fixture edit input',
   );
 
   return {
     details: sanitizeFixtureDetailsInput(record.details),
-    expectedUpdatedAt: sanitizeExpectedUpdatedAt(record.expectedUpdatedAt),
+    expectedRevision: sanitizeExpectedRevision(record.expectedRevision),
     fixtureId: sanitizeFixtureId(record.fixtureId),
   };
 };
@@ -255,12 +275,12 @@ export const sanitizeStateMutationInput = (input: unknown) => {
 
   assertAllowedKeys(
     record,
-    ['expectedUpdatedAt', 'fixtureId'],
+    ['expectedRevision', 'fixtureId'],
     'Fixture state-change input',
   );
 
   return {
-    expectedUpdatedAt: sanitizeExpectedUpdatedAt(record.expectedUpdatedAt),
+    expectedRevision: sanitizeExpectedRevision(record.expectedRevision),
     fixtureId: sanitizeFixtureId(record.fixtureId),
   };
 };
@@ -294,10 +314,40 @@ const sanitizeBoundary = (value: unknown): Date => {
   return sanitizeUtcInstant(value, 'Fixture list boundary');
 };
 
+export const sanitizeFixtureListCursor = (
+  value: unknown,
+): FixtureListCursor | undefined => {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    fixtureError('invalid-fixture-cursor', 'Fixture list cursor is invalid.');
+  }
+  const record = value as Record<string, unknown>;
+
+  assertAllowedKeys(
+    record,
+    ['fixtureId', 'scheduledKickoffAt'],
+    'Fixture list cursor',
+  );
+
+  const cursor = record as unknown as FixtureListCursorInput;
+
+  return {
+    fixtureId: sanitizeFixtureId(cursor.fixtureId),
+    scheduledKickoffAt: sanitizeUtcInstant(
+      cursor.scheduledKickoffAt,
+      'Fixture list cursor kickoff',
+    ),
+  };
+};
+
 export const sanitizePublicFixtureListOptions = (
   input: unknown,
 ): {
   readonly boundary: Date;
+  readonly cursor?: FixtureListCursor;
   readonly limit: number;
   readonly mode: FixtureListMode;
 } => {
@@ -306,7 +356,7 @@ export const sanitizePublicFixtureListOptions = (
   if (isRecord(input)) {
     assertAllowedKeys(
       input,
-      ['boundary', 'limit', 'mode'],
+      ['boundary', 'cursor', 'limit', 'mode'],
       'Fixture list input',
     );
   }
@@ -329,6 +379,7 @@ export const sanitizePublicFixtureListOptions = (
 
   return {
     boundary: sanitizeBoundary(record.boundary),
+    cursor: sanitizeFixtureListCursor(record.cursor),
     limit: sanitizeLimit(
       record.limit,
       DEFAULT_PUBLIC_FIXTURE_LIMIT,
@@ -341,15 +392,17 @@ export const sanitizePublicFixtureListOptions = (
 export const sanitizeAdminFixtureListOptions = (
   input: unknown,
 ): {
+  readonly cursor?: FixtureListCursor;
   readonly limit: number;
 } => {
   const record = isRecord(input) ? input : {};
 
   if (isRecord(input)) {
-    assertAllowedKeys(input, ['limit'], 'Admin fixture list input');
+    assertAllowedKeys(input, ['cursor', 'limit'], 'Admin fixture list input');
   }
 
   return {
+    cursor: sanitizeFixtureListCursor(record.cursor),
     limit: sanitizeLimit(
       record.limit,
       DEFAULT_ADMIN_FIXTURE_LIMIT,

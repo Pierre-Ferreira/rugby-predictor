@@ -6,7 +6,6 @@ import { Fixtures } from '/imports/api/fixtures/collection';
 import {
   DEFAULT_PUBLIC_FIXTURE_LIMIT,
   FIXTURE_PUBLICATIONS,
-  MAX_PUBLIC_FIXTURE_LIMIT,
   type FixtureDocument,
   type FixtureListMode,
 } from '/imports/shared/fixtures';
@@ -20,18 +19,79 @@ import {
 
 const refreshIntervalMs = 30_000;
 
-const useRefreshingNow = () => {
-  const [now, setNow] = useState(() => new Date());
+interface FixturePageCursor {
+  readonly fixtureId: string;
+  readonly scheduledKickoffAt: string;
+}
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setNow(new Date());
-    }, refreshIntervalMs);
+interface FixturePaginationState {
+  readonly cursor: FixturePageCursor | null;
+  readonly previousCursors: readonly (FixturePageCursor | null)[];
+}
 
-    return () => window.clearInterval(interval);
-  }, []);
+const firstPageState = (): FixturePaginationState => ({
+  cursor: null,
+  previousCursors: [],
+});
 
-  return now;
+const cursorFromFixture = (fixture: FixtureDocument): FixturePageCursor => ({
+  fixtureId: fixture._id,
+  scheduledKickoffAt: fixture.scheduledKickoffAt.toISOString(),
+});
+
+const publicFixtureSelector = (
+  mode: FixtureListMode,
+  boundary: string,
+  cursor: FixturePageCursor | null,
+): Record<string, unknown> => {
+  const boundaryDate = new Date(boundary);
+  const baseSelector = {
+    scheduledKickoffAt:
+      mode === 'upcoming' ? { $gte: boundaryDate } : { $lt: boundaryDate },
+    visibility: 'published' as const,
+  };
+
+  if (!cursor) {
+    return baseSelector;
+  }
+
+  const cursorDate = new Date(cursor.scheduledKickoffAt);
+  const cursorSelector =
+    mode === 'upcoming'
+      ? {
+          $or: [
+            {
+              scheduledKickoffAt: {
+                $gt: cursorDate,
+              },
+            },
+            {
+              _id: {
+                $gt: cursor.fixtureId,
+              },
+              scheduledKickoffAt: cursorDate,
+            },
+          ],
+        }
+      : {
+          $or: [
+            {
+              scheduledKickoffAt: {
+                $lt: cursorDate,
+              },
+            },
+            {
+              _id: {
+                $gt: cursor.fixtureId,
+              },
+              scheduledKickoffAt: cursorDate,
+            },
+          ],
+        };
+
+  return {
+    $and: [baseSelector, cursorSelector],
+  };
 };
 
 const modeLabel = (mode: FixtureListMode): string =>
@@ -44,40 +104,31 @@ const modeDescription = (mode: FixtureListMode): string =>
 
 export const GamesPage = () => {
   const [mode, setMode] = useState<FixtureListMode>('upcoming');
-  const [visibleLimit, setVisibleLimit] = useState(
-    DEFAULT_PUBLIC_FIXTURE_LIMIT,
-  );
-  const now = useRefreshingNow();
-  const boundary = now.toISOString();
-  const subscriptionLimit = Math.min(
-    visibleLimit + 1,
-    MAX_PUBLIC_FIXTURE_LIMIT,
-  );
+  const [boundary, setBoundary] = useState(() => new Date().toISOString());
+  const [pagination, setPagination] = useState(firstPageState);
+  const pageSize = DEFAULT_PUBLIC_FIXTURE_LIMIT;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setBoundary(new Date().toISOString());
+      setPagination(firstPageState());
+    }, refreshIntervalMs);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const { fixtures, isConnected, isReady } = useTracker(() => {
     const handle = Meteor.subscribe(FIXTURE_PUBLICATIONS.publicList, {
       boundary,
-      limit: subscriptionLimit,
+      ...(pagination.cursor ? { cursor: pagination.cursor } : {}),
+      limit: pageSize,
       mode,
     });
-    const selector =
-      mode === 'upcoming'
-        ? {
-            scheduledKickoffAt: {
-              $gte: new Date(boundary),
-            },
-            visibility: 'published' as const,
-          }
-        : {
-            scheduledKickoffAt: {
-              $lt: new Date(boundary),
-            },
-            visibility: 'published' as const,
-          };
+    const selector = publicFixtureSelector(mode, boundary, pagination.cursor);
 
     return {
       fixtures: Fixtures.find(selector, {
-        limit: subscriptionLimit,
+        limit: pageSize + 1,
         sort:
           mode === 'upcoming'
             ? {
@@ -92,14 +143,44 @@ export const GamesPage = () => {
       isConnected: Meteor.status().connected,
       isReady: handle.ready(),
     };
-  }, [boundary, mode, subscriptionLimit]);
+  }, [boundary, mode, pageSize, pagination.cursor]);
 
   const visibleFixtures = useMemo(
-    () => fixtures.slice(0, visibleLimit),
-    [fixtures, visibleLimit],
+    () => fixtures.slice(0, pageSize),
+    [fixtures, pageSize],
   );
-  const hasMore =
-    fixtures.length > visibleLimit && visibleLimit < MAX_PUBLIC_FIXTURE_LIMIT;
+  const hasNextPage = fixtures.length > pageSize;
+  const hasPreviousPage = pagination.previousCursors.length > 0;
+  const lastVisibleFixture = visibleFixtures[visibleFixtures.length - 1];
+
+  const resetToFirstPage = () => {
+    setBoundary(new Date().toISOString());
+    setPagination(firstPageState());
+  };
+
+  const goToNextPage = () => {
+    if (!lastVisibleFixture) {
+      return;
+    }
+
+    setPagination((current) => ({
+      cursor: cursorFromFixture(lastVisibleFixture),
+      previousCursors: [...current.previousCursors, current.cursor],
+    }));
+  };
+
+  const goToPreviousPage = () => {
+    setPagination((current) => {
+      const previousCursors = current.previousCursors.slice(0, -1);
+      const cursor =
+        current.previousCursors[current.previousCursors.length - 1] ?? null;
+
+      return {
+        cursor,
+        previousCursors,
+      };
+    });
+  };
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
@@ -131,7 +212,7 @@ export const GamesPage = () => {
                 type="button"
                 onClick={() => {
                   setMode(candidate);
-                  setVisibleLimit(DEFAULT_PUBLIC_FIXTURE_LIMIT);
+                  resetToFirstPage();
                 }}
               >
                 {candidate === 'upcoming' ? 'Upcoming' : 'Past'}
@@ -180,21 +261,27 @@ export const GamesPage = () => {
             ))}
           </ul>
 
-          {hasMore ? (
-            <button
-              className="focus-ring mt-5 min-h-11 rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
-              type="button"
-              onClick={() =>
-                setVisibleLimit((current) =>
-                  Math.min(
-                    current + DEFAULT_PUBLIC_FIXTURE_LIMIT,
-                    MAX_PUBLIC_FIXTURE_LIMIT,
-                  ),
-                )
-              }
-            >
-              Load more fixtures
-            </button>
+          {hasPreviousPage || hasNextPage ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              {hasPreviousPage ? (
+                <button
+                  className="focus-ring min-h-11 rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                  type="button"
+                  onClick={goToPreviousPage}
+                >
+                  Previous fixtures
+                </button>
+              ) : null}
+              {hasNextPage ? (
+                <button
+                  className="focus-ring min-h-11 rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                  type="button"
+                  onClick={goToNextPage}
+                >
+                  Next fixtures
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </section>
       )}

@@ -248,7 +248,9 @@ Not part of this milestone:
 
 Milestone status: implemented for fixture management and public browsing.
 Verification evidence is recorded in
-`docs/AUDIT_005_Fixture_Management.md`.
+`docs/AUDIT_005_Fixture_Management.md`. Focused pagination and conflict
+corrections are recorded in
+`docs/AUDIT_005A_Fixture_Pagination_And_Concurrency.md`.
 
 Implemented:
 
@@ -273,6 +275,33 @@ Not implemented:
   live/completed transitions, deletion, unpublishing, restoration, team or
   competition management, custom question UI, service workers, offline fixture
   caching, leagues, prizes, sponsorships, animation, quizzes, AI, or deployment.
+
+## CCPP-005A Scope
+
+Milestone status: implemented as focused corrections to CCPP-005 fixture
+management. Verification evidence is recorded in
+`docs/AUDIT_005A_Fixture_Pagination_And_Concurrency.md`.
+
+Implemented:
+
+- Public upcoming, public past, and admin fixture browsing use bounded cursor
+  pages instead of total-result caps.
+- Cursor ordering uses scheduled kickoff plus fixture ID for deterministic page
+  boundaries when kickoff times match.
+- Public list boundary refresh resets pagination to the first page so upcoming
+  and past membership use a coherent current-time boundary.
+- Admin fixture mutations use a server-owned integer revision for optimistic
+  conflict protection while keeping `updatedAt` as audit metadata.
+- Existing fixtures missing revisions are conditionally backfilled to revision
+  `1` before fixture methods and publications register.
+- Focused unit, Meteor integration, and fixture browser regressions cover the
+  pagination and revision fixes.
+
+Not part of this correction:
+
+- Authentication/navigation, email configuration, HMR, database isolation, PWA
+  behavior, prediction submission, results, match-event capture, or later game
+  features.
 
 ## Roadmap Discipline
 

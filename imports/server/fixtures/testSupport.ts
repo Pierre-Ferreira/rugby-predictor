@@ -2,6 +2,7 @@ import { Meteor } from 'meteor/meteor';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
 import {
+  INITIAL_FIXTURE_REVISION,
   TEST_FIXTURE_METHODS,
   sanitizeCreateDraftInput,
   type FixtureDocument,
@@ -64,6 +65,7 @@ export const registerFixtureTestMethods = async () => {
         isCancelled: false,
         publishedAt: now,
         publishedByAdminId: actorId,
+        revision: INITIAL_FIXTURE_REVISION,
         rugbyRoosterTest: {
           ownerRunId: testEnvironment.runId,
         },

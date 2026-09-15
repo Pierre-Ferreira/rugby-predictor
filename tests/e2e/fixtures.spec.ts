@@ -145,6 +145,9 @@ const loginWithTestToken = async (page: Page, email: string) => {
 const isoDaysFromNow = (days: number): string =>
   new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
 
+const futureKickoffIso = (index: number): string =>
+  new Date(Date.UTC(2031, 0, index + 1, 12, 0, 0)).toISOString();
+
 declare global {
   interface Window {
     Meteor: {
@@ -287,5 +290,59 @@ test.describe('fixture management and browsing', () => {
         .filter({ hasText: fixtureName })
         .getByText('Cancelled'),
     ).toBeVisible();
+  });
+
+  test('paginates public and admin fixture lists with next and previous controls', async ({
+    page,
+  }) => {
+    const label = uniqueLabel('Paging');
+    const fixtureName = (index: number) =>
+      `${label} Team ${index.toString().padStart(2, '0')} vs ${label} Opponent ${index.toString().padStart(2, '0')}`;
+
+    for (let index = 0; index < 51; index += 1) {
+      await createPublishedFixture(page, {
+        competitionDisplayName: 'Pagination Cup',
+        scheduledKickoffAt: futureKickoffIso(index),
+        team1DisplayName: `${label} Team ${index.toString().padStart(2, '0')}`,
+        team2DisplayName: `${label} Opponent ${index.toString().padStart(2, '0')}`,
+      });
+    }
+
+    await gotoLocal(page, '/games');
+
+    await expect(page.getByText(fixtureName(0))).toBeVisible();
+    await expect(page.getByText(fixtureName(10))).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Next fixtures' }).click();
+
+    await expect(page.getByText(fixtureName(10))).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Previous fixtures' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Previous fixtures' }).click();
+
+    await expect(page.getByText(fixtureName(0))).toBeVisible();
+
+    const email = uniqueEmail('paging-admin');
+
+    await callMeteor(page, TEST_AUTH_METHODS.createVerifiedUser, email);
+    await callMeteor(page, TEST_AUTH_METHODS.setAdminForEmail, email, true);
+    await loginWithTestToken(page, email);
+    await gotoLocal(page, '/admin');
+
+    await expect(page.getByText(fixtureName(50))).toBeVisible();
+    await expect(page.getByText(fixtureName(0))).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Next fixtures' }).click();
+
+    await expect(page.getByText(fixtureName(0))).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Previous fixtures' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Previous fixtures' }).click();
+
+    await expect(page.getByText(fixtureName(50))).toBeVisible();
   });
 });

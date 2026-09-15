@@ -19,6 +19,7 @@ export interface FixtureDocument {
   readonly venueDisplayName?: string;
   readonly visibility: FixtureVisibility;
   readonly isCancelled: boolean;
+  readonly revision: number;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly createdByAdminId: string;
@@ -53,17 +54,17 @@ export interface CreateFixtureDraftInput {
 
 export interface EditFixtureDetailsInput {
   readonly details: FixtureDetailsInput;
-  readonly expectedUpdatedAt: unknown;
+  readonly expectedRevision: unknown;
   readonly fixtureId: unknown;
 }
 
 export interface PublishFixtureInput {
-  readonly expectedUpdatedAt: unknown;
+  readonly expectedRevision: unknown;
   readonly fixtureId: unknown;
 }
 
 export interface CancelFixtureInput {
-  readonly expectedUpdatedAt: unknown;
+  readonly expectedRevision: unknown;
   readonly fixtureId: unknown;
 }
 
@@ -80,6 +81,17 @@ export interface FixtureMutationResult {
 
 export interface FixtureListOptions {
   readonly boundary?: unknown;
+  readonly cursor?: unknown;
   readonly limit?: unknown;
   readonly mode?: unknown;
+}
+
+export interface FixtureListCursorInput {
+  readonly fixtureId: unknown;
+  readonly scheduledKickoffAt: unknown;
+}
+
+export interface FixtureListCursor {
+  readonly fixtureId: string;
+  readonly scheduledKickoffAt: Date;
 }

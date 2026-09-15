@@ -76,8 +76,8 @@ Current unit test files:
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment,
   inherited Mongo variable rejection, and derived Rspack dev-server port checks.
 - `tests/unit/fixtures.test.ts` - fixture validation, Team 1 / Team 2
-  normalization, public list option validation, and South African time to UTC
-  conversion.
+  normalization, public/admin pagination option validation, expected-revision
+  validation, and South African time to UTC conversion.
 
 Commands:
 
@@ -164,6 +164,7 @@ The current browser suite covers:
 - Mobile and keyboard access for sign-in.
 - Public fixture browsing for upcoming, past, and detail views.
 - Platform-admin fixture create, publish, and cancel workflow.
+- Public and admin fixture pagination controls.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only
@@ -236,9 +237,10 @@ The integration suite includes coverage for:
 - Narrow current-user publication fields.
 - Central safe return-path validation.
 - Fixture admin mutation authorization, injection rejection, create/edit/publish
-  /cancel behavior, conflict handling, repeated state calls, public draft
-  exclusion, public field projection, ruleset snapshot independence, invalid
-  default ruleset rejection, and admin fixture publication authorization.
+  /cancel behavior, revision conflict handling, repeated state calls, public
+  and admin cursor pagination, public draft exclusion, public field projection,
+  ruleset snapshot independence, fixture revision backfill, invalid default
+  ruleset rejection, and admin fixture publication authorization.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
 both the existing auth integration suite and the fixture integration suite.

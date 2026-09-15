@@ -8,7 +8,6 @@ import {
   DEFAULT_ADMIN_FIXTURE_LIMIT,
   FIXTURE_METHODS,
   FIXTURE_PUBLICATIONS,
-  MAX_ADMIN_FIXTURE_LIMIT,
   formatUtcInstantForJohannesburgInput,
   parseJohannesburgDateTimeInputToUtcInstant,
   type FixtureDocument,
@@ -29,12 +28,58 @@ interface FixtureFormState {
   readonly venueDisplayName: string;
 }
 
+interface FixturePageCursor {
+  readonly fixtureId: string;
+  readonly scheduledKickoffAt: string;
+}
+
+interface FixturePaginationState {
+  readonly cursor: FixturePageCursor | null;
+  readonly previousCursors: readonly (FixturePageCursor | null)[];
+}
+
 const emptyForm: FixtureFormState = {
   competitionDisplayName: '',
   scheduledKickoffLocal: '',
   team1DisplayName: '',
   team2DisplayName: '',
   venueDisplayName: '',
+};
+
+const firstPageState = (): FixturePaginationState => ({
+  cursor: null,
+  previousCursors: [],
+});
+
+const cursorFromFixture = (fixture: FixtureDocument): FixturePageCursor => ({
+  fixtureId: fixture._id,
+  scheduledKickoffAt: fixture.scheduledKickoffAt.toISOString(),
+});
+
+const adminFixtureSelector = (
+  cursor: FixturePageCursor | null,
+): Record<string, unknown> => {
+  if (!cursor) {
+    return {};
+  }
+
+  const cursorDate = new Date(cursor.scheduledKickoffAt);
+
+  return {
+    $or: [
+      {
+        scheduledKickoffAt: {
+          $lt: cursorDate,
+        },
+      },
+      {
+        _id: {
+          $gt: cursor.fixtureId,
+        },
+        scheduledKickoffAt: cursorDate,
+      },
+    ],
+  };
 };
 
 const messageFromError = (error: unknown): string => {
@@ -74,30 +119,39 @@ export const AdminFixtureManager = () => {
     readonly message: string;
   } | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [visibleLimit, setVisibleLimit] = useState(DEFAULT_ADMIN_FIXTURE_LIMIT);
+  const [pagination, setPagination] = useState(firstPageState);
+  const pageSize = DEFAULT_ADMIN_FIXTURE_LIMIT;
 
   const { fixtures, isReady } = useTracker(() => {
     const handle = Meteor.subscribe(FIXTURE_PUBLICATIONS.adminList, {
-      limit: visibleLimit,
+      ...(pagination.cursor ? { cursor: pagination.cursor } : {}),
+      limit: pageSize,
     });
 
     return {
-      fixtures: Fixtures.find(
-        {},
-        {
-          sort: {
-            scheduledKickoffAt: -1,
-            _id: 1,
-          },
+      fixtures: Fixtures.find(adminFixtureSelector(pagination.cursor), {
+        limit: pageSize + 1,
+        sort: {
+          scheduledKickoffAt: -1,
+          _id: 1,
         },
-      ).fetch(),
+      }).fetch(),
       isReady: handle.ready(),
     };
-  }, [visibleLimit]);
+  }, [pageSize, pagination.cursor]);
 
+  const visibleFixtures = useMemo(
+    () => fixtures.slice(0, pageSize),
+    [fixtures, pageSize],
+  );
+  const hasNextPage = fixtures.length > pageSize;
+  const hasPreviousPage = pagination.previousCursors.length > 0;
+  const lastVisibleFixture = visibleFixtures[visibleFixtures.length - 1];
   const editingFixture = useMemo(
-    () => fixtures.find((fixture) => fixture._id === editingFixtureId) ?? null,
-    [editingFixtureId, fixtures],
+    () =>
+      visibleFixtures.find((fixture) => fixture._id === editingFixtureId) ??
+      null,
+    [editingFixtureId, visibleFixtures],
   );
 
   const updateField =
@@ -146,7 +200,7 @@ export const AdminFixtureManager = () => {
             FIXTURE_METHODS.editDetails,
             {
               details,
-              expectedUpdatedAt: editingFixture.updatedAt.toISOString(),
+              expectedRevision: editingFixture.revision,
               fixtureId: editingFixture._id,
             },
           )
@@ -183,7 +237,7 @@ export const AdminFixtureManager = () => {
       const result = await callMeteorMethod<FixtureMutationResult>(
         FIXTURE_METHODS.publish,
         {
-          expectedUpdatedAt: fixture.updatedAt.toISOString(),
+          expectedRevision: fixture.revision,
           fixtureId: fixture._id,
         },
       );
@@ -221,7 +275,7 @@ export const AdminFixtureManager = () => {
       const result = await callMeteorMethod<FixtureMutationResult>(
         FIXTURE_METHODS.cancel,
         {
-          expectedUpdatedAt: fixture.updatedAt.toISOString(),
+          expectedRevision: fixture.revision,
           fixtureId: fixture._id,
         },
       );
@@ -241,6 +295,32 @@ export const AdminFixtureManager = () => {
     } finally {
       setPendingAction(null);
     }
+  };
+
+  const goToNextPage = () => {
+    if (!lastVisibleFixture) {
+      return;
+    }
+
+    setEditingFixtureId(null);
+    setPagination((current) => ({
+      cursor: cursorFromFixture(lastVisibleFixture),
+      previousCursors: [...current.previousCursors, current.cursor],
+    }));
+  };
+
+  const goToPreviousPage = () => {
+    setEditingFixtureId(null);
+    setPagination((current) => {
+      const previousCursors = current.previousCursors.slice(0, -1);
+      const cursor =
+        current.previousCursors[current.previousCursors.length - 1] ?? null;
+
+      return {
+        cursor,
+        previousCursors,
+      };
+    });
   };
 
   return (
@@ -366,13 +446,13 @@ export const AdminFixtureManager = () => {
             <p className="mt-4 rounded-md border border-rooster-line bg-rooster-paper px-4 py-3 text-sm font-bold text-rooster-muted">
               Loading fixtures
             </p>
-          ) : fixtures.length === 0 ? (
+          ) : visibleFixtures.length === 0 ? (
             <p className="mt-4 rounded-md border border-dashed border-rooster-line bg-rooster-paper px-4 py-5 text-sm font-bold text-rooster-muted">
               No fixtures have been created yet.
             </p>
           ) : (
             <ul className="mt-4 grid gap-3">
-              {fixtures.map((fixture) => {
+              {visibleFixtures.map((fixture) => {
                 const disabled = Boolean(pendingAction);
 
                 return (
@@ -454,19 +534,27 @@ export const AdminFixtureManager = () => {
             </ul>
           )}
 
-          {fixtures.length >= visibleLimit &&
-          visibleLimit < MAX_ADMIN_FIXTURE_LIMIT ? (
-            <button
-              className="focus-ring mt-4 min-h-10 rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-ink transition hover:bg-rooster-paper"
-              type="button"
-              onClick={() =>
-                setVisibleLimit((current) =>
-                  Math.min(current + 25, MAX_ADMIN_FIXTURE_LIMIT),
-                )
-              }
-            >
-              Load more fixtures
-            </button>
+          {hasPreviousPage || hasNextPage ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {hasPreviousPage ? (
+                <button
+                  className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-ink transition hover:bg-rooster-paper"
+                  type="button"
+                  onClick={goToPreviousPage}
+                >
+                  Previous fixtures
+                </button>
+              ) : null}
+              {hasNextPage ? (
+                <button
+                  className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-ink transition hover:bg-rooster-paper"
+                  type="button"
+                  onClick={goToNextPage}
+                >
+                  Next fixtures
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>

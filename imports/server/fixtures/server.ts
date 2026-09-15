@@ -5,6 +5,7 @@ import {
   FIXTURE_METHODS,
   FIXTURE_PUBLICATIONS,
   FixtureValidationError,
+  INITIAL_FIXTURE_REVISION,
   sanitizeAdminFixtureListOptions,
   sanitizeCreateDraftInput,
   sanitizeEditDetailsInput,
@@ -12,6 +13,7 @@ import {
   sanitizePublicFixtureListOptions,
   sanitizeStateMutationInput,
   type FixtureDocument,
+  type FixtureListCursor,
   type FixtureMutationResult,
 } from '/imports/shared/fixtures';
 import { ScoringValidationError } from '/imports/shared/scoring';
@@ -39,6 +41,7 @@ const adminFixtureFields = {
   isCancelled: 1,
   publishedAt: 1,
   publishedByAdminId: 1,
+  revision: 1,
   rulesetSnapshot: 1,
   scheduledKickoffAt: 1,
   team1DisplayName: 1,
@@ -102,10 +105,92 @@ const readFixtureForStateMessage = async (fixtureId: string) =>
   Fixtures.findOneAsync(fixtureId, {
     fields: {
       isCancelled: 1,
-      updatedAt: 1,
+      revision: 1,
       visibility: 1,
     },
   });
+
+const extraPageRowLimit = (limit: number): number => limit + 1;
+
+const cursorCondition = (
+  cursor: FixtureListCursor | undefined,
+  direction: 'ascending' | 'descending',
+): Record<string, unknown> | null => {
+  if (!cursor) {
+    return null;
+  }
+
+  if (direction === 'ascending') {
+    return {
+      $or: [
+        {
+          scheduledKickoffAt: {
+            $gt: cursor.scheduledKickoffAt,
+          },
+        },
+        {
+          _id: {
+            $gt: cursor.fixtureId,
+          },
+          scheduledKickoffAt: cursor.scheduledKickoffAt,
+        },
+      ],
+    };
+  }
+
+  return {
+    $or: [
+      {
+        scheduledKickoffAt: {
+          $lt: cursor.scheduledKickoffAt,
+        },
+      },
+      {
+        _id: {
+          $gt: cursor.fixtureId,
+        },
+        scheduledKickoffAt: cursor.scheduledKickoffAt,
+      },
+    ],
+  };
+};
+
+const combineConditions = (
+  conditions: readonly (Record<string, unknown> | null)[],
+): Record<string, unknown> => {
+  const activeConditions = conditions.filter(
+    (condition): condition is Record<string, unknown> => Boolean(condition),
+  );
+
+  if (activeConditions.length === 1) {
+    return activeConditions[0];
+  }
+
+  if (activeConditions.length === 0) {
+    return {};
+  }
+
+  return {
+    $and: activeConditions,
+  };
+};
+
+export const backfillFixtureRevisions = async (): Promise<number> => {
+  const result = await Fixtures.rawCollection().updateMany(
+    {
+      revision: {
+        $exists: false,
+      },
+    },
+    {
+      $set: {
+        revision: INITIAL_FIXTURE_REVISION,
+      },
+    },
+  );
+
+  return result.modifiedCount;
+};
 
 const registerFixtureMethods = () => {
   Meteor.methods({
@@ -122,6 +207,7 @@ const registerFixtureMethods = () => {
           createdAt: now,
           createdByAdminId: adminId,
           isCancelled: false,
+          revision: INITIAL_FIXTURE_REVISION,
           updatedAt: now,
           updatedByAdminId: adminId,
           visibility: 'draft',
@@ -141,11 +227,14 @@ const registerFixtureMethods = () => {
     ): Promise<FixtureMutationResult> {
       try {
         const adminId = await requireAdminId(this);
-        const { details, expectedUpdatedAt, fixtureId } =
+        const { details, expectedRevision, fixtureId } =
           sanitizeEditDetailsInput(input);
         const now = new Date();
         const modifier = details.venueDisplayName
           ? {
+              $inc: {
+                revision: 1,
+              },
               $set: {
                 ...details,
                 updatedAt: now,
@@ -153,6 +242,9 @@ const registerFixtureMethods = () => {
               },
             }
           : {
+              $inc: {
+                revision: 1,
+              },
               $set: {
                 ...details,
                 updatedAt: now,
@@ -166,7 +258,7 @@ const registerFixtureMethods = () => {
           {
             _id: fixtureId,
             isCancelled: false,
-            updatedAt: expectedUpdatedAt,
+            revision: expectedRevision,
           },
           modifier,
         );
@@ -202,13 +294,13 @@ const registerFixtureMethods = () => {
     ): Promise<FixtureMutationResult> {
       try {
         const adminId = await requireAdminId(this);
-        const { expectedUpdatedAt, fixtureId } =
+        const { expectedRevision, fixtureId } =
           sanitizeStateMutationInput(input);
         const current = await Fixtures.findOneAsync(fixtureId, {
           fields: {
             isCancelled: 1,
+            revision: 1,
             rulesetSnapshot: 1,
-            updatedAt: 1,
             visibility: 1,
           },
         });
@@ -231,7 +323,7 @@ const registerFixtureMethods = () => {
           );
         }
 
-        if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+        if (current.revision !== expectedRevision) {
           throw conflictError();
         }
 
@@ -241,10 +333,13 @@ const registerFixtureMethods = () => {
           {
             _id: fixtureId,
             isCancelled: false,
-            updatedAt: expectedUpdatedAt,
+            revision: expectedRevision,
             visibility: 'draft',
           },
           {
+            $inc: {
+              revision: 1,
+            },
             $set: {
               publishedAt: now,
               publishedByAdminId: adminId,
@@ -294,7 +389,7 @@ const registerFixtureMethods = () => {
     ): Promise<FixtureMutationResult> {
       try {
         const adminId = await requireAdminId(this);
-        const { expectedUpdatedAt, fixtureId } =
+        const { expectedRevision, fixtureId } =
           sanitizeStateMutationInput(input);
         const current = await readFixtureForStateMessage(fixtureId);
 
@@ -309,7 +404,7 @@ const registerFixtureMethods = () => {
           };
         }
 
-        if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+        if (current.revision !== expectedRevision) {
           throw conflictError();
         }
 
@@ -318,9 +413,12 @@ const registerFixtureMethods = () => {
           {
             _id: fixtureId,
             isCancelled: false,
-            updatedAt: expectedUpdatedAt,
+            revision: expectedRevision,
           },
           {
+            $inc: {
+              revision: 1,
+            },
             $set: {
               cancelledAt: now,
               cancelledByAdminId: adminId,
@@ -365,18 +463,18 @@ const registerFixturePublications = () => {
     async function adminList(input: unknown) {
       await requirePlatformAdmin(this);
       const options = sanitizeAdminFixtureListOptions(input);
+      const selector = combineConditions([
+        cursorCondition(options.cursor, 'descending'),
+      ]);
 
-      return Fixtures.find(
-        {},
-        {
-          fields: adminFixtureFields,
-          limit: options.limit,
-          sort: {
-            scheduledKickoffAt: -1,
-            _id: 1,
-          },
+      return Fixtures.find(selector, {
+        fields: adminFixtureFields,
+        limit: extraPageRowLimit(options.limit),
+        sort: {
+          scheduledKickoffAt: -1,
+          _id: 1,
         },
-      );
+      });
     },
   );
 
@@ -388,27 +486,30 @@ const registerFixturePublications = () => {
         options.mode === 'upcoming'
           ? { $gte: options.boundary }
           : { $lt: options.boundary };
-
-      return Fixtures.find(
+      const sortDirection =
+        options.mode === 'upcoming' ? 'ascending' : 'descending';
+      const selector = combineConditions([
         {
           scheduledKickoffAt,
           visibility: 'published',
         },
-        {
-          fields: publicFixtureFields,
-          limit: options.limit,
-          sort:
-            options.mode === 'upcoming'
-              ? {
-                  scheduledKickoffAt: 1,
-                  _id: 1,
-                }
-              : {
-                  scheduledKickoffAt: -1,
-                  _id: 1,
-                },
-        },
-      );
+        cursorCondition(options.cursor, sortDirection),
+      ]);
+
+      return Fixtures.find(selector, {
+        fields: publicFixtureFields,
+        limit: extraPageRowLimit(options.limit),
+        sort:
+          options.mode === 'upcoming'
+            ? {
+                scheduledKickoffAt: 1,
+                _id: 1,
+              }
+            : {
+                scheduledKickoffAt: -1,
+                _id: 1,
+              },
+      });
     },
   );
 
@@ -443,6 +544,7 @@ Fixtures.deny({
   update: () => true,
 });
 
+await backfillFixtureRevisions();
 registerFixtureMethods();
 registerFixturePublications();
 await registerFixtureTestMethods();

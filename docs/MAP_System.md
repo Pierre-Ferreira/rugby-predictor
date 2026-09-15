@@ -29,6 +29,7 @@
 - `docs/AUDIT_004D_Same_Account_Link_Invalidation.md` - CCPP-004D follow-up changing same-account continuation to explicitly invalidate the presented passwordless link.
 - `docs/AUDIT_004E_PWA_Foundation.md` - CCPP-004E minimal PWA foundation, verification evidence, limitations, and EOMD archive note.
 - `docs/AUDIT_005_Fixture_Management.md` - CCPP-005 fixture management and public browsing implementation and verification evidence.
+- `docs/AUDIT_005A_Fixture_Pagination_And_Concurrency.md` - CCPP-005A fixture pagination and revision-concurrency correction evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -98,10 +99,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 
 - `imports/shared/fixtures/` - fixture method/publication names, domain types, validation, and timezone conversion helpers.
 - `imports/api/fixtures/collection.ts` - shared `fixtures` Mongo collection.
-- `imports/server/fixtures/server.ts` - fixture methods, publications, indexes, and write-path protections.
+- `imports/server/fixtures/server.ts` - fixture methods, cursor publications, indexes, revision backfill, and write-path protections.
 - `imports/server/fixtures/ruleset.ts` - default ruleset snapshot creation for fixture publication.
 - `imports/server/fixtures/testSupport.ts` - isolated fixture test helpers.
-- `imports/ui/fixtures/AdminFixtureManager.tsx` - admin fixture form, list, publish, and cancel UI.
+- `imports/ui/fixtures/AdminFixtureManager.tsx` - admin fixture form, paginated list, publish, and cancel UI.
 - `imports/ui/fixtures/fixtureUi.ts` - shared fixture UI labels and paths.
 
 ## Verification Entry Points
@@ -125,13 +126,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
-- `tests/unit/fixtures.test.ts` - CCPP-005 fixture validation and timezone unit tests.
+- `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth and fixture integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
-- `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests.
+- `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
-- `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing and admin fixture create/publish/cancel workflow.
+- `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing, public/admin pagination controls, and admin fixture create/publish/cancel workflow.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories

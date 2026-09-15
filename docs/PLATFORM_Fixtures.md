@@ -24,6 +24,7 @@ Stored fixture documents include:
 - `venueDisplayName`
 - `visibility`
 - `isCancelled`
+- `revision`
 - `createdAt`
 - `updatedAt`
 - `createdByAdminId`
@@ -56,31 +57,71 @@ Inputs are allowlisted and validated:
 - Required text must be nonblank and bounded.
 - Team names must be distinct after normalization.
 - Kickoff must parse to a valid UTC instant.
-- State mutations require the caller's expected `updatedAt`.
+- Edit, publish, and cancel mutations require the caller's expected integer
+  `revision`.
 - Unknown fields are rejected.
 
 Ordinary edit payloads cannot set actor IDs, timestamps, visibility,
-cancellation fields, test ownership, or ruleset snapshots.
+cancellation fields, test ownership, stored revisions, or ruleset snapshots.
 
 ## Conditional Writes
 
-Edit, publish, and cancel use conditional writes against the fixture ID,
-expected `updatedAt`, and protected state. If a concurrent operation changes the
-fixture first, the method reports `fixture-conflict` instead of overwriting the
+New fixtures start at revision `1`. Edit, publish, and cancel use conditional
+writes against the fixture ID, expected `revision`, and protected state. A
+successful state change increments the revision atomically and updates
+`updatedAt` as an audit timestamp. If a concurrent operation changes the fixture
+first, the method reports `fixture-conflict` instead of overwriting the
 protected state.
 
 Published fixtures can be edited while active. Cancelled fixtures reject edits.
+Publishing an already published fixture and cancelling an already cancelled
+fixture remain predictable no-op calls; they return their existing no-op status
+without mutating the fixture or incrementing the revision.
+
+At server startup, before fixture methods and publications are registered, a
+conditional backfill sets revision `1` on fixtures where `revision` does not
+exist. The backfill is idempotent and does not change timestamps, actor IDs,
+ruleset snapshots, fixture details, visibility, cancellation metadata, or test
+ownership.
 
 ## Publications
 
 Fixture publications:
 
 - `fixtures.admin.list` requires platform-admin authorization and publishes a
-  bounded admin fixture list.
+  bounded admin fixture page.
 - `fixtures.public.list` publishes only `published` fixtures using explicit
-  public fields.
+  public fields and a bounded page.
 - `fixtures.public.detail` publishes one `published` fixture by ID using the
   same explicit public fields.
+
+List publication inputs accept:
+
+- `limit`: integer page size. Public page sizes are capped by
+  `MAX_PUBLIC_FIXTURE_LIMIT`; admin page sizes are capped by
+  `MAX_ADMIN_FIXTURE_LIMIT`.
+- `cursor`: optional object with `scheduledKickoffAt` and `fixtureId` from the
+  last visible row of the current page.
+- `mode`: public lists only, either `upcoming` or `past`.
+- `boundary`: public lists only, the UTC instant that separates upcoming from
+  past fixtures.
+
+The server validates all list inputs. Malformed cursors, unsupported fields, and
+out-of-range page sizes are rejected before a query is returned.
+
+Cursor ordering:
+
+- Public upcoming pages sort by `{ scheduledKickoffAt: 1, _id: 1 }` and advance
+  to rows after the cursor in that order.
+- Public past pages sort by `{ scheduledKickoffAt: -1, _id: 1 }` and advance to
+  rows after the cursor in that order.
+- Admin pages sort by `{ scheduledKickoffAt: -1, _id: 1 }` and advance to rows
+  after the cursor in that order.
+
+Each list publication queries one extra row beyond the requested page size.
+Clients display only the requested page size and use the extra row to decide
+whether a Next page exists. There is no total count query and no unbounded list
+query.
 
 Draft fixtures are excluded from anonymous and ordinary-user public list/detail
 publications, including guessed IDs.
@@ -96,7 +137,7 @@ Public fields:
 - `isCancelled`
 
 Actor IDs, timestamps other than kickoff, test ownership, cancellation actor
-metadata, and `rulesetSnapshot` are not public.
+metadata, stored revisions, and `rulesetSnapshot` are not public.
 
 ## Indexes
 
@@ -123,12 +164,18 @@ not database-level immutability.
 
 ## Query Limits
 
-Public browsing uses bounded list subscriptions. The UI requests one extra row
-above the visible count so it can show a Load more control when additional rows
-are available. Public list requests are capped by
-`MAX_PUBLIC_FIXTURE_LIMIT`.
+Public browsing uses bounded page subscriptions. The public UI requests
+`DEFAULT_PUBLIC_FIXTURE_LIMIT` visible rows at a time and moves with
+Next/Previous page controls. It passes the current mode, a UTC browsing
+boundary, and the current page cursor to both the subscription and the displayed
+Minimongo query so unrelated subscription rows do not expand the visible page.
+Every 30 seconds the public browsing boundary is refreshed and pagination resets
+to the first page for the selected mode.
 
-Admin list requests are also bounded and capped by `MAX_ADMIN_FIXTURE_LIMIT`.
+Admin browsing uses bounded page subscriptions with
+`DEFAULT_ADMIN_FIXTURE_LIMIT` visible rows at a time and the same cursor shape.
+Admin pagination does not use a time boundary. Admin list requests still require
+server-side platform-admin authorization.
 
 ## Test Support
 
