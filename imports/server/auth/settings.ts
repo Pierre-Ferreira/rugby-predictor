@@ -1,5 +1,4 @@
 import { Meteor } from 'meteor/meteor';
-import { MongoInternals } from 'meteor/mongo';
 
 import {
   type AuthRuntimeConfig,
@@ -8,6 +7,8 @@ import {
   type RugbyRoosterSettingsInput,
   validateAuthRuntimeConfig,
 } from '/imports/shared/auth/config';
+import { assertIsolatedMongoConnectionIdentity } from '/imports/shared/auth/testDatabaseIdentity';
+import { getActiveMongoConnectionIdentity } from './mongoConnectionIdentity';
 
 interface AdminProvisioningSettings {
   readonly action?: 'grant' | 'revoke';
@@ -35,6 +36,10 @@ const runtimeEnvironment = (): AuthRuntimeEnvironment => ({
   RUGBY_ROOSTER_TEST_DATABASE_NAME:
     process.env.RUGBY_ROOSTER_TEST_DATABASE_NAME,
   RUGBY_ROOSTER_TEST_MODE: process.env.RUGBY_ROOSTER_TEST_MODE,
+  RUGBY_ROOSTER_TEST_MONGO_HOST:
+    process.env.RUGBY_ROOSTER_TEST_MONGO_HOST,
+  RUGBY_ROOSTER_TEST_MONGO_PORT:
+    process.env.RUGBY_ROOSTER_TEST_MONGO_PORT,
   RUGBY_ROOSTER_TEST_RUN_ID: process.env.RUGBY_ROOSTER_TEST_RUN_ID,
 });
 
@@ -79,31 +84,7 @@ export const getAuthTestEnvironment = (): IsolatedTestEnvironment | null =>
 export const getAuthTestRunId = (): string | null =>
   getAuthTestEnvironment()?.runId ?? null;
 
-export const getActiveMongoDatabaseName = (): string | null => {
-  const driver = MongoInternals.defaultRemoteCollectionDriver() as unknown as {
-    mongo?: {
-      db?: {
-        databaseName?: string;
-        s?: {
-          databaseName?: string;
-          namespace?: {
-            db?: string;
-          };
-        };
-      };
-    };
-  };
-  const db = driver.mongo?.db;
-
-  return (
-    db?.databaseName ??
-    db?.s?.databaseName ??
-    db?.s?.namespace?.db ??
-    null
-  );
-};
-
-export const assertVerifiedAuthTestEnvironment = () => {
+export const assertVerifiedAuthTestEnvironment = async () => {
   const testEnvironment = getAuthTestEnvironment();
 
   if (!testEnvironment || Meteor.isProduction) {
@@ -113,12 +94,22 @@ export const assertVerifiedAuthTestEnvironment = () => {
     );
   }
 
-  const activeDatabaseName = getActiveMongoDatabaseName();
+  try {
+    const observed = await getActiveMongoConnectionIdentity();
 
-  if (activeDatabaseName !== testEnvironment.databaseName) {
+    assertIsolatedMongoConnectionIdentity({
+      expected: {
+        databaseName: testEnvironment.databaseName,
+        endpoint: testEnvironment.mongoEndpoint,
+      },
+      observed,
+    });
+  } catch (error) {
     throw new Meteor.Error(
       'test-environment-mismatch',
-      'Auth test helpers refused to run against the active database.',
+      error instanceof Error
+        ? error.message
+        : 'Auth test helpers could not verify the active MongoDB connection.',
     );
   }
 

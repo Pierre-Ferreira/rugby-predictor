@@ -17,7 +17,7 @@ configureEmailDelivery();
 configurePasswordlessEmails();
 protectPasswordlessPackageMethods();
 registerAuthMethods();
-registerAuthTestMethods();
+await registerAuthTestMethods();
 
 Meteor.startup(async () => {
   await provisionPlatformAdminFromSettings();

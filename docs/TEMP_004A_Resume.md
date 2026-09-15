@@ -1,6 +1,6 @@
 # TEMP 004A Resume
 
-## Checkpoint - 2026-09-15 Review Preservation
+## Historical Checkpoint - 2026-09-15 Review Preservation
 
 This file is a temporary CCPP-004A handoff checkpoint. Keep it under `docs/`
 until CCPP-004A is either completed or deliberately abandoned.
@@ -8,7 +8,95 @@ until CCPP-004A is either completed or deliberately abandoned.
 This checkpoint session did not restart debugging, rerun browser suites, commit,
 push, deploy, or mark CCPP-004A complete.
 
-## Checkpoint - 2026-09-15 Throttle Correction
+## Current Checkpoint - 2026-09-15 Database-Isolation Verification Follow-Up
+
+This checkpoint implemented the database-isolation verification correction for
+auth test helpers. It did not investigate or modify Rspack configuration, HMR,
+Meteor hot-code-push, the `Meteor.isTest` override, `RSPACK_NATIVE`,
+authentication navigation/account switching, throttle settings, scoring, product
+features, browser tests, deployment, commits, pushes, or email sending.
+
+Changed files in this checkpoint:
+
+- `imports/shared/auth/testDatabaseIdentity.ts`
+- `imports/shared/auth/config.ts`
+- `imports/server/auth/mongoConnectionIdentity.ts`
+- `imports/server/auth/settings.ts`
+- `imports/server/auth/testSupport.ts`
+- `imports/server/auth/server.ts`
+- `imports/server/auth/passwordless.app-test.ts`
+- `scripts/test-environment.mjs`
+- `playwright.config.ts`
+- `tests/unit/auth-config.test.ts`
+- `tests/unit/test-database-identity.test.ts`
+- `tests/unit/test-launchers.test.ts`
+- `docs/AUDIT_004A_Database_Isolation_Verification.md`
+- `docs/PLATFORM_Authentication.md`
+- `docs/PLATFORM_Testing.md`
+- `docs/MAP_System.md`
+- `docs/TEMP_004A_Resume.md`
+
+Current implementation state:
+
+- Isolated launchers now provide an expected MongoDB endpoint:
+  `RUGBY_ROOSTER_TEST_MONGO_HOST=127.0.0.1` and
+  `RUGBY_ROOSTER_TEST_MONGO_PORT=<app port + 1>`.
+- Auth runtime config requires expected MongoDB host, port, and the `meteor`
+  database when test helpers are explicitly enabled.
+- `imports/server/auth/mongoConnectionIdentity.ts` pings the Meteor MongoDB
+  `Db`, reads the active database name from that `Db`, and reads the connected
+  endpoint from
+  `client.topology.description.servers`.
+- Test helper methods are registered only after active endpoint/database
+  verification passes; helper operations re-check before mutations/reads.
+- Supported topology is intentionally narrow: one explicit loopback endpoint and
+  the expected database name. SRV, load-balanced, multi-endpoint, unknown,
+  missing, non-loopback, wrong-port, and wrong-database metadata are rejected.
+- This verifies endpoint plus database name only. It does not independently
+  prove MongoDB filesystem storage directory or exclusive ownership of a MongoDB
+  process.
+
+Actual check results in this checkpoint:
+
+- `meteor npm run test:unit -- --run tests/unit/auth-config.test.ts tests/unit/test-database-identity.test.ts tests/unit/test-launchers.test.ts`
+  passed: 3 test files, 22 tests.
+- `meteor npm run typecheck` passed twice, including after extracting the
+  Meteor/MongoDB adapter module: `tsc --noEmit --incremental false`.
+- The scoped runtime command
+  `MOCHA_GREP='proves the isolated test environment before helpers run' TEST_CLIENT=0 meteor npm run test:integration`
+  first failed inside the sandbox with
+  `Error: listen EPERM: operation not permitted 127.0.0.1:3400`.
+- The same scoped runtime command was rerun with approved local-loopback
+  permission and exited 0 but reported `0 passing`; it did not verify the real
+  adapter.
+- One evidence-based retry,
+  `MOCHA_GREP=isolated TEST_CLIENT=0 meteor npm run test:integration`, also
+  exited 0 but reported `0 passing`; it did not verify the real adapter.
+- `ss -ltnp` showed no listeners on 3400, 3401, or 3402 afterward.
+- `pgrep -af "meteor|mongod|run-integration-tests|meteortesting"` returned no
+  task-owned Meteor/Mongo processes after the attempts; the only match was the
+  `pgrep` command itself.
+- npm emitted the existing `Unknown env config "nodedir"` warning during npm
+  commands.
+
+Current remaining work:
+
+- Database-isolation implementation and pure regression coverage are present,
+  but real Meteor adapter verification remains open because the scoped Mocha
+  filter selected zero app-server tests twice.
+- A future session should verify the real adapter/gate with a working
+  server-side integration selection or a deliberate full integration run.
+- The `Meteor.isTest` client override remains explicitly unaccepted.
+- `RSPACK_NATIVE` remains explicitly unverified as a replacement.
+- Final CCPP-004A browser/full-suite verification and completion documentation
+  remain open.
+- Do not mark CCPP-004A complete until database runtime verification,
+  workaround disposition, final verification, and durable completion handoff are
+  done.
+- No commit, push, deployment, email sending, browser suite, full suite, or
+  completion action was performed in this checkpoint.
+
+## Historical Checkpoint - 2026-09-15 Throttle Correction
 
 This checkpoint corrected only the passwordless-auth throttle mismatch and
 throttle-window validation. It did not investigate or modify HMR, Rspack,
@@ -64,7 +152,7 @@ for continuity and were not re-run in this checkpoint session:
 - `npm run typecheck` started, but its result was not captured before remote
   compaction failed.
 
-### Verified In This Session
+### Historical - Verified In Review Preservation Checkpoint
 
 - `AGENTS.md` was read.
 - This resume document was read.
@@ -76,7 +164,7 @@ The TypeScript command output included npm's existing
 `tsc --noEmit --incremental false` successfully.
 
 No browser suite, full test suite, lint, formatter, integration suite, commit,
-push, or deployment was run in this checkpoint session.
+push, or deployment was run in that checkpoint session.
 
 ### Current Meteor.isTest Override
 
@@ -110,7 +198,7 @@ and it may influence conditional bundling because the value is injected at build
 time. Future work should review whether a supported Meteor/Rspack mechanism can
 replace it or narrow it further.
 
-### Current Diff Summary
+### Historical Diff Summary From Earlier CCPP-004A Work
 
 Current CCPP-004A changes include:
 
@@ -127,7 +215,7 @@ Current CCPP-004A changes include:
 - Auth runtime/test-helper hardening and current-run ownership checks.
 - Browser-test coverage for the account-switch and malformed-link paths.
 
-### Future Resume Guidance
+### Historical Resume Guidance - Superseded Where It Conflicts
 
 - Start by reviewing `docs/AUDIT_004A_Login_Navigation_Fix.md`.
 - The checkpoint review archive is
@@ -140,7 +228,7 @@ Current CCPP-004A changes include:
 - Do not mark CCPP-004A complete until the workaround decision, final
   verification, and durable documentation are complete.
 
-## Recovery Checkpoint - 2026-09-15
+## Historical Recovery Checkpoint - 2026-09-15
 
 Interrupted browser-test process state was inspected before changing recovery
 code. `ps -ef` showed an owned run from this repository:
@@ -184,7 +272,7 @@ address, numeric app port, and Rspack dev-server/proxy URL. Do not keep the
 speculative app-level `RUGBY_ROOSTER_RSPACK_DEV_SERVER_PORT` override unless the
 installed integration supports that boundary.
 
-## Recovery Checkpoint - Supported Boundary
+## Historical Recovery Checkpoint - Supported Boundary
 
 Installed-code findings:
 
@@ -219,7 +307,7 @@ capture concise logs under `/tmp`, confirm listeners on the expected loopback
 ports, confirm HTTP readiness, and ensure the smoke-owned process tree is
 stopped afterward.
 
-## Recovery Checkpoint - Startup Smoke
+## Historical Recovery Checkpoint - Startup Smoke
 
 First smoke attempt inside the sandbox failed immediately with
 `Error: listen EPERM: operation not permitted 127.0.0.1:3200`. This was a
@@ -243,11 +331,12 @@ Approved smoke result:
 - Meteor startup banner reported `App running at http://127.0.0.1:3200`.
 - Smoke cleanup succeeded; no listeners remained on 3200, 3201, or 3202.
 
-Next step: resume CCPP-004A verification with `meteor npm run test:e2e`, then
-update durable documentation, create `AUDIT_004A`, and package the EOMD archive
-only after final results are known.
+Historical next step, now superseded by the current database-isolation
+checkpoint above: resume CCPP-004A verification with browser/full-suite checks
+only in a future session that explicitly requests that scope. Do not treat this
+startup smoke as final CCPP-004A verification.
 
-## Earlier Current Stage
+## Historical Earlier Current Stage
 
 CCPP-004A implementation started on 2026-09-15. Initial repository status was
 clean. Read `AGENTS.md`, `README.md`, CCPP-004 audit, authentication/testing

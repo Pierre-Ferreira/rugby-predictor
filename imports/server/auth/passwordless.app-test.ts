@@ -26,6 +26,7 @@ import {
   grantPlatformAdminByEmail,
   revokePlatformAdminByEmail,
 } from './authorization';
+import { getActiveMongoConnectionIdentity } from './mongoConnectionIdentity';
 
 type MethodHandler = (
   this: Meteor.MethodThisType,
@@ -172,14 +173,27 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
       readonly databaseId: string;
       readonly databaseName: string;
       readonly localDir: string;
+      readonly mongoEndpoint: {
+        readonly host: string;
+        readonly port: number;
+      };
       readonly runId: string;
     }>(TEST_AUTH_METHODS.environment);
+    const observedIdentity = await getActiveMongoConnectionIdentity();
+    const expectedMongoPort = Number(new URL(environment.appUrl).port) + 1;
 
     assert.match(environment.appUrl, /^http:\/\/127\.0\.0\.1:/);
     assert.match(environment.databaseId, /^meteor-managed:/);
     assert.equal(environment.databaseName, 'meteor');
     assert.match(environment.localDir, /\.meteor\/local-integration$/);
+    assert.equal(environment.mongoEndpoint.host, '127.0.0.1');
+    assert.equal(environment.mongoEndpoint.port, expectedMongoPort);
     assert.match(environment.runId, /^rr-integration-/);
+    assert.deepEqual(observedIdentity, {
+      databaseName: environment.databaseName,
+      endpoints: [environment.mongoEndpoint],
+      topology: 'single',
+    });
   });
 
   it('limits helper cleanup and mutations to current-run owned data', async () => {

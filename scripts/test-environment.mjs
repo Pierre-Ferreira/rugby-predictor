@@ -8,6 +8,7 @@ export const INHERITED_MONGO_CONNECTION_VARIABLES = [
 ];
 
 const TEST_DATABASE_NAME = 'meteor';
+const TEST_MONGO_HOST = '127.0.0.1';
 
 export const buildMeteorManagedTestDatabaseId = (localDir) =>
   `meteor-managed:${localDir}:db`;
@@ -48,6 +49,18 @@ export const deriveRspackDevServerPort = (port) => {
   return devServerPort;
 };
 
+export const deriveMeteorManagedMongoPort = (port) => {
+  const mongoPort = port + 1;
+
+  if (mongoPort > 65535) {
+    throw new Error(
+      'Test port must leave room for Meteor-managed MongoDB.',
+    );
+  }
+
+  return mongoPort;
+};
+
 export const createIsolatedTestEnvironment = ({
   env = process.env,
   kind,
@@ -72,6 +85,8 @@ export const createIsolatedTestEnvironment = ({
       buildMeteorManagedTestDatabaseId(localDir),
     RUGBY_ROOSTER_TEST_DATABASE_NAME: TEST_DATABASE_NAME,
     RUGBY_ROOSTER_TEST_MODE: 'isolated',
+    RUGBY_ROOSTER_TEST_MONGO_HOST: TEST_MONGO_HOST,
+    RUGBY_ROOSTER_TEST_MONGO_PORT: String(deriveMeteorManagedMongoPort(port)),
     RUGBY_ROOSTER_TEST_RUN_ID: runId,
   };
 };

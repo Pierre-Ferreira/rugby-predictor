@@ -1,3 +1,8 @@
+import {
+  type MongoConnectionEndpoint,
+  resolveExpectedMongoConnectionIdentity,
+} from './testDatabaseIdentity';
+
 export interface MailSettingsInput {
   readonly capture?: boolean;
   readonly from?: string;
@@ -36,6 +41,8 @@ export interface AuthRuntimeEnvironment {
   readonly RUGBY_ROOSTER_TEST_DATABASE_ID?: string;
   readonly RUGBY_ROOSTER_TEST_DATABASE_NAME?: string;
   readonly RUGBY_ROOSTER_TEST_MODE?: string;
+  readonly RUGBY_ROOSTER_TEST_MONGO_HOST?: string;
+  readonly RUGBY_ROOSTER_TEST_MONGO_PORT?: string;
   readonly RUGBY_ROOSTER_TEST_RUN_ID?: string;
 }
 
@@ -51,6 +58,7 @@ export interface IsolatedTestEnvironment {
   readonly databaseId: string;
   readonly databaseName: string;
   readonly localDir: string;
+  readonly mongoEndpoint: MongoConnectionEndpoint;
   readonly runId: string;
 }
 
@@ -196,14 +204,19 @@ const resolveIsolatedTestEnvironment = (
     );
   }
 
-  const databaseName =
-    env.RUGBY_ROOSTER_TEST_DATABASE_NAME ?? TEST_DATABASE_NAME;
+  const databaseName = env.RUGBY_ROOSTER_TEST_DATABASE_NAME;
 
   if (databaseName !== TEST_DATABASE_NAME) {
     throw new Error(
       `Auth test helpers require the Meteor-managed "${TEST_DATABASE_NAME}" database.`,
     );
   }
+
+  const expectedMongoIdentity = resolveExpectedMongoConnectionIdentity({
+    databaseName,
+    host: env.RUGBY_ROOSTER_TEST_MONGO_HOST,
+    port: env.RUGBY_ROOSTER_TEST_MONGO_PORT,
+  });
 
   assertLoopbackUrl(canonicalAppUrl, 'private.rugbyRooster.appUrl');
 
@@ -216,6 +229,7 @@ const resolveIsolatedTestEnvironment = (
     databaseId: expectedDatabaseId,
     databaseName,
     localDir,
+    mongoEndpoint: expectedMongoIdentity.endpoint,
     runId,
   };
 };

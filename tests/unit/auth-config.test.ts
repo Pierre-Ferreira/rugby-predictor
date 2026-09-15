@@ -66,6 +66,8 @@ describe('auth runtime configuration', () => {
             buildMeteorManagedTestDatabaseId(localDir),
           RUGBY_ROOSTER_TEST_DATABASE_NAME: 'meteor',
           RUGBY_ROOSTER_TEST_MODE: 'isolated',
+          RUGBY_ROOSTER_TEST_MONGO_HOST: '127.0.0.1',
+          RUGBY_ROOSTER_TEST_MONGO_PORT: '3401',
           RUGBY_ROOSTER_TEST_RUN_ID: 'rr-integration-test123',
         },
         isProduction: false,
@@ -86,8 +88,26 @@ describe('auth runtime configuration', () => {
       testEnvironment: {
         databaseName: 'meteor',
         localDir,
+        mongoEndpoint: {
+          host: '127.0.0.1',
+          port: 3401,
+        },
         runId: 'rr-integration-test123',
       },
+    });
+  });
+
+  it('does not require the isolated helper database contract when helpers are disabled', () => {
+    expect(
+      validateAuthRuntimeConfig({
+        isProduction: false,
+        settings: {
+          appUrl: 'http://127.0.0.1:3000',
+        },
+      }),
+    ).toMatchObject({
+      testEnvironment: null,
+      testHelpersEnabled: false,
     });
   });
 
@@ -127,6 +147,31 @@ describe('auth runtime configuration', () => {
         },
       }),
     ).toThrow(/RUGBY_ROOSTER_TEST_MODE=isolated/);
+  });
+
+  it('rejects helper enablement without an expected MongoDB endpoint', () => {
+    const localDir = '.meteor/local-integration';
+
+    expect(() =>
+      validateAuthRuntimeConfig({
+        env: {
+          METEOR_LOCAL_DIR: localDir,
+          ROOT_URL: 'http://127.0.0.1:3400',
+          RUGBY_ROOSTER_TEST_DATABASE_ID:
+            buildMeteorManagedTestDatabaseId(localDir),
+          RUGBY_ROOSTER_TEST_DATABASE_NAME: 'meteor',
+          RUGBY_ROOSTER_TEST_MODE: 'isolated',
+          RUGBY_ROOSTER_TEST_RUN_ID: 'rr-integration-test123',
+        },
+        isProduction: false,
+        settings: {
+          appUrl: 'http://127.0.0.1:3400',
+          test: {
+            enableTestHelpers: true,
+          },
+        },
+      }),
+    ).toThrow(/expected loopback MongoDB endpoint/);
   });
 
   it('validates throttle configuration', () => {

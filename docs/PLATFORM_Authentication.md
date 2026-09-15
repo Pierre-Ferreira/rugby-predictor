@@ -117,9 +117,22 @@ Per-email limits remain narrower to protect individual account identities.
 
 Test helpers require `private.rugbyRooster.test.enableTestHelpers: true` plus an
 isolated launcher environment with loopback `ROOT_URL`, generated
-`RUGBY_ROOSTER_TEST_RUN_ID`, expected Meteor-managed database identity, and
-current-run ownership checks for helper mutations. Helpers must not be exposed
-from ordinary development or production settings.
+`RUGBY_ROOSTER_TEST_RUN_ID`, expected MongoDB host, expected MongoDB port,
+expected Meteor-managed database name, and current-run ownership checks for
+helper mutations. Before helper methods are registered, the server pings the
+MongoDB connection used by Meteor, reads the active database name from the
+driver `Db`, and reads the connected endpoint from the driver's topology
+description. Helper mutations re-check the same active connection identity.
+Helpers must not be exposed from ordinary development or production settings.
+
+The isolated-helper database check supports the current local single-endpoint
+test setup only. It accepts explicitly supported loopback host forms
+`127.0.0.1`, `localhost`, `::1`, and `[::1]`, requires the expected port and
+database name to match, and rejects missing, ambiguous, SRV, load-balanced,
+multi-endpoint, unknown, or non-loopback metadata. This verifies the active
+endpoint plus database name used by Meteor; it does not independently prove the
+MongoDB filesystem storage directory or exclusive ownership of a MongoDB
+process.
 
 Optional admin provisioning can grant or revoke `roles.platformAdmin` by verified
 email during startup:
@@ -143,12 +156,14 @@ verified. Settings files must not contain production secrets in source control.
 ## Verification Coverage
 
 - Unit tests cover email normalization, safe return-path validation, auth runtime
-  configuration, isolated test launcher setup, and throttle configuration.
+  configuration, isolated test launcher setup, isolated MongoDB identity
+  comparison, and throttle configuration.
 - Meteor full-app integration tests cover account creation, verification,
   returning-player reuse, resend invalidation, plus addressing, token expiry,
   replay rejection, concurrent redemption, package method hardening, throttling,
-  throttle-bucket pruning, test-helper ownership checks, delivery failure, admin
-  grant/revocation, current access, and publication field limits.
+  throttle-bucket pruning, test-helper ownership checks, test-helper environment
+  reporting, delivery failure, admin grant/revocation, current access, and
+  publication field limits.
 - Playwright tests cover captured email-link request/redemption, fresh-browser
   login, session restoration, sign-out, admin denial/grant/revocation,
   same-account continuation, different-account switch/keep choices, malformed

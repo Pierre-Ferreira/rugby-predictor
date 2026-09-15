@@ -81,7 +81,7 @@ const assertCurrentRunOwnsEmail = async (
 };
 
 export const resetTestAuthData = async () => {
-  const testEnvironment = assertVerifiedAuthTestEnvironment();
+  const testEnvironment = await assertVerifiedAuthTestEnvironment();
 
   await Meteor.users.removeAsync({
     'rugbyRoosterTest.ownerRunId': testEnvironment.runId,
@@ -90,21 +90,26 @@ export const resetTestAuthData = async () => {
   resetAuthThrottlesForTests();
 };
 
-export const registerAuthTestMethods = () => {
+export const registerAuthTestMethods = async () => {
   if (!areTestHelpersEnabled()) {
     return;
   }
 
+  await assertVerifiedAuthTestEnvironment();
+
   Meteor.methods({
-    [TEST_AUTH_METHODS.environment]: function environment(...args: unknown[]) {
+    [TEST_AUTH_METHODS.environment]: async function environment(
+      ...args: unknown[]
+    ) {
       assertArgCount(args, 0);
-      const testEnvironment = assertVerifiedAuthTestEnvironment();
+      const testEnvironment = await assertVerifiedAuthTestEnvironment();
 
       return {
         appUrl: testEnvironment.appUrl,
         databaseId: testEnvironment.databaseId,
         databaseName: testEnvironment.databaseName,
         localDir: testEnvironment.localDir,
+        mongoEndpoint: testEnvironment.mongoEndpoint,
         runId: testEnvironment.runId,
       };
     },
@@ -120,7 +125,7 @@ export const registerAuthTestMethods = () => {
       ...args: unknown[]
     ) {
       const [emailInput] = assertArgCount(args, 1);
-      const testEnvironment = assertVerifiedAuthTestEnvironment();
+      const testEnvironment = await assertVerifiedAuthTestEnvironment();
       const email = assertTestEmail(emailInput);
 
       await assertCurrentRunOwnsEmail(email, testEnvironment.runId);
@@ -146,7 +151,7 @@ export const registerAuthTestMethods = () => {
       ...args: unknown[]
     ) {
       const [emailInput] = assertArgCount(args, 1);
-      const testEnvironment = assertVerifiedAuthTestEnvironment();
+      const testEnvironment = await assertVerifiedAuthTestEnvironment();
       const normalizedEmail = assertTestEmail(emailInput);
 
       const userId = await Meteor.users.insertAsync({
@@ -173,7 +178,7 @@ export const registerAuthTestMethods = () => {
       ...args: unknown[]
     ) {
       const [emailInput, grantInput] = assertArgCount(args, 2);
-      const testEnvironment = assertVerifiedAuthTestEnvironment();
+      const testEnvironment = await assertVerifiedAuthTestEnvironment();
       const normalizedEmail = assertTestEmail(emailInput);
       const grant = assertBoolean(grantInput);
 
@@ -184,9 +189,9 @@ export const registerAuthTestMethods = () => {
         : revokePlatformAdminByEmail(normalizedEmail);
     },
 
-    'test.mail.failNext': function failNextMail(...args: unknown[]) {
+    'test.mail.failNext': async function failNextMail(...args: unknown[]) {
       assertArgCount(args, 0);
-      assertVerifiedAuthTestEnvironment();
+      await assertVerifiedAuthTestEnvironment();
       failNextLocalMailForTests();
 
       return true;

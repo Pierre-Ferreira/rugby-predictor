@@ -4,6 +4,7 @@ import {
   assertNoInheritedMongoConnection,
   buildMeteorManagedTestDatabaseId,
   createIsolatedTestEnvironment,
+  deriveMeteorManagedMongoPort,
   deriveRspackDevServerPort,
   parseLoopbackPort,
 } from '../../scripts/test-environment.mjs';
@@ -41,6 +42,8 @@ describe('test launcher environment', () => {
         buildMeteorManagedTestDatabaseId('.meteor/local-integration'),
       RUGBY_ROOSTER_TEST_DATABASE_NAME: 'meteor',
       RUGBY_ROOSTER_TEST_MODE: 'isolated',
+      RUGBY_ROOSTER_TEST_MONGO_HOST: '127.0.0.1',
+      RUGBY_ROOSTER_TEST_MONGO_PORT: '3401',
     });
     expect(env.RUGBY_ROOSTER_TEST_RUN_ID).toMatch(/^rr-integration-/);
   });
@@ -56,6 +59,13 @@ describe('test launcher environment', () => {
     expect(deriveRspackDevServerPort(3200)).toBe(3202);
     expect(() => deriveRspackDevServerPort(65534)).toThrow(
       /Rspack dev server/,
+    );
+  });
+
+  it('derives the Meteor-managed MongoDB port from the test port', () => {
+    expect(deriveMeteorManagedMongoPort(3400)).toBe(3401);
+    expect(() => deriveMeteorManagedMongoPort(65535)).toThrow(
+      /Meteor-managed MongoDB/,
     );
   });
 });

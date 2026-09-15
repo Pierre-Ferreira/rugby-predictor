@@ -43,10 +43,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 
 - `imports/shared/auth/` - auth constants, method names, email normalization, and safe return-path helpers.
 - `imports/shared/auth/config.ts` - framework-independent auth runtime settings validation, isolated-test environment contract, and throttle setting resolution.
+- `imports/shared/auth/testDatabaseIdentity.ts` - framework-independent comparison of expected and observed isolated-test MongoDB endpoint/database identity.
 - `imports/server/auth/accounts.ts` - Meteor account configuration, passwordless email templates, local mail delivery wiring, package method hardening, throttling, and token redemption locks.
 - `imports/server/auth/methods.ts` - public auth and restricted admin Meteor methods.
 - `imports/server/auth/authorization.ts` - verified-player and platform-admin server checks.
-- `imports/server/auth/testSupport.ts` - private-settings-gated local test helpers.
+- `imports/server/auth/settings.ts` - server auth settings and production safety validation.
+- `imports/server/auth/mongoConnectionIdentity.ts` - Meteor MongoDB connection identity adapter for isolated test helpers.
+- `imports/server/auth/testSupport.ts` - private-settings-gated local test helpers registered only after isolated database verification.
 - `imports/server/auth/mailSink.ts` - local/test email capture.
 - `imports/ui/auth/` - client auth state, sign-out, and method-call helpers.
 - `imports/ui/components/AuthStates.tsx` - reusable sign-in-required and access-denied UI states.
@@ -78,6 +81,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/routes.test.ts` - route resolution unit tests.
 - `tests/unit/auth-helpers.test.ts` - auth helper unit tests.
 - `tests/unit/auth-config.test.ts` - auth runtime configuration tests.
+- `tests/unit/test-database-identity.test.ts` - isolated test MongoDB endpoint/database identity comparison tests.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.

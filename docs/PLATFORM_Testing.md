@@ -168,7 +168,8 @@ never connect to production services.
 `meteor npm run test:integration` runs `scripts/run-integration-tests.mjs`. The
 launcher refuses inherited Mongo connection variables, sets
 `.meteor/local-integration`, binds Meteor to `127.0.0.1:<port>`, uses
-Meteor-managed Mongo, and passes an isolated `rr-integration-*` test run id to
+Meteor-managed Mongo, derives the expected Mongo endpoint as `127.0.0.1` on
+`<port + 1>`, and passes an isolated `rr-integration-*` test run id to
 server-side auth helpers.
 
 Current coverage:
@@ -179,6 +180,8 @@ Current coverage:
 - Invalid, expired, replayed, and concurrent token redemption.
 - Direct package method hardening against arbitrary selectors and user data.
 - Link-request and redemption throttling.
+- Isolated helper gating against the active Meteor MongoDB endpoint and
+  database name.
 - Mail delivery failure reporting.
 - Player/admin permission boundaries and admin revocation.
 - Narrow current-user publication fields.

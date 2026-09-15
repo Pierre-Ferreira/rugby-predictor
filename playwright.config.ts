@@ -32,6 +32,10 @@ export default defineConfig({
             process.env.RUGBY_ROOSTER_TEST_DATABASE_NAME ?? '',
           RUGBY_ROOSTER_TEST_MODE:
             process.env.RUGBY_ROOSTER_TEST_MODE ?? '',
+          RUGBY_ROOSTER_TEST_MONGO_HOST:
+            process.env.RUGBY_ROOSTER_TEST_MONGO_HOST ?? '',
+          RUGBY_ROOSTER_TEST_MONGO_PORT:
+            process.env.RUGBY_ROOSTER_TEST_MONGO_PORT ?? '',
           RUGBY_ROOSTER_TEST_RUN_ID:
             process.env.RUGBY_ROOSTER_TEST_RUN_ID ?? '',
         },
