@@ -20,6 +20,7 @@
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
 - `docs/AUDIT_004A_Completion.md` - CCPP-004A final reconciliation and completion evidence.
 - `docs/AUDIT_004B_Development_Email.md` - CCPP-004B Postmark development email configuration and verification evidence.
+- `docs/AUDIT_004D_Admin_Sign_In.md` - CCPP-004D admin-specific passwordless sign-in behaviour, eligibility checks, bypass protection, and verification evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -27,6 +28,7 @@
 - `docs/AUDIT_004A_Database_Topology_Correction.md` - historical CCPP-004A topology correction evidence.
 - `docs/AUDIT_004A_HMR_Workaround_Resolution.md` - historical CCPP-004A evidence for removing the client `Meteor.isTest` override and verifying auth browser tests with normal client identity.
 - `docs/TEMP_004A_Resume.md` - historical CCPP-004A resume checkpoint retained for provenance; superseded by `docs/AUDIT_004A_Completion.md`.
+- `docs/TEMP_004D_Resume.md` - temporary CCPP-004D checkpoint for the remaining local full-browser-suite startup timeout.
 
 ## Application Entry Points
 
@@ -39,7 +41,7 @@
 
 - `/` - `imports/ui/pages/HomePage.tsx` in the public layout.
 - `/games` - `imports/ui/pages/GamesPage.tsx` in the public layout.
-- `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout.
+- `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout, including the admin-specific `mode=admin` request mode used from `/admin`.
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
 - `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
 - `/admin` - `imports/ui/pages/AdminPage.tsx` in the admin layout with server-authorised summary data.
@@ -54,7 +56,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/auth/postmark.ts` - framework-independent Postmark payload and mocked-send adapter logic.
 - `imports/shared/auth/testDatabaseIdentity.ts` - framework-independent comparison of expected and observed isolated-test MongoDB endpoint/database identity.
 - `imports/server/auth/accounts.ts` - Meteor account configuration, passwordless email templates, local mail delivery wiring, package method hardening, throttling, and token redemption locks.
-- `imports/server/auth/methods.ts` - public auth and restricted admin Meteor methods.
+- `imports/server/auth/methods.ts` - public player auth, admin-specific link request, and restricted admin Meteor methods.
 - `imports/server/auth/authorization.ts` - verified-player and platform-admin server checks.
 - `imports/server/auth/settings.ts` - server auth settings and production safety validation.
 - `imports/server/auth/mongoConnectionIdentity.ts` - Meteor MongoDB connection identity adapter for isolated test helpers.

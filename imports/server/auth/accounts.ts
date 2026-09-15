@@ -13,6 +13,7 @@ import {
 } from '/imports/shared/auth/email';
 import { resolveSafeReturnPath } from '/imports/shared/auth/redirects';
 import { withProcessLock } from './locks';
+import { isVerifiedPlatformAdminEmail } from './authorization';
 import {
   AUTH_THROTTLE_LIMITS,
   checkAuthThrottle,
@@ -88,6 +89,7 @@ interface AccountsPasswordlessApi {
 }
 
 const accounts = Accounts as typeof Accounts & AccountsPasswordlessApi;
+const ADMIN_RETURN_PATH = '/admin';
 
 const methodHandlers = (): Record<string, MethodHandler> =>
   (
@@ -223,6 +225,28 @@ const throwPublicDeliveryError = (): never => {
     'email-delivery-failed',
     'We could not send a sign-in link right now. Please try again shortly.',
   );
+};
+
+const acknowledgePasswordlessRequest = () => ({
+  acknowledged: true,
+  expiresInMinutes: PASSWORDLESS_LINK_EXPIRY_MINUTES,
+});
+
+const logSanitizedDeliveryFailure = (
+  context: 'admin' | 'player',
+  error: unknown,
+) => {
+  const errorCode =
+    error instanceof Meteor.Error
+      ? error.error
+      : error instanceof Error
+        ? error.name
+        : typeof error;
+
+  console.warn('Rugby Rooster passwordless email delivery failed.', {
+    context,
+    errorCode,
+  });
 };
 
 const findUserOwnershipByEmail = async (
@@ -429,6 +453,16 @@ export const protectPasswordlessPackageMethods = () => {
       connectionIdentity,
     );
 
+    const isAdminDirectedRequest =
+      sanitizedPayload.options.extra.returnTo === ADMIN_RETURN_PATH;
+
+    if (
+      isAdminDirectedRequest &&
+      !(await isVerifiedPlatformAdminEmail(sanitizedPayload.selector.email))
+    ) {
+      return acknowledgePasswordlessRequest();
+    }
+
     try {
       await originalRequestLoginTokenForUser.call(this, sanitizedPayload);
       await markUserOwnedByCurrentTestRun(
@@ -448,13 +482,19 @@ export const protectPasswordlessPackageMethods = () => {
         throw error;
       }
 
+      logSanitizedDeliveryFailure(
+        isAdminDirectedRequest ? 'admin' : 'player',
+        error,
+      );
+
+      if (isAdminDirectedRequest) {
+        return acknowledgePasswordlessRequest();
+      }
+
       throwPublicDeliveryError();
     }
 
-    return {
-      acknowledged: true,
-      expiresInMinutes: PASSWORDLESS_LINK_EXPIRY_MINUTES,
-    };
+    return acknowledgePasswordlessRequest();
   };
 
   handlers.login = async function login(options: unknown) {

@@ -14,6 +14,10 @@ Rugby Tracker / Rucks and Mauls concepts.
 - Provider-specific rewrites are not applied; plus addressing remains distinct.
 - A link request can create a new account or return an existing player to the
   same account.
+- Admin sign-in requests are a distinct mode for `/admin` access. They reuse the
+  same passwordless link format, token expiry, redemption, and session
+  mechanisms, but the server sends an admin-directed link only when the
+  normalized email already belongs to a verified platform admin.
 - New accounts remain unverified until the player redeems the latest valid email
   link.
 - Login sessions expire after 30 days.
@@ -24,7 +28,8 @@ Rugby Tracker / Rucks and Mauls concepts.
 
 ## Routes
 
-- `/sign-in` - email-link request form.
+- `/sign-in` - player email-link request form. `/sign-in?mode=admin&returnTo=/admin`
+  renders the admin-specific request copy and acknowledgement.
 - `/auth/email-link` - confirmation page for passwordless link redemption.
 - `/account` - authenticated verified player account summary.
 - `/admin` - restricted platform-admin summary.
@@ -49,7 +54,8 @@ Authoritative auth code lives under `imports/server/auth/`.
 - `accounts.ts` configures accounts, passwordless emails, current-user publish
   fields, Meteor user update denial, package method hardening, link-request
   throttling, redemption throttling, and process-level token redemption locks.
-- `methods.ts` registers `auth.requestSignInLink`, `auth.currentAccess`, and
+- `methods.ts` registers `auth.requestSignInLink`,
+  `auth.requestAdminSignInLink`, `auth.currentAccess`, and
   `admin.accessSummary`.
 - `authorization.ts` resolves verified email state and platform-admin grants.
 - `settings.ts` reads Rugby Rooster private settings and validates auth runtime
@@ -62,8 +68,14 @@ Authoritative auth code lives under `imports/server/auth/`.
 
 The raw package method `requestLoginTokenForUser` is wrapped so callers cannot
 inject arbitrary selectors, roles, profiles, unsafe return URLs, or privileged
-user data. The package `login` method is wrapped for passwordless selectors so
-only normalized email selectors are accepted for email-link redemption.
+user data. Admin-directed return paths (`/admin`) through either the app request
+method or the exposed package request method require an existing account whose
+exact normalized requested email is verified and whose server-owned
+`roles.platformAdmin` grant is present. Ineligible admin-directed requests still
+consume the normal email/IP throttles and return the same public acknowledgement,
+but they do not create accounts, generate tokens, send mail, or invalidate
+existing links. The package `login` method is wrapped for passwordless selectors
+so only normalized email selectors are accepted for email-link redemption.
 
 ## Authorisation
 
@@ -75,6 +87,9 @@ Current implemented roles:
 The admin UI is not the authority. It calls `admin.accessSummary`, and the server
 requires a verified user plus a platform-admin grant before returning the
 summary. Client-side user-document fields are treated as UI hints only.
+Sending or redeeming an admin-directed passwordless link does not grant admin
+permissions. Revoking the platform-admin grant after a link is sent prevents the
+redeemed session from using admin server methods.
 
 ## Settings
 
@@ -182,13 +197,16 @@ temporary revoke block.
   returning-player reuse, resend invalidation, plus addressing, token expiry,
   replay rejection, concurrent redemption, package method hardening, throttling,
   throttle-bucket pruning, test-helper ownership checks, test-helper environment
-  reporting, delivery failure, admin grant/revocation, current access, and
-  publication field limits.
+  reporting, delivery failure, admin-directed sign-in eligibility, admin
+  request bypass protection, token-state preservation for ineligible admin
+  attempts, admin grant/revocation, current access, and publication field
+  limits.
 - Playwright tests cover captured email-link request/redemption, fresh-browser
   login, session restoration, sign-out, admin denial/grant/revocation,
-  same-account continuation, different-account switch/keep choices, malformed
-  new-link credential clearing, invalid-link recovery, blocked client user
-  updates, mobile layout, and keyboard access.
+  admin-specific sign-in acknowledgement, same-account continuation,
+  different-account switch/keep choices, malformed new-link credential clearing,
+  invalid-link recovery, blocked client user updates, mobile layout, and
+  keyboard access.
 
 ## Current Limits
 

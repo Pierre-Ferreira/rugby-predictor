@@ -1,4 +1,5 @@
 export const AUTH_METHODS = {
+  requestAdminSignInLink: 'auth.requestAdminSignInLink',
   requestSignInLink: 'auth.requestSignInLink',
   currentAccess: 'auth.currentAccess',
 } as const;

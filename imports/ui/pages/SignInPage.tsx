@@ -18,9 +18,23 @@ const getReturnToFromLocation = () => {
   return resolveSafeReturnPath(params.get('returnTo'));
 };
 
+const getSignInModeFromLocation = () => {
+  const params = new URLSearchParams(window.location.search);
+  const returnTo = getReturnToFromLocation();
+  const isAdminMode = params.get('mode') === 'admin' || returnTo === '/admin';
+
+  return {
+    isAdminMode,
+    returnTo: isAdminMode ? '/admin' : returnTo,
+  };
+};
+
 export const SignInPage = () => {
   const auth = useAuthState();
-  const returnTo = useMemo(() => getReturnToFromLocation(), []);
+  const { isAdminMode, returnTo } = useMemo(
+    () => getSignInModeFromLocation(),
+    [],
+  );
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,13 +74,17 @@ export const SignInPage = () => {
     setIsSubmitting(true);
 
     try {
-      await callMeteorMethod<RequestSignInLinkResult>(
-        AUTH_METHODS.requestSignInLink,
-        {
-          email: validation.email,
-          returnTo,
-        },
-      );
+      const methodName = isAdminMode
+        ? AUTH_METHODS.requestAdminSignInLink
+        : AUTH_METHODS.requestSignInLink;
+      const requestInput = isAdminMode
+        ? { email: validation.email }
+        : {
+            email: validation.email,
+            returnTo,
+          };
+
+      await callMeteorMethod<RequestSignInLinkResult>(methodName, requestInput);
       setSentEmail(validation.email);
       const nextNow = Date.now();
       setNow(nextNow);
@@ -87,14 +105,17 @@ export const SignInPage = () => {
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
         <div className="rounded-lg border border-rooster-line bg-white p-6 sm:p-8">
           <p className="text-sm font-black uppercase text-rooster-red">
-            Player access
+            {isAdminMode ? 'Admin access' : 'Player access'}
           </p>
           <h1 className="mt-3 text-3xl font-black text-rooster-ink">
-            Sign in to Rugby Rooster
+            {isAdminMode
+              ? 'Sign in to Rugby Rooster Admin'
+              : 'Sign in to Rugby Rooster'}
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-rooster-muted">
-            Enter your email address and Rugby Rooster will send one secure
-            sign-in link for this browser or another one.
+            {isAdminMode
+              ? 'Enter the email address for an existing verified platform-admin account.'
+              : 'Enter your email address and Rugby Rooster will send one secure sign-in link for this browser or another one.'}
           </p>
 
           {auth.isAuthenticated && auth.isVerified ? (
@@ -141,7 +162,9 @@ export const SignInPage = () => {
                   ? 'Sending link'
                   : isCoolingDown
                     ? `Retry in ${remainingCooldownSeconds}s`
-                    : 'Email me a sign-in link'}
+                    : isAdminMode
+                      ? 'Email me an admin sign-in link'
+                      : 'Email me a sign-in link'}
               </button>
             </form>
           )}
@@ -152,11 +175,15 @@ export const SignInPage = () => {
               role="status"
             >
               <p className="font-bold text-rooster-ink">
-                Check your email for a Rugby Rooster sign-in link.
+                {isAdminMode
+                  ? 'If this account is eligible for admin access, we’ve sent a sign-in link.'
+                  : 'Check your email for a Rugby Rooster sign-in link.'}
               </p>
               <p className="mt-2 text-sm leading-6 text-rooster-muted">
                 The link expires in {PASSWORDLESS_LINK_EXPIRY_MINUTES} minutes.
-                This acknowledgement is the same for new and returning players.
+                {isAdminMode
+                  ? ' This acknowledgement is the same for eligible and ineligible addresses.'
+                  : ' This acknowledgement is the same for new and returning players.'}
               </p>
             </div>
           ) : null}
@@ -176,8 +203,9 @@ export const SignInPage = () => {
             One email, one account
           </h2>
           <p className="mt-3 text-sm leading-6 text-rooster-muted">
-            This access email is separate from future optional marketing
-            preferences.
+            {isAdminMode
+              ? 'Admin access still depends on the server-side platform-admin grant at the moment protected data is requested.'
+              : 'This access email is separate from future optional marketing preferences.'}
           </p>
         </aside>
       </section>

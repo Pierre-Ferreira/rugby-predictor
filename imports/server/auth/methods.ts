@@ -31,6 +31,22 @@ const methodHandlers = (): Record<string, MethodHandler> =>
 
 export const registerAuthMethods = () => {
   Meteor.methods({
+    [AUTH_METHODS.requestAdminSignInLink]:
+      async function requestAdminSignInLink(input: unknown) {
+        if (!input || typeof input !== 'object') {
+          throw new Meteor.Error('invalid-request', 'Enter an email address.');
+        }
+
+        const record = input as {
+          readonly email?: unknown;
+        };
+
+        return methodHandlers().requestLoginTokenForUser.call(this, {
+          email: record.email,
+          returnTo: '/admin',
+        });
+      },
+
     [AUTH_METHODS.requestSignInLink]: async function requestSignInLink(
       input: unknown,
     ) {

@@ -29,6 +29,16 @@ export const hasVerifiedEmail = (
   user: Pick<RugbyRoosterUser, 'emails'> | null | undefined,
 ): boolean => user?.emails?.some((email) => email.verified === true) ?? false;
 
+export const hasVerifiedEmailAddress = (
+  user: Pick<RugbyRoosterUser, 'emails'> | null | undefined,
+  email: string,
+): boolean =>
+  user?.emails?.some(
+    (candidate) =>
+      candidate.address === normalizeEmailIdentity(email) &&
+      candidate.verified === true,
+  ) ?? false;
+
 export const isPlatformAdminUser = (
   user: Pick<RugbyRoosterUser, 'roles'> | null | undefined,
 ): boolean => user?.roles?.platformAdmin === true;
@@ -93,7 +103,7 @@ export const grantPlatformAdminByEmail = async (
     fields: userFieldsForAuth,
   });
 
-  if (!user || !hasVerifiedEmail(user)) {
+  if (!user || !hasVerifiedEmailAddress(user, normalizedEmail)) {
     return false;
   }
 
@@ -104,6 +114,23 @@ export const grantPlatformAdminByEmail = async (
   });
 
   return true;
+};
+
+export const isVerifiedPlatformAdminEmail = async (
+  email: string,
+): Promise<boolean> => {
+  const normalizedEmail = normalizeEmailIdentity(email);
+  const findUserByEmail = Accounts.findUserByEmail as unknown as (
+    emailAddress: string,
+    options: unknown,
+  ) => Promise<RugbyRoosterUser | null>;
+  const user = await findUserByEmail(normalizedEmail, {
+    fields: userFieldsForAuth,
+  });
+
+  return (
+    hasVerifiedEmailAddress(user, normalizedEmail) && isPlatformAdminUser(user)
+  );
 };
 
 export const revokePlatformAdminByEmail = async (

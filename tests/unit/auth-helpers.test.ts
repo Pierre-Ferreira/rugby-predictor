@@ -4,7 +4,10 @@ import {
   normalizeEmailIdentity,
   validateEmailIdentity,
 } from '../../imports/shared/auth/email';
-import { resolveSafeReturnPath } from '../../imports/shared/auth/redirects';
+import {
+  adminSignInPathForReturnTo,
+  resolveSafeReturnPath,
+} from '../../imports/shared/auth/redirects';
 
 describe('auth helpers', () => {
   it('normalizes email identity without provider-specific rewrites', () => {
@@ -41,6 +44,12 @@ describe('auth helpers', () => {
     expect(resolveSafeReturnPath('/unknown')).toBe('/games');
     expect(resolveSafeReturnPath('/admin?next=https://evil.example')).toBe(
       '/admin',
+    );
+  });
+
+  it('builds admin-mode sign-in links with safe return destinations', () => {
+    expect(adminSignInPathForReturnTo('/admin?next=https://evil.example')).toBe(
+      '/sign-in?mode=admin&returnTo=%2Fadmin',
     );
   });
 });

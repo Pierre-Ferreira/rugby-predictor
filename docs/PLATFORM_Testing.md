@@ -142,6 +142,9 @@ The current browser suite covers:
 - Passwordless email-link request using captured local mail.
 - Link redemption in a fresh browser, session restoration, and sign-out.
 - Restricted admin denial, grant, and revocation behavior.
+- Admin-specific sign-in mode from `/admin`, generic admin acknowledgement, and
+  successful admin-directed link redemption for eligible verified platform
+  admins.
 - Invalid-link recovery without retaining token/email query parameters in the final URL.
 - Same-account email-link continuation without consuming the link.
 - Different-account email-link confirmation with explicit switch-or-keep choices.
@@ -200,6 +203,14 @@ The integration suite includes coverage for:
 - Isolated helper gating against the active Meteor MongoDB endpoint and
   database name.
 - Mail delivery failure reporting.
+- Admin-directed sign-in eligibility for verified platform admins, ordinary
+  verified accounts, unverified accounts, and unknown addresses.
+- Admin-directed ineligible requests preserving existing passwordless token
+  state and creating no accounts, tokens, or mail.
+- General and package request paths with `/admin` return destinations not
+  bypassing the admin eligibility rule.
+- Admin-directed request throttling for ineligible attempts.
+- Revocation after sending an admin-directed link preventing admin server access.
 - Player/admin permission boundaries and admin revocation.
 - Narrow current-user publication fields.
 - Central safe return-path validation.
@@ -253,6 +264,11 @@ Remediate these in a bounded dependency-maintenance task that can assess Meteor 
 - Playwright must have a browser installed. If `test:e2e` reports a missing executable under `.cache/ms-playwright`, run the browser install command above.
 - Local sandboxed runs may block Meteor port binding. On a normal developer machine, run the same commands directly from the repository root.
 - Browser checks that start a local Meteor/Rspack web server may need normal loopback access. In restricted automation sandboxes, rerun `meteor npm run test:e2e` with permission for local loopback if the web server listens but Playwright cannot reach it.
+- CCPP-004D observed intermittent local Playwright/Meteor startup timeouts in
+  the full `auth.spec.ts` browser suite after admin-specific assertions had
+  passed. The targeted admin sign-in browser check passed on a fresh launch; the
+  broader full-suite startup timeout is checkpointed in
+  `docs/TEMP_004D_Resume.md`.
 - Generated Meteor/Rspack browser-test directories (`.meteor/local-playwright/`, `_build-local-playwright/`, local build chunks/assets, `test-results/`, and `playwright-report/`) are ignored by source checks and must not be included in handover archives.
 - If port `3200` is already in use, stop the conflicting local process or set `PORT` to another local port. If using `PLAYWRIGHT_BASE_URL`, keep it on a local loopback host.
 - Do not reintroduce client identity overrides such as `Meteor.isTest` to

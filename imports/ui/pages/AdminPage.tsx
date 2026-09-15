@@ -4,6 +4,7 @@ import {
   ADMIN_METHODS,
   type AdminAccessSummary,
 } from '/imports/shared/auth/methods';
+import { adminSignInPathForReturnTo } from '/imports/shared/auth/redirects';
 import { useAuthState } from '../auth/useAuthState';
 import { callMeteorMethod } from '../auth/methodCall';
 import { SignOutButton } from '../auth/SignOutButton';
@@ -66,6 +67,7 @@ export const AdminPage = () => {
         <SignInRequiredState
           currentPath="/admin"
           message="Platform administration is available only after email-link sign-in and a server-side admin grant."
+          signInPath={adminSignInPathForReturnTo('/admin')}
           title="Sign in to continue"
         />
       </main>
@@ -76,6 +78,14 @@ export const AdminPage = () => {
     return (
       <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
         <AccessDeniedState
+          action={
+            <SignOutButton
+              className="focus-ring mt-6 inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+              label="Use another account"
+              pendingLabel="Signing out"
+              redirectTo={adminSignInPathForReturnTo('/admin')}
+            />
+          }
           message="This account does not currently have a platform-admin grant."
           title="Admin access is restricted"
         />

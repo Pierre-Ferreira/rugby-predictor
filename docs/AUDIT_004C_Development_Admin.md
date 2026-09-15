@@ -83,6 +83,13 @@ development test helpers remain disabled.
 | Manual admin check                   | Not confirmed by Codex. The user must sign in and check `/admin`.                                        |
 | Manual ordinary-account denial check | Not confirmed by Codex. The user must verify with a separate ordinary account/session.                   |
 
+## User-Reported Manual Verification
+
+On September 15, 2026, the user reported that the intended admin account could
+access `/admin` and that an ordinary account was denied access. Codex did not
+rerun those CCPP-004C manual checks during CCPP-004D; this note records the
+user-reported result only.
+
 If `pierre@tektite.biz` does not already exist as a verified passwordless
 account in the local development database, the first startup with this setting
 will skip the grant. Complete passwordless sign-in for that email, then restart

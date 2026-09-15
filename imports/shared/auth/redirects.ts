@@ -88,4 +88,7 @@ export const authReturnToQuery = (returnTo: string): string =>
 export const signInPathForReturnTo = (returnTo: string): string =>
   `/sign-in?${authReturnToQuery(returnTo)}`;
 
+export const adminSignInPathForReturnTo = (returnTo: string): string =>
+  `/sign-in?mode=admin&${authReturnToQuery(returnTo)}`;
+
 export { FALLBACK_RETURN_PATH };

@@ -5,9 +5,17 @@ import { navigateTo } from '../navigation';
 
 interface SignOutButtonProps {
   readonly className?: string;
+  readonly label?: string;
+  readonly pendingLabel?: string;
+  readonly redirectTo?: string;
 }
 
-export const SignOutButton = ({ className }: SignOutButtonProps) => {
+export const SignOutButton = ({
+  className,
+  label = 'Sign out',
+  pendingLabel = 'Signing out',
+  redirectTo = '/games',
+}: SignOutButtonProps) => {
   const [error, setError] = useState<string | null>(null);
   const [isSigningOut, setIsSigningOut] = useState(false);
 
@@ -22,7 +30,7 @@ export const SignOutButton = ({ className }: SignOutButtonProps) => {
         return;
       }
 
-      navigateTo('/games', true);
+      navigateTo(redirectTo, true);
     });
   };
 
@@ -37,7 +45,7 @@ export const SignOutButton = ({ className }: SignOutButtonProps) => {
         onClick={signOut}
         type="button"
       >
-        {isSigningOut ? 'Signing out' : 'Sign out'}
+        {isSigningOut ? pendingLabel : label}
       </button>
       {error ? (
         <span className="text-xs font-semibold text-rooster-red">{error}</span>

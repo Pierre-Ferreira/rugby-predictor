@@ -1,9 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Meteor } from 'meteor/meteor';
 
-import {
-  PASSWORDLESS_TOKEN_SEQUENCE_LENGTH,
-} from '/imports/shared/auth/constants';
+import { PASSWORDLESS_TOKEN_SEQUENCE_LENGTH } from '/imports/shared/auth/constants';
 import {
   resolveSafeReturnPath,
   signInPathForReturnTo,
@@ -151,6 +149,7 @@ const logoutCurrentSession = (): Promise<void> =>
 export const AuthEmailLinkPage = () => {
   const auth = useAuthState();
   const [credentials, setCredentials] = useState(readCredentialsFromLocation);
+  const isLeavingPage = useRef(false);
   const returnTo = credentials?.returnTo ?? getReturnToFromLocation();
   const [error, setError] = useState<string | null>(null);
   const [isRedeeming, setIsRedeeming] = useState(false);
@@ -166,6 +165,13 @@ export const AuthEmailLinkPage = () => {
     isVerifiedSession && Boolean(linkEmail) && currentEmail !== linkEmail;
 
   useEffect(() => {
+    if (
+      isLeavingPage.current ||
+      window.location.pathname !== '/auth/email-link'
+    ) {
+      return;
+    }
+
     window.history.replaceState(
       {},
       '',
@@ -189,6 +195,7 @@ export const AuthEmailLinkPage = () => {
     try {
       await loginWithPasswordlessToken(credentials);
       clearPendingCredentials();
+      isLeavingPage.current = true;
       navigateTo(credentials.returnTo, true);
       setCredentials(null);
     } catch {
@@ -201,6 +208,7 @@ export const AuthEmailLinkPage = () => {
 
   const continueWithCurrentSession = () => {
     clearPendingCredentials();
+    isLeavingPage.current = true;
     navigateTo(returnTo, true);
     setCredentials(null);
   };
@@ -217,6 +225,7 @@ export const AuthEmailLinkPage = () => {
       await logoutCurrentSession();
       await loginWithPasswordlessToken(credentials);
       clearPendingCredentials();
+      isLeavingPage.current = true;
       navigateTo(credentials.returnTo, true);
       setCredentials(null);
     } catch {

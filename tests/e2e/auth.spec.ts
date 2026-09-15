@@ -14,6 +14,7 @@ const PENDING_LINK_STORAGE_KEY = 'rugby-rooster:pending-email-link';
 const isTransientLocalNavigationError = (error: unknown) =>
   error instanceof Error &&
   (error.message.includes('net::ERR_ABORTED') ||
+    error.message.includes('interrupted by another navigation') ||
     error.message.includes('Timeout') ||
     error.message.includes('Execution context was destroyed'));
 
@@ -65,24 +66,26 @@ const callMeteor = async <TResult>(
 };
 
 const gotoLocal = async (page: Page, url: string) => {
-  try {
-    await page.goto(url, {
-      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
-      waitUntil: 'domcontentloaded',
-    });
-    await waitForMeteorClient(page);
-  } catch (error) {
-    if (isTransientLocalNavigationError(error)) {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
       await page.goto(url, {
         timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
         waitUntil: 'domcontentloaded',
       });
       await waitForMeteorClient(page);
       return;
-    }
+    } catch (error) {
+      lastError = error;
 
-    throw error;
+      if (!isTransientLocalNavigationError(error)) {
+        throw error;
+      }
+    }
   }
+
+  throw lastError;
 };
 
 const resetAuthState = async (page: Page) => {
@@ -132,7 +135,10 @@ const signInWithEmailLink = async (
 
   await gotoLocal(page, mail?.url ?? '/');
   await page.getByRole('button', { name: 'Continue signing in' }).click();
-  await expect(page).toHaveURL(returnTo);
+  await expect(page).toHaveURL(returnTo, {
+    timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+  });
+  await waitForMeteorClient(page);
 };
 
 const expectNoHorizontalOverflow = async (page: Page) => {
@@ -248,17 +254,13 @@ test.describe('passwordless authentication', () => {
   }) => {
     const email = uniqueEmail('admin');
 
-    await gotoLocal(page, '/sign-in?returnTo=%2Fadmin');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
-    const mail = await latestMailFor(page, email);
-
-    await gotoLocal(page, mail?.url ?? '/');
-    await page.getByRole('button', { name: 'Continue signing in' }).click();
-
-    await expect(page).toHaveURL('/admin');
+    await signInWithEmailLink(page, email);
+    await gotoLocal(page, '/admin');
     await expect(
       page.getByRole('heading', { name: 'Admin access is restricted' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Use another account' }),
     ).toBeVisible();
 
     await callMeteor(page, TEST_AUTH_METHODS.setAdminForEmail, email, true);
@@ -274,6 +276,53 @@ test.describe('passwordless authentication', () => {
 
     await expect(
       page.getByRole('heading', { name: 'Admin access is restricted' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Use another account' }).click();
+    await expect(page).toHaveURL('/sign-in?mode=admin&returnTo=%2Fadmin');
+    await expect(
+      page.getByRole('heading', { name: 'Sign in to Rugby Rooster Admin' }),
+    ).toBeVisible();
+  });
+
+  test('uses generic admin sign-in acknowledgement and reaches admin for eligible accounts', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('eligible-admin');
+
+    await callMeteor(page, TEST_AUTH_METHODS.createVerifiedUser, email);
+    await callMeteor(page, TEST_AUTH_METHODS.setAdminForEmail, email, true);
+
+    await gotoLocal(page, '/admin');
+    await page.getByRole('link', { name: 'Email me a sign-in link' }).click();
+    await expect(page).toHaveURL('/sign-in?mode=admin&returnTo=%2Fadmin');
+    await expect(
+      page.getByRole('heading', { name: 'Sign in to Rugby Rooster Admin' }),
+    ).toBeVisible();
+
+    await page.getByLabel('Email address').fill(email);
+    await page
+      .getByRole('button', { name: 'Email me an admin sign-in link' })
+      .click();
+
+    await expect(
+      page.getByText(
+        'If this account is eligible for admin access, we’ve sent a sign-in link.',
+      ),
+    ).toBeVisible();
+
+    const mail = await latestMailFor(page, email);
+    expect(mail?.url).toContain('/auth/email-link');
+    expect(
+      new URL(mail?.url ?? 'http://127.0.0.1/').searchParams.get('returnTo'),
+    ).toBe('/admin');
+
+    await gotoLocal(page, mail?.url ?? '/');
+    await page.getByRole('button', { name: 'Continue signing in' }).click();
+
+    await expect(page).toHaveURL('/admin');
+    await expect(
+      page.getByRole('heading', { name: 'Admin access summary' }),
     ).toBeVisible();
   });
 
@@ -335,6 +384,12 @@ test.describe('passwordless authentication', () => {
     linkUrl.searchParams.set('token', 'BADBAD');
 
     await gotoLocal(page, linkUrl.toString());
+    await expect(
+      page.getByText(`You are signed in as ${currentEmail}.`),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`This link is intended for ${linkEmail}.`),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Switch accounts' }).click();
 
     await expect(
@@ -438,14 +493,7 @@ test.describe('passwordless authentication', () => {
   }) => {
     const email = uniqueEmail('client-update');
 
-    await gotoLocal(page, '/sign-in?returnTo=%2Faccount');
-    await page.getByLabel('Email address').fill(email);
-    await page.getByRole('button', { name: 'Email me a sign-in link' }).click();
-    const mail = await latestMailFor(page, email);
-
-    await gotoLocal(page, mail?.url ?? '/');
-    await page.getByRole('button', { name: 'Continue signing in' }).click();
-    await expect(page).toHaveURL('/account');
+    await signInWithEmailLink(page, email);
 
     const updateResult = await page.evaluate(
       () =>

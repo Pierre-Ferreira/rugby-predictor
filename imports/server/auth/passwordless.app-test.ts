@@ -122,6 +122,9 @@ const requestLink = async (
 ) =>
   callMethod(AUTH_METHODS.requestSignInLink, [{ email, returnTo }], invocation);
 
+const requestAdminLink = async (email: string, invocation = makeInvocation()) =>
+  callMethod(AUTH_METHODS.requestAdminSignInLink, [{ email }], invocation);
+
 const directPackageRequest = async (
   payload: unknown,
   invocation = makeInvocation(),
@@ -174,6 +177,16 @@ const findUserByEmail = async (email: string, fields = {}) => {
       fields,
     })) ?? null
   );
+};
+
+const getPasswordlessStateForEmail = async (email: string) => {
+  const user = (await findUserByEmail(email, {
+    services: 1,
+  })) as { readonly services?: { readonly passwordless?: unknown } } | null;
+
+  return JSON.parse(
+    JSON.stringify(user?.services?.passwordless ?? null),
+  ) as unknown;
 };
 
 if (
@@ -244,21 +257,20 @@ describe('CCPP-004 auth test helper database gating', function (this: Mocha.Suit
       registerMethods: (methods) => {
         Object.assign(registered, methods);
       },
-      users: ({
+      users: {
         findOneAsync: async () => undefined,
         insertAsync: async () => {
           insertCalled = true;
           return 'unexpected-user-id';
         },
         removeAsync: async () => 0,
-      } as unknown) as Pick<
+      } as unknown as Pick<
         typeof Meteor.users,
         'findOneAsync' | 'insertAsync' | 'removeAsync'
       >,
     });
 
-    const createVerifiedUser =
-      registered[TEST_AUTH_METHODS.createVerifiedUser];
+    const createVerifiedUser = registered[TEST_AUTH_METHODS.createVerifiedUser];
 
     assert.equal(typeof createVerifiedUser, 'function');
     await assert.rejects(
@@ -361,10 +373,7 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
     );
     await assert.rejects(
       () =>
-        callMethod(TEST_AUTH_METHODS.setAdminForEmail, [
-          otherRunEmail,
-          true,
-        ]),
+        callMethod(TEST_AUTH_METHODS.setAdminForEmail, [otherRunEmail, true]),
       /outside the current test run/i,
     );
     await assert.rejects(
@@ -610,6 +619,150 @@ describe('CCPP-004 passwordless accounts and authorisation', function (this: Moc
           },
         ]),
       /invalid-login-selector|invalid/i,
+    );
+  });
+
+  it('sends admin-directed links only to verified platform admins', async () => {
+    const adminEmail = uniqueEmail('admin-link');
+    const ordinaryEmail = uniqueEmail('ordinary-admin-link');
+    const unverifiedEmail = uniqueEmail('unverified-admin-link');
+    const unknownEmail = uniqueEmail('unknown-admin-link');
+    const expectedAcknowledgement = {
+      acknowledged: true,
+      expiresInMinutes: PASSWORDLESS_LINK_EXPIRY_MINUTES,
+    };
+
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [adminEmail]);
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [ordinaryEmail]);
+    assert.equal(await grantPlatformAdminByEmail(adminEmail), true);
+
+    await requestLink(unverifiedEmail, '/account');
+    const unverifiedUser = await findUserByEmail(unverifiedEmail, { _id: 1 });
+    assert.ok(unverifiedUser);
+    await Meteor.users.updateAsync(unverifiedUser._id, {
+      $set: {
+        'roles.platformAdmin': true,
+      },
+    });
+
+    const unverifiedMailBefore = latestCapturedMailFor(unverifiedEmail);
+
+    assert.deepEqual(
+      await requestAdminLink(adminEmail),
+      expectedAcknowledgement,
+    );
+    assert.deepEqual(
+      await requestAdminLink(ordinaryEmail),
+      expectedAcknowledgement,
+    );
+    assert.deepEqual(
+      await requestAdminLink(unverifiedEmail),
+      expectedAcknowledgement,
+    );
+    assert.deepEqual(
+      await requestAdminLink(unknownEmail),
+      expectedAcknowledgement,
+    );
+
+    const adminLink = getLinkParts(adminEmail);
+    assert.equal(adminLink.returnTo, '/admin');
+    assert.equal(adminLink.url.pathname, '/auth/email-link');
+    assert.equal(latestCapturedMailFor(ordinaryEmail), undefined);
+    assert.equal(latestCapturedMailFor(unverifiedEmail), unverifiedMailBefore);
+    assert.equal(latestCapturedMailFor(unknownEmail), undefined);
+    assert.equal(await findUserByEmail(unknownEmail, { _id: 1 }), null);
+  });
+
+  it('preserves existing token state for ineligible admin-directed requests', async () => {
+    const email = uniqueEmail('admin-token-preserve');
+
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [email]);
+    await requestLink(email, '/account');
+
+    const mailBefore = latestCapturedMailFor(email);
+    const passwordlessBefore = await getPasswordlessStateForEmail(email);
+
+    assert.ok(mailBefore);
+
+    await requestAdminLink(email);
+    await directPackageRequest({
+      email,
+      returnTo: '/admin',
+    });
+
+    assert.equal(latestCapturedMailFor(email)?.id, mailBefore.id);
+    assert.deepEqual(
+      await getPasswordlessStateForEmail(email),
+      passwordlessBefore,
+    );
+  });
+
+  it('does not allow general or package request paths to bypass admin eligibility', async () => {
+    const email = uniqueEmail('admin-bypass');
+
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [email]);
+
+    const generalResult = await requestLink(email, '/admin');
+    const packageResult = await directPackageRequest({
+      options: {
+        extra: {
+          returnTo: '/admin',
+        },
+      },
+      selector: {
+        email,
+      },
+      userData: {
+        email,
+      },
+    });
+
+    assert.deepEqual(generalResult, packageResult);
+    assert.deepEqual(generalResult, {
+      acknowledged: true,
+      expiresInMinutes: PASSWORDLESS_LINK_EXPIRY_MINUTES,
+    });
+    assert.equal(latestCapturedMailFor(email), undefined);
+    assert.equal(await getPasswordlessStateForEmail(email), null);
+  });
+
+  it('rate limits ineligible admin-directed link requests', async () => {
+    const email = uniqueEmail('admin-throttle');
+
+    await requestAdminLink(email);
+    await requestAdminLink(email);
+    await requestAdminLink(email);
+
+    await assert.rejects(() => requestAdminLink(email), /Too many attempts/i);
+    assert.equal(await findUserByEmail(email, { _id: 1 }), null);
+    assert.equal(latestCapturedMailFor(email), undefined);
+  });
+
+  it('does not grant admin access when an admin grant is revoked after link sending', async () => {
+    const email = uniqueEmail('admin-revoked-link');
+    const invocation = makeInvocation('admin-revoked-link');
+
+    await callMethod(TEST_AUTH_METHODS.createVerifiedUser, [email]);
+    assert.equal(await grantPlatformAdminByEmail(email), true);
+    await requestAdminLink(email);
+
+    const link = getLinkParts(email);
+    assert.equal(await revokePlatformAdminByEmail(email), true);
+
+    await loginWithLink(link.email, link.token, invocation);
+
+    const access = await callMethod<CurrentAccessResult>(
+      AUTH_METHODS.currentAccess,
+      [],
+      invocation,
+    );
+
+    assert.equal(access.isAuthenticated, true);
+    assert.equal(access.isVerified, true);
+    assert.equal(access.isPlatformAdmin, false);
+    await assert.rejects(
+      () => callMethod(ADMIN_METHODS.accessSummary, [], invocation),
+      /admin area|access/i,
     );
   });
 
