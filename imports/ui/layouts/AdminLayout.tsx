@@ -12,8 +12,8 @@ export const AdminLayout = ({ children, currentPath }: AdminLayoutProps) => {
   const auth = useAuthState();
 
   return (
-    <div className="min-h-screen bg-rooster-ink text-white">
-      <header className="border-b border-white/10 bg-rooster-ink">
+    <div className="app-shell bg-rooster-ink text-white">
+      <header className="app-shell-header border-b border-white/10 bg-rooster-ink">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <AppLink

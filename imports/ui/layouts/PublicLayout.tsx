@@ -13,8 +13,8 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
   const auth = useAuthState();
 
   return (
-    <div className="min-h-screen bg-rooster-paper text-rooster-ink">
-      <header className="border-b border-rooster-line bg-white/95">
+    <div className="app-shell bg-rooster-paper text-rooster-ink">
+      <header className="app-shell-header border-b border-rooster-line bg-white/95">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <AppLink
             className="focus-ring inline-flex min-h-11 items-center gap-3 rounded-md text-lg font-black"
@@ -79,7 +79,7 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
 
       {children}
 
-      <footer className="border-t border-rooster-line bg-white">
+      <footer className="app-shell-footer border-t border-rooster-line bg-white">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-rooster-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>Rugby Rooster account access build.</p>
           <AppLink

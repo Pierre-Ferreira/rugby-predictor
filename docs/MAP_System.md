@@ -10,6 +10,7 @@
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
 - `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
+- `docs/PLATFORM_PWA.md` - minimal PWA manifest, icons, safe-area shell, installation notes, limitations, and verification guidance.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
@@ -20,8 +21,11 @@
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
 - `docs/AUDIT_004A_Completion.md` - CCPP-004A final reconciliation and completion evidence.
 - `docs/AUDIT_004B_Development_Email.md` - CCPP-004B Postmark development email configuration and verification evidence.
+- `docs/AUDIT_004C_Development_Admin.md` - CCPP-004C local development admin provisioning setup and manual verification procedure.
 - `docs/AUDIT_004D_Admin_Sign_In.md` - CCPP-004D admin-specific passwordless sign-in behaviour, eligibility checks, bypass protection, and verification evidence.
+- `docs/AUDIT_004D_Login_Credential_Correction.md` - CCPP-004D follow-up for sanitized email-link credential retention during same-tab reload.
 - `docs/AUDIT_004D_Same_Account_Link_Invalidation.md` - CCPP-004D follow-up changing same-account continuation to explicitly invalidate the presented passwordless link.
+- `docs/AUDIT_004E_PWA_Foundation.md` - CCPP-004E minimal PWA foundation, verification evidence, limitations, and EOMD archive note.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -29,14 +33,19 @@
 - `docs/AUDIT_004A_Database_Topology_Correction.md` - historical CCPP-004A topology correction evidence.
 - `docs/AUDIT_004A_HMR_Workaround_Resolution.md` - historical CCPP-004A evidence for removing the client `Meteor.isTest` override and verifying auth browser tests with normal client identity.
 - `docs/TEMP_004A_Resume.md` - historical CCPP-004A resume checkpoint retained for provenance; superseded by `docs/AUDIT_004A_Completion.md`.
-- `docs/TEMP_004D_Resume.md` - temporary CCPP-004D checkpoint for the remaining local full-browser-suite startup timeout.
+- `docs/TEMP_004D_Known_Navigation_Issue.md` - temporary CCPP-004D deferral note for the unresolved full auth browser suite navigation issue.
+- `docs/TEMP_004D_Resume.md` - temporary CCPP-004D checkpoint for the remaining full auth browser suite instability.
+- `docs/TEMP_004E_Resume.md` - temporary CCPP-004E checkpoint created before final PWA foundation verification.
 
 ## Application Entry Points
 
 - `client/main.html` - HTML shell and document title.
 - `client/main.tsx` - React startup and CSS import.
-- `client/main.css` - Tailwind directives and design tokens.
-- `server/main.ts` - Meteor server startup and auth module import.
+- `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
+- `server/main.ts` - Meteor server startup plus auth and PWA server-module imports.
+- `imports/server/pwa/server.ts` - manifest content-type hook for `/site.webmanifest`.
+- `public/site.webmanifest` - minimal PWA manifest that launches at `/games`.
+- `public/icons/` - temporary RR monogram PNG app icons and SVG source assets.
 
 ## Routes
 
@@ -100,7 +109,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
-- `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes and layouts.
+- `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
@@ -110,6 +119,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `server/` - server startup.
 - `imports/shared/` - shared route metadata.
 - `imports/server/auth/` - passwordless account and server authorisation implementation.
+- `imports/server/pwa/` - minimal PWA server hook for static manifest response metadata.
 - `imports/shared/auth/` - shared auth constants and validation helpers.
 - `imports/shared/scoring/` - framework-independent scoring rules engine.
 - `imports/ui/auth/` - client auth state and auth action helpers.

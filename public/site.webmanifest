@@ -1,0 +1,32 @@
+{
+  "id": "/rugby-rooster",
+  "name": "Rugby Rooster",
+  "short_name": "Rugby Rooster",
+  "description": "Rugby Rooster is a standalone rugby prediction game.",
+  "start_url": "/games",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#161f26",
+  "background_color": "#f6f4ed",
+  "categories": ["games", "sports"],
+  "icons": [
+    {
+      "src": "/icons/rr-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/rr-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/rr-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

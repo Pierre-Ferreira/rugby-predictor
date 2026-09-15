@@ -150,6 +150,100 @@ Accepted verification:
   No commit, push, deployment, production verification, real email delivery, or
   next-milestone work was performed.
 
+## CCPP-004B Scope
+
+Milestone status: implemented for local development email configuration.
+Verification evidence is recorded in
+`docs/AUDIT_004B_Development_Email.md`.
+
+Implemented:
+
+- Postmark-capable server-side email transport adapter for manual development.
+- Local/test mail capture precedence so automated tests do not call Postmark.
+- Startup validation for disabled email, placeholder credentials, duplicate
+  delivery configuration, and production safety.
+- Tracked Postmark settings example and ignored local settings path.
+- Manual verification procedure for real development email delivery.
+
+Not completed:
+
+- Real email delivery was not tested by Codex.
+- Production email delivery, support workflows, fixture work, or next-milestone
+  behaviour were not started.
+
+## CCPP-004C Scope
+
+Milestone status: implemented as local development admin provisioning setup and
+documentation. Evidence is recorded in
+`docs/AUDIT_004C_Development_Admin.md`.
+
+Implemented:
+
+- Prepared local-only `adminProvisioning` settings for the user-confirmed
+  development admin email.
+- Preserved the existing server-owned platform-admin grant and revocation
+  mechanism.
+- Documented manual admin access, ordinary-account denial, cleanup, and revoke
+  procedures.
+
+Not completed:
+
+- Codex did not mutate the database, send email, or independently verify the
+  manual local admin grant flow.
+
+## CCPP-004D Scope
+
+Milestone status: partially implemented and explicitly not closed. Primary
+evidence is recorded in `docs/AUDIT_004D_Admin_Sign_In.md`,
+`docs/AUDIT_004D_Login_Credential_Correction.md`, and
+`docs/AUDIT_004D_Same_Account_Link_Invalidation.md`. The remaining blocker is
+checkpointed in `docs/TEMP_004D_Resume.md` and
+`docs/TEMP_004D_Known_Navigation_Issue.md`.
+
+Implemented:
+
+- Admin-specific passwordless sign-in request mode from `/admin`.
+- Server-side admin eligibility checks before admin-directed token generation.
+- Generic admin acknowledgement copy that does not reveal account eligibility.
+- Same-account email-link continuation that invalidates the presented link on
+  the server.
+- Targeted server integration and browser coverage for the new auth behaviour.
+
+Not completed:
+
+- The full `auth.spec.ts` browser suite has not passed after the documented
+  allowed retry. The remaining intermittent sanitized email-link/navigation
+  issue must stay unresolved until a later CCPP-004D follow-up proves a passing
+  full auth browser suite.
+
+## CCPP-004E Scope
+
+Milestone status: implemented for the minimal PWA foundation. Verification
+evidence is recorded in `docs/AUDIT_004E_PWA_Foundation.md`, and platform
+details live in `docs/PLATFORM_PWA.md`.
+
+Implemented:
+
+- Web app manifest served at `/site.webmanifest` with `/games` as the launch
+  route.
+- Temporary standard, maskable, and Apple touch PNG icons, with SVG sources.
+- Document head metadata for manifest discovery, standalone mobile
+  presentation, theme color, favicon, Apple touch icon, and one safe-area-aware
+  viewport declaration.
+- Public and admin shell safe-area styling.
+- Narrow manifest content-type server hook that leaves static-file serving to
+  Meteor.
+- Focused foundation browser coverage for manifest/icon responses and
+  dimensions, `/games`, responsive layout, and absence of service worker
+  registration.
+
+Not part of this milestone:
+
+- Service worker registration, offline fallback, caching, push notifications,
+  in-app install prompts, update/reload handling, final mascot artwork, auth
+  changes, HMR changes, database changes, email changes, fixture work,
+  deployment, or real-device installation testing.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

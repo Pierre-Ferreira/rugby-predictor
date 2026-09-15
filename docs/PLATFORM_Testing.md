@@ -94,6 +94,9 @@ CCPP-004A browser-test stabilization changes are checkpointed for review; the
 previous client-side `Meteor.isTest` override was removed on 2026-09-15 after
 targeted login and auth browser-suite verification passed with normal client
 identity.
+CCPP-004E extends the foundation browser suite with minimal PWA metadata,
+manifest/icon response, icon-dimension, launch-route, responsive layout, and
+negative service-worker coverage.
 
 Browser tests live under `tests/e2e/` and use accessible role/name selectors where practical. The Playwright config starts the Meteor app on local port `3200` unless `PLAYWRIGHT_BASE_URL` is provided.
 
@@ -138,6 +141,9 @@ The current browser suite covers:
 - Focused keyboard navigation through the main navigation to `/games`.
 - `/admin` sign-in requirement before protected content.
 - Unknown-path not-found handling.
+- Minimal PWA metadata, manifest response/content type, `/games` manifest launch
+  route, app icon responses and dimensions, and absence of service worker
+  registration.
 - Desktop and mobile horizontal-overflow checks for public and admin layouts.
 - Passwordless email-link request using captured local mail.
 - Link redemption in a fresh browser, session restoration, and sign-out.
@@ -273,6 +279,9 @@ Remediate these in a bounded dependency-maintenance task that can assess Meteor 
   passed. The targeted admin sign-in browser check passed on a fresh launch; the
   broader full-suite startup timeout is checkpointed in
   `docs/TEMP_004D_Resume.md`.
+- The CCPP-004D auth browser navigation instability is not resolved by
+  CCPP-004E foundation/PWA checks. The condensed deferral note is
+  `docs/TEMP_004D_Known_Navigation_Issue.md`.
 - Generated Meteor/Rspack browser-test directories (`.meteor/local-playwright/`, `_build-local-playwright/`, local build chunks/assets, `test-results/`, and `playwright-report/`) are ignored by source checks and must not be included in handover archives.
 - If port `3200` is already in use, stop the conflicting local process or set `PORT` to another local port. If using `PLAYWRIGHT_BASE_URL`, keep it on a local loopback host.
 - Do not reintroduce client identity overrides such as `Meteor.isTest` to

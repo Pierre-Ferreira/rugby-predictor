@@ -8,6 +8,7 @@ Current boundaries:
 
 - `client/` owns browser startup and global styles.
 - `server/` owns Meteor server startup.
+- `imports/server/pwa/` owns the narrow manifest response-header hook.
 - `imports/shared/` holds framework-light shared metadata used by client and server code.
 - `imports/shared/scoring/` holds the CCPP-003 framework-independent scoring engine.
 - `imports/ui/` owns React layouts, route pages, links, and status states.
@@ -17,6 +18,8 @@ Current boundaries:
 - `tests/e2e/` owns Playwright browser smoke tests.
 - `tests/support/` owns shared verification helpers.
 - `.github/workflows/` owns GitHub Actions verification configuration.
+- `public/site.webmanifest` and `public/icons/` own the minimal PWA manifest
+  and temporary app icons.
 
 ## Data And Authority
 
@@ -38,6 +41,12 @@ CCPP-002 adds verification infrastructure only. It does not change data authorit
 CCPP-003 adds scoring rules and a pure shared scoring engine. It does not introduce domain persistence, Meteor methods, publications, fixture administration, prediction submission, live event capture, or leaderboard aggregation. Future server code must call the engine from authoritative Meteor methods and bind predictions to immutable fixture ruleset snapshots.
 
 CCPP-004 adds passwordless accounts, local/test mail capture, account and admin routes, auth methods, server-side authorisation helpers, and Meteor full-app integration tests. Auth remains separate from fixture and prediction persistence.
+
+CCPP-004E adds a minimal PWA install foundation: manifest metadata, temporary
+icons, standalone mobile metadata, safe-area shell styling, and a narrow
+manifest content-type hook. It intentionally does not add a service worker,
+offline caching, push notifications, install prompts, update handling, auth
+changes, fixture data, or deployment behaviour.
 
 ## Dependency Discipline
 
@@ -89,3 +98,7 @@ The scoring engine architecture is documented in `docs/PLATFORM_Scoring_Engine.m
 ## Authentication
 
 The account and authorisation architecture is documented in `docs/PLATFORM_Authentication.md`.
+
+## PWA Foundation
+
+The minimal PWA foundation is documented in `docs/PLATFORM_PWA.md`.

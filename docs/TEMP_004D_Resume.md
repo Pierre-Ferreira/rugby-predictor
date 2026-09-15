@@ -125,3 +125,9 @@ adding sleeps, larger timeouts, weaker assertions, HMR/Rspack configuration
 changes, database isolation changes, email transport changes, dependency
 changes, or `Meteor.isTest` overrides. Do not mark CCPP-004D complete until the
 required full auth browser suite passes.
+
+## CCPP-004E Deferral Confirmation
+
+CCPP-004E does not investigate or resolve this auth browser navigation issue.
+The condensed deferral note for later handoff lives in
+`docs/TEMP_004D_Known_Navigation_Issue.md`.
