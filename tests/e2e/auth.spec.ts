@@ -461,6 +461,39 @@ test.describe('passwordless authentication', () => {
     expect(storedCredentials).toBeNull();
   });
 
+  test('recovers stored email-link credentials after sanitized same-tab reload', async ({
+    page,
+  }) => {
+    const email = uniqueEmail('reload-recovery');
+    const linkUrl = await requestSignInLink(page, email);
+
+    await gotoLocal(page, linkUrl);
+    await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
+    await expect(
+      page.getByRole('button', { name: 'Continue signing in' }),
+    ).toBeVisible();
+
+    const storedBeforeReload = await page.evaluate(
+      (storageKey) => window.sessionStorage.getItem(storageKey),
+      PENDING_LINK_STORAGE_KEY,
+    );
+    expect(storedBeforeReload).toBeTruthy();
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForMeteorClient(page);
+    await expect(page).toHaveURL(/\/auth\/email-link\?returnTo=%2Faccount$/);
+    await page.getByRole('button', { name: 'Continue signing in' }).click();
+
+    await expect(page).toHaveURL('/account');
+    await expect(page.getByText(email)).toBeVisible();
+
+    const storedAfterRedemption = await page.evaluate(
+      (storageKey) => window.sessionStorage.getItem(storageKey),
+      PENDING_LINK_STORAGE_KEY,
+    );
+    expect(storedAfterRedemption).toBeNull();
+  });
+
   test('shows invalid-link recovery without leaking credentials in the final URL', async ({
     page,
   }) => {

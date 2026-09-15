@@ -142,3 +142,11 @@ Follow-up status:
 - No retries, timeout increases, weakened assertions, authentication behaviour
   changes, real emails, grant changes, commits, pushes, deployments, PWA work,
   or fixture work were performed in this follow-up.
+
+## Follow-up - 2026-09-15 Login Credential Correction
+
+`docs/AUDIT_004D_Login_Credential_Correction.md` records the bounded
+login-link credential follow-up. It moved successful redemption cleanup to after
+navigation is initiated and added a same-tab sanitized-link reload regression.
+Targeted verification passed, but the full auth browser suite still failed 1 of
+12 tests in the same-account link reuse path, so CCPP-004D remains open.

@@ -194,9 +194,9 @@ export const AuthEmailLinkPage = () => {
 
     try {
       await loginWithPasswordlessToken(credentials);
-      clearPendingCredentials();
       isLeavingPage.current = true;
       navigateTo(credentials.returnTo, true);
+      clearPendingCredentials();
       setCredentials(null);
     } catch {
       discardCredentials();
@@ -224,9 +224,9 @@ export const AuthEmailLinkPage = () => {
     try {
       await logoutCurrentSession();
       await loginWithPasswordlessToken(credentials);
-      clearPendingCredentials();
       isLeavingPage.current = true;
       navigateTo(credentials.returnTo, true);
+      clearPendingCredentials();
       setCredentials(null);
     } catch {
       discardCredentials();
