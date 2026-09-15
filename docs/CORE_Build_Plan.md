@@ -111,7 +111,10 @@ Not implemented:
 ## CCPP-004A Scope
 
 Milestone status: in progress and checkpointed for review in
-`docs/AUDIT_004A_Login_Navigation_Fix.md`. This is not completion evidence.
+`docs/AUDIT_004A_Login_Navigation_Fix.md`,
+`docs/AUDIT_004A_Database_Topology_Correction.md`, and
+`docs/AUDIT_004A_HMR_Workaround_Resolution.md`. These checkpoints are not full
+CCPP-004A completion evidence.
 
 Current checkpointed work:
 
@@ -122,13 +125,13 @@ Current checkpointed work:
 - Isolated integration and Playwright launchers with loopback binding,
   generated test run IDs, and inherited Mongo variable rejection.
 - Rspack loopback host/origin adjustments for local browser-test startup.
-- A client-development, isolated-E2E `Meteor.isTest` override and HMR/live-reload
-  suppression gate that still requires review before acceptance.
+- Isolated-E2E Rspack HMR/live-reload suppression without overriding
+  `Meteor.isTest`, `Meteor.isDevelopment`, or `Meteor.isProduction`.
 
 Not complete:
 
-- The `Meteor.isTest` override has not been accepted as the final solution.
-- Full final verification has not been re-run after this checkpoint.
+- Full final verification beyond the focused auth browser suite has not been
+  re-run after this checkpoint.
 - No commit, push, deployment, or production verification has been performed.
 
 ## Roadmap Discipline

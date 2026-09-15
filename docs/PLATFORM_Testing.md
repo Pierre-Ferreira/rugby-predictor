@@ -87,8 +87,10 @@ Do not invent domain logic just to create tests. Add tests for meaningful new be
 Runner: Playwright Test.
 
 Current implementation: locally verified for CCPP-002 and extended by CCPP-004.
-CCPP-004A browser-test stabilization changes are checkpointed for review, not
-yet accepted as final completion evidence.
+CCPP-004A browser-test stabilization changes are checkpointed for review; the
+previous client-side `Meteor.isTest` override was removed on 2026-09-15 after
+targeted login and auth browser-suite verification passed with normal client
+identity.
 
 Browser tests live under `tests/e2e/` and use accessible role/name selectors where practical. The Playwright config starts the Meteor app on local port `3200` unless `PLAYWRIGHT_BASE_URL` is provided.
 
@@ -102,10 +104,9 @@ loopback, and derives `RSPACK_DEVSERVER_PORT` as the app port plus 2. The manage
 web server starts Meteor with `--port 127.0.0.1:<port>` and does not reuse an
 existing server.
 
-During the current CCPP-004A checkpoint, `rspack.config.ts` also disables Rspack
-HMR/live reload and injects `Meteor.isTest = true` only for client development
-builds in isolated E2E runs whose run id begins with `rr-e2e-`. This is a
-reviewed workaround candidate, not an accepted general testing pattern.
+During isolated E2E client-development builds whose run id begins with
+`rr-e2e-`, `rspack.config.ts` disables only Rspack HMR/live reload. It does not
+override `Meteor.isTest`, `Meteor.isDevelopment`, or `Meteor.isProduction`.
 
 Install browser prerequisites:
 
@@ -249,9 +250,10 @@ Remediate these in a bounded dependency-maintenance task that can assess Meteor 
 - Browser checks that start a local Meteor/Rspack web server may need normal loopback access. In restricted automation sandboxes, rerun `meteor npm run test:e2e` with permission for local loopback if the web server listens but Playwright cannot reach it.
 - Generated Meteor/Rspack browser-test directories (`.meteor/local-playwright/`, `_build-local-playwright/`, local build chunks/assets, `test-results/`, and `playwright-report/`) are ignored by source checks and must not be included in handover archives.
 - If port `3200` is already in use, stop the conflicting local process or set `PORT` to another local port. If using `PLAYWRIGHT_BASE_URL`, keep it on a local loopback host.
-- Do not treat the CCPP-004A `Meteor.isTest` client override as accepted solely
-  because browser tests pass. Review its Meteor/Rspack support boundary and any
-  package code that branches on `Meteor.isTest` before making it durable.
+- Do not reintroduce client identity overrides such as `Meteor.isTest` to
+  suppress browser-test reload behaviour. Keep any reload controls scoped to the
+  isolated E2E launcher/configuration and verify auth with normal client
+  identity.
 
 ## References
 

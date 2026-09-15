@@ -1,6 +1,72 @@
 # TEMP 004A Resume
 
-## Current Checkpoint - 2026-09-15 Database Topology Correction
+## Current Checkpoint - 2026-09-15 HMR Workaround Resolution
+
+This file is a temporary CCPP-004A handoff checkpoint. Keep it under `docs/`
+until CCPP-004A is either completed or deliberately abandoned.
+
+This checkpoint resolved the unaccepted isolated-E2E client `Meteor.isTest`
+workaround only. It did not reopen or change database verification, topology
+handling, throttles, scoring, product features, server behaviour, token
+handling, account-switch behaviour, deployment, commits, pushes, or email
+sending.
+
+Changed files in this checkpoint:
+
+- `rspack.config.ts`
+- `docs/AUDIT_004A_HMR_Workaround_Resolution.md`
+- `docs/CORE_Build_Plan.md`
+- `docs/MAP_System.md`
+- `docs/PLATFORM_Testing.md`
+- `docs/TEMP_004A_Resume.md`
+
+Current implementation state:
+
+- `rspack.config.ts` no longer imports `DefinePlugin` and no longer replaces
+  `Meteor.isTest`.
+- The established client-development Rspack loopback settings remain:
+  `devServer.host = 'localhost'` and
+  `allowedHosts = ['localhost', '127.0.0.1']`.
+- The existing isolated-E2E gate still disables only Rspack `hot` and
+  `liveReload` when `RUGBY_ROOSTER_TEST_MODE=isolated` and
+  `RUGBY_ROOSTER_TEST_RUN_ID` starts with `rr-e2e-`.
+- `RSPACK_NATIVE` was not used and remains unverified as a replacement.
+- Authentication navigation/session code and auth browser assertions were not
+  changed in this checkpoint.
+
+Actual check results in this checkpoint:
+
+- Browser invocation 1:
+  `npm run test:e2e -- tests/e2e/auth.spec.ts -g "requests a real email link, redeems it in a fresh browser, restores the session, and signs out"`
+  passed: 1 Chromium test.
+- Browser invocation 2:
+  `npm run test:e2e -- tests/e2e/auth.spec.ts` passed: 10 Chromium tests.
+- `npm run typecheck` passed: `tsc --noEmit --incremental false`.
+- `npm run lint` passed: `eslint .`.
+- Initial changed-file formatting check:
+  `npx prettier --check rspack.config.ts docs/AUDIT_004A_HMR_Workaround_Resolution.md docs/CORE_Build_Plan.md docs/MAP_System.md docs/PLATFORM_Testing.md docs/TEMP_004A_Resume.md`.
+  It failed on `docs/TEMP_004A_Resume.md`.
+- `npx prettier --write docs/TEMP_004A_Resume.md` formatted the checkpoint.
+- Final changed-file formatting check before handoff uses the same
+  `npx prettier --check` command and passed.
+- Browser output emitted the existing Node warning that `NO_COLOR` is ignored
+  when `FORCE_COLOR` is set; it did not fail the checks.
+
+Current remaining work:
+
+- The `Meteor.isTest` workaround issue is resolved for this checkpoint: the
+  override was removed and auth browser tests passed with normal client
+  identity.
+- The accepted database baseline remains preserved: 9 database-identity unit
+  tests, 16 server integration tests, and TypeScript passed in the prior
+  database topology checkpoint.
+- Full CCPP-004A completion still requires any broader acceptance checks listed
+  by the active plan; do not claim production delivery or deployment readiness
+  from this focused auth-browser verification alone.
+- No commit, push, deployment, email sending, production verification, database
+  suite rerun, or full test-suite run was performed in this checkpoint.
+
+## Historical Checkpoint - 2026-09-15 Database Topology Correction
 
 This file is a temporary CCPP-004A handoff checkpoint. Keep it under `docs/`
 until CCPP-004A is either completed or deliberately abandoned.
@@ -58,13 +124,12 @@ Actual check results in this checkpoint:
   the diagnostic test and both negative helper-gating tests passed, then the
   real database suite failed in `beforeEach` for
   `proves the isolated test environment before helpers run` with
-  `Auth test helpers require a supported local MongoDB topology.
-  [test-environment-mismatch]`.
+  `Auth test helpers require a supported local MongoDB topology. [test-environment-mismatch]`.
 - `meteor npm run test:unit -- --run tests/unit/test-database-identity.test.ts`
   passed: 1 test file, 9 tests.
 - `meteor npm run test:integration` passed after the correction: `16 passing`.
-  The named tests `does not register helper methods when database verification
-  fails`, `checks database verification before helper mutations`, and
+  The named tests `does not register helper methods when database verification fails`,
+  `checks database verification before helper mutations`, and
   `proves the isolated test environment before helpers run` all executed and
   passed. Client tests were skipped by `TEST_CLIENT=0`.
 - `meteor npm run typecheck` passed: `tsc --noEmit --incremental false`.
@@ -74,12 +139,14 @@ Actual check results in this checkpoint:
 - npm emitted the existing `Unknown env config "nodedir"` warning during npm
   commands.
 
-Current remaining work:
+Remaining work at that checkpoint, superseded where it conflicts with the
+current checkpoint:
 
 - Database verification is complete for this checkpoint: the real-adapter test
   and both negative helper-gating tests executed and passed in the final server
   integration run.
-- The `Meteor.isTest` client override remains explicitly unaccepted.
+- The `Meteor.isTest` client override remained explicitly unaccepted at that
+  time; the current checkpoint removed it.
 - `RSPACK_NATIVE` remains explicitly unverified as a replacement.
 - Final CCPP-004A browser/full-suite verification and completion documentation
   remain open.
@@ -109,18 +176,20 @@ Actual check results:
 - Both commands emitted npm's existing
   `Unknown env config "nodedir"` warning.
 
-Preserved findings:
+Preserved findings at that checkpoint:
 
-- The `Meteor.isTest` override remains unaccepted.
+- The `Meteor.isTest` override remained unaccepted at that time; the current
+  checkpoint removed it.
 - `RSPACK_NATIVE` was investigated but NOT established as a suitable
   replacement.
 - Rspack reload, Meteor HMR, and Meteor hot-code-push have distinct controls.
 - Do not treat a proposed workaround as implemented or verified.
 
-Remaining work:
+Remaining work at that checkpoint, superseded where it conflicts with the
+current checkpoint:
 
-- Decide whether the `Meteor.isTest` client override is acceptable, needs a
-  narrower implementation, or should be replaced with a supported mechanism.
+- The workaround decision was still open at that time; the current checkpoint
+  resolved it by removing the override.
 - Run final CCPP-004A verification in a future session that explicitly resumes
   browser/full-suite testing.
 - Do not mark CCPP-004A complete until the workaround decision, final
@@ -158,7 +227,7 @@ The TypeScript command output included npm's existing
 No browser suite, full test suite, lint, formatter, integration suite, commit,
 push, or deployment was run in that checkpoint session.
 
-### Current Meteor.isTest Override
+### Historical Meteor.isTest Override - Removed
 
 `rspack.config.ts` now defines:
 
@@ -171,24 +240,17 @@ const shouldDisableClientHmr =
 ```
 
 When that gate is true for the client development build, the Rspack dev server
-sets `hot: false` and `liveReload: false`, and Rspack's `DefinePlugin` injects:
-
-```ts
-new DefinePlugin({
-  'Meteor.isTest': JSON.stringify(true),
-})
-```
+sets `hot: false` and `liveReload: false`.
 
 The intended trigger path is `scripts/run-playwright-tests.mjs` ->
 `scripts/test-environment.mjs`, which creates
 `RUGBY_ROOSTER_TEST_MODE=isolated` and `RUGBY_ROOSTER_TEST_RUN_ID=rr-e2e-*`.
 `playwright.config.ts` passes those variables to the managed Meteor web server.
 
-This is a test-only candidate workaround, not an accepted solution. It may affect
-any bundled client code or Meteor package code that branches on `Meteor.isTest`,
-and it may influence conditional bundling because the value is injected at build
-time. Future work should review whether a supported Meteor/Rspack mechanism can
-replace it or narrow it further.
+The previous Rspack `DefinePlugin` replacement of `Meteor.isTest` was removed
+in the current checkpoint. Auth browser tests passed with normal client
+identity, so no replacement identity override is accepted or needed for this
+checkpoint.
 
 ### Historical Diff Summary From Earlier CCPP-004A Work
 
@@ -271,7 +333,7 @@ Installed-code findings:
 - Meteor `3.5.1` is active.
 - Meteor CLI `--port 127.0.0.1:<port>` is parsed into `proxyHost` plus
   `proxyPort`; `run-proxy.js` listens with `server.listen(listenPort,
-  listenHost || '0.0.0.0')`.
+listenHost || '0.0.0.0')`.
 - `run-all.js` derives the Meteor-managed MongoDB port with
   `parseInt(listenPort, 10) + 1`, which is safe when `proxyPort` is the parsed
   numeric port.

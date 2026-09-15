@@ -1,5 +1,4 @@
 import { defineConfig } from '@meteorjs/rspack';
-import { DefinePlugin } from '@rspack/core';
 import { TsCheckerRspackPlugin } from 'ts-checker-rspack-plugin';
 
 /**
@@ -35,13 +34,6 @@ export default defineConfig((Meteor) => {
         }
       : {}),
     plugins: [
-      ...(shouldDisableClientHmr
-        ? [
-            new DefinePlugin({
-              'Meteor.isTest': JSON.stringify(true),
-            }),
-          ]
-        : []),
       new TsCheckerRspackPlugin({
         typescript: { tsgo: true },
       }),

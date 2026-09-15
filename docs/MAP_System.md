@@ -19,6 +19,7 @@
 - `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md` - CCPP-004 completion evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - CCPP-004A in-progress login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Database_Verification_Closure.md` - CCPP-004A database verification closure attempt and remaining real-adapter blocker.
+- `docs/AUDIT_004A_HMR_Workaround_Resolution.md` - CCPP-004A evidence for removing the client `Meteor.isTest` override and verifying auth browser tests with normal client identity.
 - `docs/TEMP_004A_Resume.md` - temporary CCPP-004A resume checkpoint; remove when CCPP-004A is complete.
 
 ## Application Entry Points
@@ -73,7 +74,7 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `.prettierignore` - generated and dependency paths excluded from formatting.
 - `vitest.config.mts` - unit-test configuration.
 - `playwright.config.ts` - browser-test configuration with local Meteor web server management.
-- `rspack.config.ts` - Meteor Rspack configuration, TypeScript checker plugin, local dev-server host settings, and current CCPP-004A isolated-E2E HMR suppression gate.
+- `rspack.config.ts` - Meteor Rspack configuration, TypeScript checker plugin, local dev-server host settings, and isolated-E2E Rspack HMR/live-reload suppression gate.
 - `.github/workflows/verification.yml` - GitHub Actions verification workflow.
 - `scripts/check-project-invariants.mjs` - durable Rugby Rooster project-invariant checks.
 - `scripts/test-environment.mjs` - isolated local test environment builder shared by integration and Playwright launchers.
