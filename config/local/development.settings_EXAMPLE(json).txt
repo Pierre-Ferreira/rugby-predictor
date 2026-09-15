@@ -1,0 +1,27 @@
+{
+  "email": {
+    "enabled": true
+  },
+  "packages": {
+    "quave:email-postmark": {
+      "apiToken": "tf5a88...4", // GET THIS FROM POSTMARK DASHBOARD
+      "from": "pierre@tektite.biz",
+      "supportEmail": "pierre@tektite.biz"
+    }
+  },
+  "private": {
+    "rugbyRooster": {
+      "appUrl": "http://127.0.0.1:3000",
+      "mail": {
+        "capture": false
+      },
+      "test": {
+        "enableTestHelpers": false
+      },
+      "adminProvisioning": {
+        "action": "grant",
+        "email": "pierre@tektite.biz"
+      }
+    }
+  }
+}

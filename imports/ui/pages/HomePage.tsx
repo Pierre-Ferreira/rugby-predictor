@@ -24,21 +24,22 @@ export const HomePage = () => (
             </AppLink>
             <AppLink
               className="focus-ring inline-flex min-h-12 items-center justify-center rounded-md border border-white/40 px-5 text-base font-black text-white transition hover:bg-white/10"
-              to="/admin"
+              to="/sign-in"
             >
-              Admin placeholder
+              Sign in
             </AppLink>
           </div>
         </div>
 
         <div className="rounded-lg border border-white/20 bg-white/10 p-5">
           <p className="text-sm font-black uppercase text-rooster-sun">
-            CCPP-001
+            CCPP-004
           </p>
-          <p className="mt-3 text-2xl font-black">Foundation only</p>
+          <p className="mt-3 text-2xl font-black">Account access ready</p>
           <p className="mt-3 text-sm leading-6 text-white/80">
-            Accounts, fixtures, predictions, scoring, leaderboards, animation,
-            and venue features are planned for later milestones.
+            Passwordless accounts are available. Fixtures, predictions,
+            leaderboards, animation, and venue features are planned for later
+            milestones.
           </p>
         </div>
       </div>
@@ -56,7 +57,7 @@ export const HomePage = () => (
         ],
         [
           'Server owned',
-          'Authoritative data access will live behind Meteor methods and publications.',
+          'Account access now runs through Meteor methods and publications.',
         ],
       ].map(([title, body]) => (
         <article

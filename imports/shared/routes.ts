@@ -1,4 +1,11 @@
-export type RouteId = 'home' | 'games' | 'admin' | 'notFound';
+export type RouteId =
+  | 'account'
+  | 'admin'
+  | 'authEmailLink'
+  | 'games'
+  | 'home'
+  | 'notFound'
+  | 'signIn';
 
 export type RouteLayout = 'public' | 'admin';
 
@@ -23,6 +30,24 @@ export const appRoutes = [
     layout: 'public',
   },
   {
+    id: 'signIn',
+    label: 'Sign in',
+    path: '/sign-in',
+    layout: 'public',
+  },
+  {
+    id: 'authEmailLink',
+    label: 'Email Link',
+    path: '/auth/email-link',
+    layout: 'public',
+  },
+  {
+    id: 'account',
+    label: 'Account',
+    path: '/account',
+    layout: 'public',
+  },
+  {
     id: 'admin',
     label: 'Admin',
     path: '/admin',
@@ -38,7 +63,7 @@ export const notFoundRoute: AppRoute = {
 };
 
 export const publicNavigationRoutes = appRoutes.filter(
-  (route) => route.layout === 'public',
+  (route) => route.id === 'home' || route.id === 'games',
 );
 
 export const resolveRoute = (pathname: string): AppRoute => {

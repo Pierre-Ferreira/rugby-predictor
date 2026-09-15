@@ -6,8 +6,8 @@ This is the current roadmap, not permission to implement later milestones inside
 
 1. Application foundation - this task.
 2. Testing infrastructure and foundation verification - CCPP-002.
-3. Detailed game rules and tested scoring engine.
-4. Passwordless accounts and authorisation.
+3. Detailed game rules and tested scoring engine - CCPP-003.
+4. Passwordless accounts and authorisation - CCPP-004.
 5. Fixture management and public fixture browsing.
 6. Prediction sequence and submission locking.
 7. Match-event capture, corrections, and live/final leaderboard scoring.
@@ -23,7 +23,7 @@ Implemented:
 - Documentation convention and initial system documents.
 - Static verification commands for linting, formatting, and TypeScript.
 
-Not implemented:
+Not part of this milestone:
 
 - Accounts or passwordless email links.
 - Fixture administration or fixture data.
@@ -42,11 +42,207 @@ Implemented:
 - Unit tests for existing framework-independent route resolution.
 - Browser tests for current public/admin route behaviour, navigation, refresh, not-found handling, keyboard navigation, and responsive overflow.
 
-Not implemented:
+Not part of this milestone:
 
-- Scoring engine, scoring rules, and prediction validation.
 - Accounts, fixtures, predictions, leaderboards, leagues, sponsorships, animations, quizzes, or AI reports.
 - Database-backed integration tests for future domain features.
+
+## CCPP-003 Scope
+
+Milestone status: implemented for the isolated scoring rules and framework-independent engine. Verification evidence is recorded in `docs/AUDIT_003_Scoring_Engine.md`.
+
+Implemented:
+
+- Authoritative scoring rules and worked examples in `docs/CORE_Scoring_Rules.md`.
+- Pure TypeScript scoring engine under `imports/shared/scoring/`.
+- Default ruleset snapshot with CCPP-003 question deductions.
+- Ruleset, prediction, and observation validation with structured errors.
+- Live "If it ended now" scoring, pending observations, provisional deductions, and final-score confirmation rejection.
+- Custom numeric and categorical question support without executable formulas.
+- Unit tests for scoring, validation, snapshots, and documented examples.
+
+Not part of this milestone:
+
+- UI, accounts, database collections, fixture administration, prediction submission, match-event capture, event normalization, league aggregation, leaderboards, AI, deployment, or admin configuration permissions.
+- Database immutability for fixture ruleset snapshots.
+- Upstream regulation-time versus extra-time observation policy.
+
+## CCPP-003A Scope
+
+Milestone status: implemented as focused corrections to CCPP-003. Verification evidence is recorded in `docs/AUDIT_003A_Scoring_Validation_Corrections.md`.
+
+Implemented:
+
+- First-try observation consistency validation against supplied try totals.
+- Runtime validation for public scoring helper entry points.
+- Structured outer-request validation for `scoreFixture`.
+- Direct ruleset snapshot-isolation regression tests, including nested custom categorical options.
+- ESLint parser split so `.ts` generic arrows and `.tsx` JSX both parse correctly.
+- Documentation corrections for public API boundaries, pending-data limits, mixed pending/zero scoring, and snapshot cloning guarantees.
+
+Not part of this milestone:
+
+- Accounts, persistence, fixtures, submission, event capture, UI, leaderboard functionality, deployment, or admin configuration permissions.
+- Runtime object freezing or database immutability for rulesets.
+- Extra-time, cancellation, or leaderboard policy decisions.
+
+## CCPP-004 Scope
+
+Milestone status: implemented for passwordless account access and platform-admin authorisation. Verification evidence is recorded in `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md`.
+
+Implemented:
+
+- Passwordless email-link request and redemption routes.
+- Server-owned account operations through Meteor accounts and methods.
+- Safe return-path handling and email identity normalization.
+- Local/test mail capture with no real email delivery in test settings.
+- Link/request throttling and token redemption throttling.
+- Token expiry, replay rejection, resend invalidation, concurrent redemption protection, and package method input hardening.
+- Authenticated verified account page.
+- Server-authorised platform-admin summary page.
+- Test-only auth helpers enabled only by private local settings outside production.
+- Unit, Meteor integration, and Playwright browser coverage for account and authorisation behavior.
+
+Not implemented:
+
+- Fixture management, prediction submission, scoring persistence, match-event capture, league aggregation, leaderboards, prizes, sponsorships, animations, quizzes, AI reports, payment features, or rich admin user management.
+- Account deletion, support workflows, marketing preferences UI, or long-term consent/audit policy.
+
+## CCPP-004A Scope
+
+Milestone status: complete. Final reconciliation and completion evidence is
+recorded in `docs/AUDIT_004A_Completion.md`.
+
+Historical checkpoint evidence is preserved in
+`docs/AUDIT_004A_Login_Navigation_Fix.md`,
+`docs/AUDIT_004A_Database_Isolation_Verification.md`,
+`docs/AUDIT_004A_Database_Verification_Closure.md`,
+`docs/AUDIT_004A_Database_Topology_Correction.md`,
+`docs/AUDIT_004A_Throttle_Correction.md`, and
+`docs/AUDIT_004A_HMR_Workaround_Resolution.md`.
+
+Completed work:
+
+- Account-aware `/auth/email-link` navigation for same-account continuation and
+  different-account switch-or-keep decisions.
+- Malformed new email-link handling that clears pending tab credentials instead
+  of falling back to older stored credentials.
+- Isolated integration and Playwright launchers with loopback binding,
+  generated test run IDs, and inherited Mongo variable rejection.
+- Rspack loopback host/origin adjustments for local browser-test startup.
+- Isolated-E2E Rspack HMR/live-reload suppression without overriding
+  `Meteor.isTest`, `Meteor.isDevelopment`, or `Meteor.isProduction`.
+
+Accepted verification:
+
+- Throttle correction checkpoint: `meteor npm run test:unit` passed `6` files
+  and `57` tests, and `meteor npm run typecheck` passed.
+- Database topology checkpoint:
+  `meteor npm run test:unit -- --run tests/unit/test-database-identity.test.ts`
+  passed `1` file and `9` tests; `meteor npm run test:integration` passed with
+  `16 passing`; and `meteor npm run typecheck` passed.
+- HMR workaround resolution checkpoint:
+  `npm run test:e2e -- tests/e2e/auth.spec.ts -g "requests a real email link, redeems it in a fresh browser, restores the session, and signs out"`
+  passed `1` Chromium test; `npm run test:e2e -- tests/e2e/auth.spec.ts`
+  passed `10` Chromium tests; `npm run typecheck`, `npm run lint`, and the
+  final changed-file Prettier check passed.
+- Completion closeout used existing evidence and changed documentation only.
+  No commit, push, deployment, production verification, real email delivery, or
+  next-milestone work was performed.
+
+## CCPP-004B Scope
+
+Milestone status: implemented for local development email configuration.
+Verification evidence is recorded in
+`docs/AUDIT_004B_Development_Email.md`.
+
+Implemented:
+
+- Postmark-capable server-side email transport adapter for manual development.
+- Local/test mail capture precedence so automated tests do not call Postmark.
+- Startup validation for disabled email, placeholder credentials, duplicate
+  delivery configuration, and production safety.
+- Tracked Postmark settings example and ignored local settings path.
+- Manual verification procedure for real development email delivery.
+
+Not completed:
+
+- Real email delivery was not tested by Codex.
+- Production email delivery, support workflows, fixture work, or next-milestone
+  behaviour were not started.
+
+## CCPP-004C Scope
+
+Milestone status: implemented as local development admin provisioning setup and
+documentation. Evidence is recorded in
+`docs/AUDIT_004C_Development_Admin.md`.
+
+Implemented:
+
+- Prepared local-only `adminProvisioning` settings for the user-confirmed
+  development admin email.
+- Preserved the existing server-owned platform-admin grant and revocation
+  mechanism.
+- Documented manual admin access, ordinary-account denial, cleanup, and revoke
+  procedures.
+
+Not completed:
+
+- Codex did not mutate the database, send email, or independently verify the
+  manual local admin grant flow.
+
+## CCPP-004D Scope
+
+Milestone status: partially implemented and explicitly not closed. Primary
+evidence is recorded in `docs/AUDIT_004D_Admin_Sign_In.md`,
+`docs/AUDIT_004D_Login_Credential_Correction.md`, and
+`docs/AUDIT_004D_Same_Account_Link_Invalidation.md`. The remaining blocker is
+checkpointed in `docs/TEMP_004D_Resume.md` and
+`docs/TEMP_004D_Known_Navigation_Issue.md`.
+
+Implemented:
+
+- Admin-specific passwordless sign-in request mode from `/admin`.
+- Server-side admin eligibility checks before admin-directed token generation.
+- Generic admin acknowledgement copy that does not reveal account eligibility.
+- Same-account email-link continuation that invalidates the presented link on
+  the server.
+- Targeted server integration and browser coverage for the new auth behaviour.
+
+Not completed:
+
+- The full `auth.spec.ts` browser suite has not passed after the documented
+  allowed retry. The remaining intermittent sanitized email-link/navigation
+  issue must stay unresolved until a later CCPP-004D follow-up proves a passing
+  full auth browser suite.
+
+## CCPP-004E Scope
+
+Milestone status: implemented for the minimal PWA foundation. Verification
+evidence is recorded in `docs/AUDIT_004E_PWA_Foundation.md`, and platform
+details live in `docs/PLATFORM_PWA.md`.
+
+Implemented:
+
+- Web app manifest served at `/site.webmanifest` with `/games` as the launch
+  route.
+- Temporary standard, maskable, and Apple touch PNG icons, with SVG sources.
+- Document head metadata for manifest discovery, standalone mobile
+  presentation, theme color, favicon, Apple touch icon, and one safe-area-aware
+  viewport declaration.
+- Public and admin shell safe-area styling.
+- Narrow manifest content-type server hook that leaves static-file serving to
+  Meteor.
+- Focused foundation browser coverage for manifest/icon responses and
+  dimensions, `/games`, responsive layout, and absence of service worker
+  registration.
+
+Not part of this milestone:
+
+- Service worker registration, offline fallback, caching, push notifications,
+  in-app install prompts, update/reload handling, final mascot artwork, auth
+  changes, HMR changes, database changes, email changes, fixture work,
+  deployment, or real-device installation testing.
 
 ## Roadmap Discipline
 

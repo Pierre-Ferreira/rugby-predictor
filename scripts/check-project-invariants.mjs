@@ -6,13 +6,21 @@ const failures = [];
 const ignoredDirectories = new Set([
   '.git',
   '.meteor/local',
+  '.meteor/local-integration',
+  '.meteor/local-playwright',
   '.playwright-mcp',
   '_build',
+  '_build-local-integration',
+  '_build-local-playwright',
   'coverage',
   'node_modules',
   'playwright-report',
   'public/build-assets',
+  'public/build-assets-local-integration',
+  'public/build-assets-local-playwright',
   'public/build-chunks',
+  'public/build-chunks-local-integration',
+  'public/build-chunks-local-playwright',
   'test-results',
 ]);
 const sourceExtensions = new Set([

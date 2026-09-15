@@ -9,24 +9,57 @@ const ignores = [
   '.meteor/**',
   '.playwright-mcp/**',
   '_build/**',
+  '_build-local-integration/**',
+  '_build-local-playwright/**',
   'coverage/**',
   'node_modules/**',
   'playwright-report/**',
   'public/build-assets/**',
+  'public/build-assets-local-integration/**',
   'public/build-chunks/**',
+  'public/build-chunks-local-integration/**',
   'test-results/**',
   'tsconfig.tsbuildinfo',
 ];
 
-const parserOptions = {
+const parserOptionsWith = (plugins) => ({
   requireConfigFile: false,
   babelOptions: {
     babelrc: false,
     configFile: false,
     parserOpts: {
-      plugins: ['jsx', ['typescript', { isTSX: true }]],
+      plugins,
     },
   },
+});
+
+const commonLanguageOptions = {
+  ecmaVersion: 'latest',
+  globals: {
+    ...globals.browser,
+    ...globals.node,
+    ...globals.es2024,
+  },
+  parser: babelParser,
+  sourceType: 'module',
+};
+
+const commonSettings = {
+  react: {
+    version: 'detect',
+  },
+};
+
+const commonRules = {
+  ...jsxA11yPlugin.configs.recommended.rules,
+  'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
+};
+
+const typeScriptRules = {
+  ...commonRules,
+  'no-undef': 'off',
+  'no-unused-vars': 'off',
+  'react/prop-types': 'off',
 };
 
 export default [
@@ -36,38 +69,43 @@ export default [
   reactPlugin.configs.flat['jsx-runtime'],
   reactHooksPlugin.configs.flat.recommended,
   {
-    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
+    files: ['**/*.{js,mjs,cjs}'],
     languageOptions: {
-      ecmaVersion: 'latest',
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-        ...globals.es2024,
-      },
-      parser: babelParser,
-      parserOptions,
-      sourceType: 'module',
+      ...commonLanguageOptions,
+      parserOptions: parserOptionsWith(['jsx']),
     },
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
+    settings: commonSettings,
     plugins: {
       'jsx-a11y': jsxA11yPlugin,
     },
-    rules: {
-      ...jsxA11yPlugin.configs.recommended.rules,
-      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
-    },
+    rules: commonRules,
   },
   {
-    files: ['**/*.{ts,tsx}'],
-    rules: {
-      'no-undef': 'off',
-      'no-unused-vars': 'off',
-      'react/prop-types': 'off',
+    files: ['**/*.ts'],
+    languageOptions: {
+      ...commonLanguageOptions,
+      parserOptions: parserOptionsWith([['typescript', { isTSX: false }]]),
     },
+    settings: commonSettings,
+    plugins: {
+      'jsx-a11y': jsxA11yPlugin,
+    },
+    rules: typeScriptRules,
+  },
+  {
+    files: ['**/*.tsx'],
+    languageOptions: {
+      ...commonLanguageOptions,
+      parserOptions: parserOptionsWith([
+        'jsx',
+        ['typescript', { isTSX: true }],
+      ]),
+    },
+    settings: commonSettings,
+    plugins: {
+      'jsx-a11y': jsxA11yPlugin,
+    },
+    rules: typeScriptRules,
   },
   {
     files: ['tests/e2e/**/*.ts', 'tests/unit/**/*.ts'],

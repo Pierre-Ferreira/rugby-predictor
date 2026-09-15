@@ -8,10 +8,12 @@
     "lint:project": "node scripts/check-project-invariants.mjs",
     "typecheck": "tsc --noEmit --incremental false",
     "start": "meteor run",
+    "start:email": "ROOT_URL=http://127.0.0.1:3000 meteor run --port 127.0.0.1:3000 --settings config/local/development.settings.json",
     "test": "npm run test:unit",
+    "test:integration": "node scripts/run-integration-tests.mjs",
     "test:unit": "vitest run --config vitest.config.mts",
     "test:unit:watch": "vitest --config vitest.config.mts",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-playwright-tests.mjs",
     "test:e2e:ui": "playwright test --ui",
     "playwright:install": "playwright install chromium",
     "visualize": "meteor --production --extra-packages bundle-visualizer"
@@ -35,6 +37,7 @@
     "@rspack/plugin-react-refresh": "^1.4.3",
     "@swc/core": "^1.15.18",
     "@types/meteor": "^2.9.9",
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.10.6",
     "@types/react": "^18.2.5",
     "@types/react-dom": "^18.2.4",
@@ -56,6 +59,9 @@
     "mainModule": {
       "client": "client/main.tsx",
       "server": "server/main.ts"
+    },
+    "testModule": {
+      "server": "imports/server/auth/passwordless.app-test.ts"
     },
     "modern": true
   }

@@ -1,0 +1,14 @@
+{
+  "private": {
+    "rugbyRooster": {
+      "appUrl": "http://127.0.0.1:3400",
+      "mail": {
+        "capture": true,
+        "from": "Rugby Rooster <tests@rugbyrooster.local>"
+      },
+      "test": {
+        "enableTestHelpers": true
+      }
+    }
+  }
+}

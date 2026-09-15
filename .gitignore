@@ -9,3 +9,15 @@ _build
 coverage/
 playwright-report/
 test-results/
+artifacts/
+config/local/*.json
+
+# Meteor custom local directory (METEOR_LOCAL_DIR)
+.meteor/local-integration
+.meteor/local-playwright
+_build-local-integration
+_build-local-playwright
+*/build-assets-local-integration
+*/build-assets-local-playwright
+*/build-chunks-local-integration
+*/build-chunks-local-playwright

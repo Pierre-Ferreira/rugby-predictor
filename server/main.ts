@@ -1,7 +1,7 @@
 import { Meteor } from 'meteor/meteor';
+import '/imports/server/auth/server';
+import '/imports/server/pwa/server';
 
 Meteor.startup(() => {
-  console.info(
-    'Rugby Rooster server started. No application publications or methods are exposed in CCPP-001.',
-  );
+  console.info('Rugby Rooster server started with passwordless accounts.');
 });

@@ -1,0 +1,23 @@
+{
+  "email": {
+    "enabled": true
+  },
+  "packages": {
+    "quave:email-postmark": {
+      "apiToken": "REPLACE_LOCALLY",
+      "from": "pierre@tektite.biz",
+      "supportEmail": "pierre@tektite.biz"
+    }
+  },
+  "private": {
+    "rugbyRooster": {
+      "appUrl": "http://127.0.0.1:3000",
+      "mail": {
+        "capture": false
+      },
+      "test": {
+        "enableTestHelpers": false
+      }
+    }
+  }
+}

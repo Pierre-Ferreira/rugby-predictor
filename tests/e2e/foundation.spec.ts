@@ -13,9 +13,185 @@ const expectNoHorizontalOverflow = async (page: Page) => {
   expect(overflow.bodyScrollWidth).toBeLessThanOrEqual(overflow.viewportWidth);
 };
 
+const gotoApp = async (page: Page, path: string) => {
+  await page.goto(path, { waitUntil: 'domcontentloaded' });
+};
+
 test.describe('Rugby Rooster foundation', () => {
+  test('exposes minimal PWA metadata without service workers', async ({
+    page,
+    request,
+  }) => {
+    await gotoApp(page, '/games');
+
+    await expect(
+      page.getByRole('heading', {
+        level: 1,
+        name: 'No games are available yet',
+      }),
+    ).toBeVisible();
+
+    const metadata = await page.evaluate(() => {
+      const manifest = document.querySelector<HTMLLinkElement>(
+        'link[rel="manifest"]',
+      );
+      const appleTouchIcon = document.querySelector<HTMLLinkElement>(
+        'link[rel="apple-touch-icon"]',
+      );
+      const favicon =
+        document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+      const themeColor = document.querySelector<HTMLMetaElement>(
+        'meta[name="theme-color"]',
+      );
+      const viewport = document.querySelectorAll<HTMLMetaElement>(
+        'meta[name="viewport"]',
+      );
+
+      return {
+        appleTouchIconHref: appleTouchIcon?.href ?? null,
+        faviconHref: favicon?.href ?? null,
+        manifestHref: manifest?.href ?? null,
+        themeColor: themeColor?.content ?? null,
+        viewportContents: Array.from(viewport).map((meta) => meta.content),
+      };
+    });
+
+    expect(metadata.manifestHref).toBeTruthy();
+    expect(metadata.appleTouchIconHref).toBeTruthy();
+    expect(metadata.faviconHref).toMatch(/\/favicon\.svg$/);
+    expect(metadata.themeColor).toBe('#161f26');
+    expect(metadata.viewportContents).toEqual([
+      'width=device-width, initial-scale=1.0, viewport-fit=cover',
+    ]);
+
+    const manifestResponse = await request.get(metadata.manifestHref ?? '/');
+
+    expect(manifestResponse.status()).toBe(200);
+    expect(manifestResponse.headers()['content-type']).toContain(
+      'application/manifest+json',
+    );
+
+    const manifestText = await manifestResponse.text();
+    expect(manifestText).not.toContain('<html');
+
+    const manifest = JSON.parse(manifestText) as {
+      readonly display?: string;
+      readonly icons?: readonly {
+        readonly purpose?: string;
+        readonly sizes?: string;
+        readonly src?: string;
+        readonly type?: string;
+      }[];
+      readonly scope?: string;
+      readonly start_url?: string;
+    };
+
+    const startUrl = manifest.start_url;
+
+    expect(startUrl).toBe('/games');
+    expect(new URL(startUrl ?? '/', page.url()).search).toBe('');
+    expect(manifest.scope).toBe('/');
+    expect(manifest.display).toBe('standalone');
+
+    const pngIcons = manifest.icons ?? [];
+
+    expect(
+      pngIcons.some(
+        (icon) =>
+          icon.src === '/icons/rr-icon-192.png' &&
+          icon.sizes === '192x192' &&
+          icon.type === 'image/png',
+      ),
+    ).toBe(true);
+    expect(
+      pngIcons.some(
+        (icon) =>
+          icon.src === '/icons/rr-maskable-512.png' &&
+          icon.sizes === '512x512' &&
+          icon.type === 'image/png' &&
+          icon.purpose === 'maskable',
+      ),
+    ).toBe(true);
+
+    const iconPaths = [
+      '/icons/rr-icon-192.png',
+      '/icons/rr-icon-512.png',
+      '/icons/rr-maskable-512.png',
+      '/icons/apple-touch-icon.png',
+    ] as const;
+    type IconPath = (typeof iconPaths)[number];
+    const iconExpectations: Record<IconPath, number> = {
+      '/icons/apple-touch-icon.png': 180,
+      '/icons/rr-icon-192.png': 192,
+      '/icons/rr-icon-512.png': 512,
+      '/icons/rr-maskable-512.png': 512,
+    };
+
+    for (const iconPath of iconPaths) {
+      const response = await request.get(iconPath);
+
+      expect(response.status()).toBe(200);
+      expect(response.headers()['content-type']).toContain('image/png');
+    }
+
+    const imageDimensions = await page.evaluate(async (paths) => {
+      const loadImage = (path: string) =>
+        new Promise<{
+          readonly height: number;
+          readonly path: string;
+          readonly width: number;
+        }>((resolve, reject) => {
+          const image = new Image();
+
+          image.onload = () => {
+            resolve({
+              height: image.naturalHeight,
+              path,
+              width: image.naturalWidth,
+            });
+          };
+          image.onerror = () => reject(new Error(`Failed to load ${path}`));
+          image.src = path;
+        });
+
+      return Promise.all(paths.map(loadImage));
+    }, iconPaths);
+
+    for (const [iconPath, expectedSize] of Object.entries(iconExpectations) as [
+      IconPath,
+      number,
+    ][]) {
+      const icon = imageDimensions.find((image) => image.path === iconPath);
+
+      expect(icon).toBeDefined();
+      expect(icon?.width).toBe(expectedSize);
+      expect(icon?.height).toBe(expectedSize);
+    }
+
+    const serviceWorkerState = await page.evaluate(async () => {
+      if (!('serviceWorker' in navigator)) {
+        return {
+          controller: false,
+          registrations: 0,
+          supported: false,
+        };
+      }
+
+      const registrations = await navigator.serviceWorker.getRegistrations();
+
+      return {
+        controller: Boolean(navigator.serviceWorker.controller),
+        registrations: registrations.length,
+        supported: true,
+      };
+    });
+
+    expect(serviceWorkerState.controller).toBe(false);
+    expect(serviceWorkerState.registrations).toBe(0);
+  });
+
   test('homepage renders Rugby Rooster identity', async ({ page }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     await expect(page).toHaveTitle('Rugby Rooster');
     await expect(
@@ -29,7 +205,7 @@ test.describe('Rugby Rooster foundation', () => {
   test('homepage navigation reaches the games empty state', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     await page.getByRole('link', { name: 'Browse games' }).click();
 
@@ -43,7 +219,7 @@ test.describe('Rugby Rooster foundation', () => {
   });
 
   test('games route loads directly and survives refresh', async ({ page }) => {
-    await page.goto('/games');
+    await gotoApp(page, '/games');
 
     const emptyState = page.getByRole('heading', {
       level: 1,
@@ -51,7 +227,7 @@ test.describe('Rugby Rooster foundation', () => {
     });
     await expect(emptyState).toBeVisible();
 
-    await page.reload();
+    await page.reload({ waitUntil: 'domcontentloaded' });
 
     await expect(page).toHaveURL('/games');
     await expect(emptyState).toBeVisible();
@@ -60,7 +236,7 @@ test.describe('Rugby Rooster foundation', () => {
   test('browser back and forward navigation preserve routes', async ({
     page,
   }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
     await page.getByRole('link', { name: 'Browse games' }).click();
     await expect(page).toHaveURL('/games');
 
@@ -81,7 +257,7 @@ test.describe('Rugby Rooster foundation', () => {
   });
 
   test('keyboard navigation can reach the games route', async ({ page }) => {
-    await page.goto('/');
+    await gotoApp(page, '/');
 
     const gamesNavLink = page
       .getByRole('navigation', { name: 'Primary navigation' })
@@ -103,25 +279,26 @@ test.describe('Rugby Rooster foundation', () => {
     ).toBeVisible();
   });
 
-  test('admin route shows only the non-functional placeholder', async ({
+  test('admin route requires sign-in before showing protected content', async ({
     page,
   }) => {
-    await page.goto('/admin');
+    await gotoApp(page, '/admin');
 
     await expect(
-      page.getByRole('heading', { level: 1, name: 'Admin area placeholder' }),
+      page.getByRole('heading', { level: 1, name: 'Sign in to continue' }),
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Authentication and server-side authorisation are future work.',
+        'Admin access is available only after email-link sign-in with an authorised account.',
       ),
     ).toBeVisible();
-    await expect(page.locator('form')).toHaveCount(0);
-    await expect(page.locator('input, textarea, select')).toHaveCount(0);
+    await expect(
+      page.getByRole('link', { name: 'Email me a sign-in link' }),
+    ).toBeVisible();
   });
 
   test('unknown paths display the not-found page', async ({ page }) => {
-    await page.goto('/unknown-foundation-route');
+    await gotoApp(page, '/unknown-foundation-route');
 
     await expect(
       page.getByRole('heading', { level: 1, name: 'Page not found' }),
@@ -140,8 +317,8 @@ test.describe('Rugby Rooster foundation', () => {
         width: viewport.width,
       });
 
-      for (const path of ['/', '/games', '/admin']) {
-        await page.goto(path);
+      for (const path of ['/', '/games', '/sign-in', '/account', '/admin']) {
+        await gotoApp(page, path);
         await expectNoHorizontalOverflow(page);
       }
     });

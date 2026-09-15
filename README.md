@@ -1,6 +1,6 @@
 # Rugby Rooster
 
-Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification.
+Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification. CCPP-003 adds the framework-independent scoring rules and tested scoring engine. CCPP-004 adds passwordless accounts and server-side authorisation.
 
 This repository is not Rugby Tracker / Rucks and Mauls. Club management, player rosters, BokSmart documents, subscription tiers, and player-performance analytics are outside this project unless a future task explicitly changes scope.
 
@@ -16,10 +16,13 @@ This repository is not Rugby Tracker / Rucks and Mauls. Club management, player 
 
 - `/` - Rugby Rooster introduction and link to browse games.
 - `/games` - Empty state for upcoming fixtures.
-- `/admin` - Non-functional administration placeholder.
+- `/sign-in` - Passwordless email-link request form.
+- `/auth/email-link` - Passwordless link confirmation route.
+- `/account` - Authenticated verified player account summary.
+- `/admin` - Restricted platform-admin summary.
 - Any unmatched route - not-found page.
 
-The admin placeholder exposes no privileged data or actions. Authentication and server-side authorisation are future work.
+The admin route exposes only server-authorised summary data. Fixture, prediction, leaderboard, league, prize, sponsorship, animation, quiz, and AI features remain future milestones.
 
 ## Commands
 
@@ -35,6 +38,7 @@ meteor npm run lint:project
 meteor npm run typecheck
 meteor npm run test:unit
 meteor npm run test:unit:watch
+meteor npm run test:integration
 meteor npm run playwright:install
 meteor npm run test:e2e
 ```
@@ -48,6 +52,8 @@ meteor npm run test:e2e
 `meteor npm run typecheck` runs TypeScript with no emit.
 
 `meteor npm run test:unit` runs Vitest unit tests once. `meteor npm run test:unit:watch` runs the same suite in watch mode.
+
+`meteor npm run test:integration` runs Meteor full-app server tests for passwordless account and authorisation behavior with local-only settings.
 
 `meteor npm run playwright:install` installs the local Chromium browser used by Playwright. In CI or Linux setup where system packages are missing, run `meteor npm exec playwright -- install --with-deps chromium`.
 
@@ -66,8 +72,14 @@ Project documentation lives under `docs/`:
 
 - `docs/CORE_Product.md`
 - `docs/CORE_Build_Plan.md`
+- `docs/CORE_Scoring_Rules.md`
 - `docs/PLATFORM_Architecture.md`
+- `docs/PLATFORM_Authentication.md`
+- `docs/PLATFORM_Scoring_Engine.md`
 - `docs/PLATFORM_Testing.md`
 - `docs/MAP_System.md`
 - `docs/AUDIT_001_Project_Foundation.md`
 - `docs/AUDIT_002_Testing_Infrastructure.md`
+- `docs/AUDIT_003_Scoring_Engine.md`
+- `docs/AUDIT_003A_Scoring_Validation_Corrections.md`
+- `docs/AUDIT_004_Passwordless_Accounts_Authorisation.md`

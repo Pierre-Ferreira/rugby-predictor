@@ -8,7 +8,9 @@ Current boundaries:
 
 - `client/` owns browser startup and global styles.
 - `server/` owns Meteor server startup.
-- `imports/shared/` holds framework-light shared metadata used by client and future server code.
+- `imports/server/pwa/` owns the narrow manifest response-header hook.
+- `imports/shared/` holds framework-light shared metadata used by client and server code.
+- `imports/shared/scoring/` holds the CCPP-003 framework-independent scoring engine.
 - `imports/ui/` owns React layouts, route pages, links, and status states.
 - `docs/` owns prefixed project documentation.
 - `scripts/` owns local verification helpers.
@@ -16,6 +18,8 @@ Current boundaries:
 - `tests/e2e/` owns Playwright browser smoke tests.
 - `tests/support/` owns shared verification helpers.
 - `.github/workflows/` owns GitHub Actions verification configuration.
+- `public/site.webmanifest` and `public/icons/` own the minimal PWA manifest
+  and temporary app icons.
 
 ## Data And Authority
 
@@ -30,9 +34,19 @@ Planned platform responsibilities:
 - Scoring and prediction validation must remain independent of React and Kaplay.
 - AI services will be introduced later behind server-side integrations.
 
-CCPP-001 does not define domain collections, publications, methods, accounts, scoring, predictions, or leaderboards. `insecure` and `autopublish` must remain absent.
+At the CCPP-001 foundation boundary, no domain collections, publications, methods, accounts, scoring, predictions, or leaderboards were defined. `insecure` and `autopublish` must remain absent.
 
 CCPP-002 adds verification infrastructure only. It does not change data authority or introduce domain persistence.
+
+CCPP-003 adds scoring rules and a pure shared scoring engine. It does not introduce domain persistence, Meteor methods, publications, fixture administration, prediction submission, live event capture, or leaderboard aggregation. Future server code must call the engine from authoritative Meteor methods and bind predictions to immutable fixture ruleset snapshots.
+
+CCPP-004 adds passwordless accounts, local/test mail capture, account and admin routes, auth methods, server-side authorisation helpers, and Meteor full-app integration tests. Auth remains separate from fixture and prediction persistence.
+
+CCPP-004E adds a minimal PWA install foundation: manifest metadata, temporary
+icons, standalone mobile metadata, safe-area shell styling, and a narrow
+manifest content-type hook. It intentionally does not add a service worker,
+offline caching, push notifications, install prompts, update handling, auth
+changes, fixture data, or deployment behaviour.
 
 ## Dependency Discipline
 
@@ -58,11 +72,11 @@ Final mascot assets and approved branding are not established in CCPP-001.
 
 ## Security Notes
 
-- The admin page is a placeholder only.
-- Authentication and server-side authorisation are future work.
-- Do not expose privileged data or actions through client-only checks.
+- The admin page is restricted by the server-side `admin.accessSummary` method.
+- Passwordless email-link operations are validated, throttled, and wrapped on the server.
+- Client-side auth state is a UI hint only; privileged data and actions must remain behind Meteor methods/publications with server-side checks.
 - Keep secrets out of source control and documentation.
-- Browser tests can confirm placeholder UI behaviour, but backend security must be verified through server code review and future integration tests.
+- Browser tests confirm user-facing auth flows, and Meteor integration tests verify server-side auth boundaries.
 
 ## Verification Architecture
 
@@ -76,3 +90,15 @@ Implementation evidence: local verification is recorded in `docs/AUDIT_002_Testi
 - Vitest owns fast unit tests for framework-independent code.
 - Playwright owns browser smoke checks against a local Meteor server on a dedicated test port. The Playwright target guard rejects non-local hosts to avoid accidental production testing.
 - Project invariant checks stay separate from ESLint and protect durable repo rules without blocking legitimate future collections or publications.
+
+## Scoring Engine
+
+The scoring engine architecture is documented in `docs/PLATFORM_Scoring_Engine.md`. The authoritative product rules are in `docs/CORE_Scoring_Rules.md`.
+
+## Authentication
+
+The account and authorisation architecture is documented in `docs/PLATFORM_Authentication.md`.
+
+## PWA Foundation
+
+The minimal PWA foundation is documented in `docs/PLATFORM_PWA.md`.
