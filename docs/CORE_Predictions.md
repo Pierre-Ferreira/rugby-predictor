@@ -30,6 +30,13 @@ Conversion inputs are bounded locally so a team's predicted conversions cannot
 exceed that team's predicted tries, while server validation remains
 authoritative.
 
+CCPP-007 replaces the standard React all-at-once form with a guided
+question-by-question sequence. The standard React experience remains complete:
+players can start from Intro, answer each active built-in prediction step, Review
+the same shared state, edit individual sections, submit or revise before
+kickoff, explicitly reload the saved entry, and see the persisted read-only
+entry after lock. Kaplay is not implemented in CCPP-007.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -44,16 +51,20 @@ Signed-in verified players see:
 - Fixture identity.
 - Competition and scheduled kickoff.
 - Whether entry is open or locked.
-- A grouped prediction form while the fixture is open.
-- A review section with derived predicted rugby match scores and result.
+- An Intro explaining Rugby Rooster competition points versus predicted rugby
+  match scores while the fixture is open.
+- A numbered guided built-in prediction sequence while the fixture is open.
+- A Review screen with derived predicted rugby match scores, scoring detail,
+  cards, other predictions, and Edit actions.
 - A success confirmation after create or revision.
 - Their saved entry when revisiting the route.
 
 ## Supported Prediction Fields
 
-The form renders the enabled questions from the fixture's stored ruleset
-snapshot. Player-facing labels use the fixture team display names. The default
-CCPP-003 ruleset includes:
+The standard sequence renders active built-in steps from the fixture's stored
+ruleset snapshot. Intro and Review are outside numbered progress. Player-facing
+labels use the fixture team display names. The default CCPP-003 ruleset includes
+these active numbered steps:
 
 - Match result: fixture team one, fixture team two, or Draw.
 - Each fixture team's tries.
@@ -75,9 +86,11 @@ Internal prediction values continue to use stable domain identifiers such as
 `team1`, `team2`, and `draw`. CCPP-006B changes presentation labels only and
 does not migrate stored prediction shapes.
 
-If a fixture snapshot includes enabled custom numeric or custom categorical
-questions, the form renders them from that snapshot. CCPP-006 does not add admin
-UI to configure those questions.
+The CCPP-007 sequence does not implement custom fixture questions. Future
+optional standard or custom questions must extend the shared ordered sequence
+and message/review definitions instead of adding scattered one-off page logic.
+CCPP-007 does not define custom-question persistence, scoring, settlement,
+official-answer workflows, or admin configuration.
 
 ## Validation And Review
 
@@ -90,10 +103,22 @@ team's predicted tries and clamps local state immediately if tries are reduced
 below the current conversion count. This avoids the common invalid state before
 submission without weakening server-side validation.
 
-The review derives predicted rugby match scores and the displayed derived result
+The Review derives predicted rugby match scores and the displayed derived result
 through the shared scoring helpers. If required scoring inputs are invalid or
-incomplete, the review says that the predicted score or derived result is
+incomplete, Review says that the predicted score or derived result is
 unavailable and shows the relevant validation reason where available.
+
+After drop goals, the standard sequence warns when the selected match result
+does not agree with derived predicted rugby scores. The warning allows direct
+navigation to adjust the chosen result or score steps. It never silently changes
+the selected result and never discards score inputs. Final Review submission is
+disabled while this known inconsistency remains.
+
+First-try answers are constrained by predicted tries. Zero predicted tries for
+both teams forces `No Tries Today!`; only one team with predicted tries forces
+that team; when both teams have predicted tries, team choices are available and
+`No Tries Today!` is not selectable. These constraints preserve unrelated
+answers.
 
 The server remains authoritative. It validates every submitted prediction
 against the fixture's stored ruleset snapshot and the shared scoring validation
@@ -157,6 +182,11 @@ Player-facing controls should be framed around animation, such as "Animations
 On" and "Animations Off." Implementation terms such as `kaplay` and `standard`
 may be used internally when that future milestone implements them.
 
+CCPP-007 adds the shared standard sequence and message architecture that the
+future Kaplay experience should also consume. It does not implement Kaplay,
+animations, animation toggles, reduced-motion handling, capability detection,
+lazy loading, or runtime animation fallback.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
@@ -166,3 +196,9 @@ may be used internally when that future milestone implements them.
 - Admin configuration for custom fixture questions.
 - Kaplay animation design, mascot behavior, capability detection, fallback
   machinery, and player animation controls.
+- Custom-question persistence, custom-question scoring or settlement,
+  official-answer workflows, and future balancing across fixtures with different
+  optional/custom question sets.
+- Detailed card-event normalization, including second-yellow dismissals and card
+  upgrades, remains unresolved unless a future scoring/match-event milestone
+  explicitly resolves it.

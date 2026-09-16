@@ -82,6 +82,11 @@ Current unit test files:
   captured revision validation, server-owned field rejection, internal
   team-side value preservation, bypassed invalid conversion rejection, and
   delegation to the shared scoring validation contract.
+- `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard prediction
+  sequence definitions, active progress totals, navigation destinations, shared
+  message catalog variant stability, ruleset-derived deduction values,
+  team-name interpolation, first-try constraints, conversion clamping, and
+  score/result consistency helpers.
 
 Commands:
 
@@ -173,11 +178,13 @@ The current browser suite covers:
   updates, conflict value preservation, explicit reload-and-replace behavior,
   pagination clearing edit state and form values together, and edited fixtures
   leaving the visible page without falling through to draft creation.
-- Prediction entry return-path support, valid submit and saved-entry revisit,
-  player-facing fixture team names in prediction controls, conversion clamping
-  in local form state, derived predicted rugby match score/result review, edit
-  before kickoff, persisted locked saved-entry display after dirty local edits,
-  and stale revision conflict value preservation.
+- Prediction entry return-path support, standard Intro/progress/navigation,
+  answer preservation through Back/Continue, stable step copy during navigation,
+  running predicted rugby score updates, conversion maximums and clamping,
+  result/score consistency warnings after drop goals, first-try constraints,
+  valid submit and saved-entry Review revisit, Review Edit and Return to Review,
+  edit before kickoff, persisted locked saved-entry display after dirty local
+  edits, and stale revision conflict value preservation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

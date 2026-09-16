@@ -21,6 +21,13 @@ export const scoringComponentFields = [
 
 export type ScoringComponentField = (typeof scoringComponentFields)[number];
 
+export const teamScoreComponentRugbyPoints = {
+  conversions: 2,
+  dropGoals: 3,
+  penaltyKicks: 3,
+  tries: 5,
+} as const satisfies Readonly<Record<ScoringComponentField, number>>;
+
 export const teamNumericFieldByQuestionId = {
   tries: 'tries',
   conversions: 'conversions',
@@ -43,10 +50,10 @@ export const deriveTeamScore = (components: TeamScoringComponents): number => {
   }
 
   const score =
-    components.tries * 5 +
-    components.conversions * 2 +
-    components.penaltyKicks * 3 +
-    components.dropGoals * 3;
+    components.tries * teamScoreComponentRugbyPoints.tries +
+    components.conversions * teamScoreComponentRugbyPoints.conversions +
+    components.penaltyKicks * teamScoreComponentRugbyPoints.penaltyKicks +
+    components.dropGoals * teamScoreComponentRugbyPoints.dropGoals;
 
   if (!Number.isSafeInteger(score)) {
     throw new ScoringValidationError([

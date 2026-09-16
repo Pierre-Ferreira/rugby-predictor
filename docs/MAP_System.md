@@ -16,6 +16,9 @@
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
 - `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
+- `docs/PLATFORM_Prediction_Sequence.md` - CCPP-007 standard prediction
+  sequence/message architecture, active-step navigation, Review edit
+  destinations, and future optional/custom question extension boundaries.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
@@ -36,6 +39,9 @@
 - `docs/AUDIT_006_Prediction_Submission.md` - CCPP-006 prediction entry, submission, validation, ownership, locking, and verification evidence.
 - `docs/AUDIT_006A_Locked_Prediction_Display.md` - CCPP-006A locked saved-entry display correction, prediction presentation architecture clarification, and verification evidence.
 - `docs/AUDIT_006B_Prediction_UI_Refinement.md` - CCPP-006B prediction UI team-name terminology, derived predicted rugby score review, conversion-bound behavior, and verification evidence.
+- `docs/AUDIT_007_Standard_Sequential_Predictions.md` - CCPP-007 standard
+  sequential prediction experience, shared sequence/message architecture, tests,
+  unresolved product questions, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -50,6 +56,8 @@
 - `docs/TEMP_006_Resume.md` - temporary CCPP-006 checkpoint before EOMD packaging.
 - `docs/TEMP_006A_Resume.md` - temporary CCPP-006A checkpoint for locked saved-entry display correction and documentation clarification.
 - `docs/TEMP_006B_Resume.md` - temporary CCPP-006B checkpoint for prediction UI correctness and terminology refinement.
+- `docs/TEMP_007_Resume.md` - temporary CCPP-007 checkpoint for standard
+  sequential predictions and final packaging handoff.
 
 ## Application Entry Points
 
@@ -120,10 +128,19 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 ## Prediction Entry Points
 
 - `imports/shared/predictions/` - prediction method/publication names, domain types, submission validation, and storage normalization.
+- `imports/shared/predictions/sequence.ts` - CCPP-007 standard built-in
+  prediction sequence definitions and active navigation helpers.
+- `imports/shared/predictions/messages.ts` - CCPP-007 shared prediction message
+  catalog, variant selection, interpolation, and ruleset-derived deduction text.
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
 - `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
 - `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
-- `imports/ui/pages/PredictionEntryPage.tsx` - prediction entry, review, revision conflict, reload, and read-only locked-entry UI that presents persisted entry data.
+- `imports/ui/predictions/standardPredictionState.ts` - CCPP-007 standard
+  prediction form state helpers, score derivation adapters, result consistency,
+  and first-try constraints.
+- `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
+  entry, Intro, numbered steps, Review/Edit, revision conflict, reload, and
+  read-only locked-entry UI that presents persisted entry data.
 
 ## Verification Entry Points
 
@@ -149,6 +166,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
 - `tests/unit/predictions.test.ts` - prediction submission validation, internal
   team-side value, and bypassed invalid conversion unit tests.
+- `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard sequence,
+  message catalog, and state-helper unit tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
@@ -157,9 +176,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing, public/admin pagination controls, and admin fixture create/publish/cancel workflow.
 - `tests/e2e/predictions.spec.ts` - browser tests for prediction return path,
-  team-name presentation, conversion clamping, derived predicted rugby score
-  review, submit/revisit, edit before kickoff, persisted locked read-only
-  display after dirty local edits, and conflict value preservation.
+  standard sequential Intro/progress/navigation, score-building steps,
+  conversion clamping, result consistency, first-try constraints, submit/revisit,
+  Review Edit and Return to Review, edit before kickoff, persisted locked
+  read-only display after dirty local edits, and conflict value preservation.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories

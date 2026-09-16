@@ -360,6 +360,48 @@ Not implemented:
   prizes, sponsorships, custom-question admin UI, AI, Kaplay animations,
   service-worker caching, or permanent lock-after-reschedule policy.
 
+## CCPP-007 Scope
+
+Milestone status: implemented for the standard sequential prediction
+experience. Verification evidence is recorded in
+`docs/AUDIT_007_Standard_Sequential_Predictions.md`, and sequence platform
+details live in `docs/PLATFORM_Prediction_Sequence.md`.
+
+Implemented:
+
+- Shared built-in prediction sequence definitions with active-step filtering,
+  progress positions, previous/next navigation, Review destination, and
+  Review edit destinations.
+- Shared prediction message catalog with three variants per built-in step,
+  stable per-session variant selection, team-name interpolation, and
+  ruleset-derived deduction text.
+- Guided standard React flow:
+  Intro -> Match result -> Tries -> Conversions -> Successful penalty kicks ->
+  Drop goals -> Cards -> First try -> Highest-scoring half -> Half-time leader
+  -> Review.
+- Running predicted rugby match scores on score/card steps using shared scoring
+  helpers and shared rugby component point values.
+- Conversion maximums, conversion clamping, and first-try constraints derived
+  from the same prediction state.
+- Result/score consistency warnings after drop goals and Review submission
+  prevention for known inconsistencies.
+- Review sections with Edit and Return to Review while preserving unrelated
+  answers.
+- Existing saved-entry revisit, revision, reload, conflict, account isolation,
+  and read-only locked display behavior preserved.
+- Focused unit and prediction browser coverage for sequence, messages,
+  navigation, scoring steps, consistency, first-try constraints, revisions,
+  locked display, and stale conflicts.
+
+Not implemented:
+
+- Kaplay, animations, sprites, reduced-motion or capability switching,
+  lazy loading, runtime animation fallback, custom questions, optional-question
+  admin controls, custom-question storage/scoring/settlement, official-answer
+  workflows, result administration, live match lifecycle, leaderboards, leagues,
+  sponsorships, quizzes, AI, service-worker caching, authentication redesign,
+  fixture CRUD redesign, or scoring-rule changes.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

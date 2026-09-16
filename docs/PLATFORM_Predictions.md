@@ -142,6 +142,9 @@ Route:
 Source paths:
 
 - `imports/ui/pages/PredictionEntryPage.tsx`
+- `imports/ui/predictions/standardPredictionState.ts`
+- `imports/shared/predictions/sequence.ts`
+- `imports/shared/predictions/messages.ts`
 - `imports/ui/pages/GameDetailPage.tsx`
 - `imports/ui/pages/GamesPage.tsx`
 - `imports/ui/fixtures/fixtureUi.ts`
@@ -167,7 +170,7 @@ from the current persisted prediction entry. It does not read from mutable form
 state, so dirty unsaved values cannot be shown as saved answers. If the current
 user has no entry, the locked view shows the no-saved-prediction state.
 
-CCPP-006B keeps the same route and form structure but corrects presentation
+CCPP-006B kept the original route and form structure but corrected presentation
 details in `PredictionEntryPage.tsx`:
 
 - Player-facing scoring headings, numeric accessible labels, match-result
@@ -186,6 +189,36 @@ details in `PredictionEntryPage.tsx`:
   tries. Local form state also clamps conversions immediately when a player
   enters conversions above tries or reduces tries below the current conversion
   count. The other team's values are not changed.
+
+CCPP-007 keeps the same route and submission contract but replaces the editable
+all-at-once standard form with a guided standard sequence:
+
+- Intro is outside numbered progress and explains the difference between Rugby
+  Rooster competition points/deductions and predicted rugby match scores.
+- `activePredictionSteps(ruleset)` builds the active ordered list from the
+  fixture ruleset snapshot. Progress, Back/Continue, final Review navigation,
+  and Review edit destinations consume this list.
+- `predictionMessageCatalog` stores step headings, contextual copy, and
+  deduction text. The page selects message variants once per prediction session
+  and keeps those variants stable through rerenders and navigation.
+- Deduction text resolves against the fixture ruleset snapshot through shared
+  helpers. React does not duplicate Rugby Rooster deduction constants.
+- The score-building steps show running predicted rugby match scores using
+  shared scoring helpers and shared rugby component point values.
+- Result/score consistency warnings begin only after drop goals. Review disables
+  final submission while a known result/score inconsistency remains.
+- First-try choices are constrained by predicted tries, and impossible hidden
+  answers are immediately removed from local state.
+- Existing saved entries start at Review, can Edit a step, can Return to Review,
+  and submit a revision with the existing method payload.
+- Read-only locked/cancelled display continues to render the persisted saved
+  entry, not dirty local state.
+
+CCPP-007 does not add Kaplay, custom questions, optional-question admin controls,
+custom-question schemas, custom prediction storage, custom settlement, or scoring
+rule changes. Future optional/custom questions must extend the ordered sequence
+and message/review/render definitions rather than adding page-local navigation
+branches.
 
 ## Prediction Presentation Architecture
 
@@ -220,6 +253,10 @@ CCPP-006A documents this architecture only. It does not implement Kaplay,
 animation toggles, reduced-motion or capability detection, sprite loading,
 lazy-loading, runtime fallback machinery, animation lifecycle, or hidden-page
 pausing.
+
+CCPP-007 implements the shared standard sequence/message architecture that a
+future Kaplay experience should consume, but still does not implement Kaplay or
+animation behavior.
 
 ## Test Support
 
