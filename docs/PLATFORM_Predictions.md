@@ -194,7 +194,9 @@ CCPP-007 keeps the same route and submission contract but replaces the editable
 all-at-once standard form with a guided standard sequence:
 
 - Intro is outside numbered progress and explains the difference between Rugby
-  Rooster competition points/deductions and predicted rugby match scores.
+  Rooster competition points/deductions and predicted rugby match scores. The
+  displayed starting-points value is interpolated from the shared
+  `STARTING_POINTS` scoring configuration.
 - `activePredictionSteps(ruleset)` builds the active ordered list from the
   fixture ruleset snapshot. Progress, Back/Continue, final Review navigation,
   and Review edit destinations consume this list.
@@ -202,13 +204,20 @@ all-at-once standard form with a guided standard sequence:
   deduction text. The page selects message variants once per prediction session
   and keeps those variants stable through rerenders and navigation.
 - Deduction text resolves against the fixture ruleset snapshot through shared
-  helpers. React does not duplicate Rugby Rooster deduction constants.
+  helpers. CCPP-007A requires those helpers to ignore disabled questions, so a
+  disabled numeric or categorical question cannot supply active player-facing
+  deduction copy. React does not duplicate Rugby Rooster deduction constants.
 - The score-building steps show running predicted rugby match scores using
   shared scoring helpers and shared rugby component point values.
-- Result/score consistency warnings begin only after drop goals. Review disables
+- Result/score consistency warnings begin only after drop goals. The step view
+  disables forward Continue navigation while a known inconsistency remains, but
+  Back plus Edit match result and Edit scores remain usable. Review disables
   final submission while a known result/score inconsistency remains.
 - First-try choices are constrained by predicted tries, and impossible hidden
   answers are immediately removed from local state.
+- Review hides disabled rows and hides grouped sections such as Cards or Other
+  Predictions when no active rows remain. Edit actions are emitted only when
+  `editStepIdForReviewSection(...)` resolves to an active step.
 - Existing saved entries start at Review, can Edit a step, can Return to Review,
   and submit a revision with the existing method payload.
 - Read-only locked/cancelled display continues to render the persisted saved
@@ -269,3 +278,8 @@ environment. Cleanup removes only entries tagged with the current
 Browser tests continue to use the existing isolated auth login-token helper for
 verified player setup. They do not exercise the deferred full passwordless
 navigation issue.
+
+`test.fixtures.createPublished` also supports an isolated-test-only
+`disabledBuiltInQuestionIds` option so prediction browser tests can create
+published fixture snapshots with disabled built-in ruleset questions. This is
+not a production admin configuration surface.

@@ -9,7 +9,10 @@ import {
   PREDICTION_METHODS,
   TEST_PREDICTION_METHODS,
 } from '../../imports/shared/predictions';
-import type { FixturePrediction } from '../../imports/shared/scoring';
+import type {
+  BuiltInQuestionId,
+  FixturePrediction,
+} from '../../imports/shared/scoring';
 
 const uniqueEmail = (label: string) =>
   `ccpp007-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
@@ -19,17 +22,42 @@ const uniqueLabel = (label: string) =>
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 
-const isTransientLocalNavigationError = (error: unknown) =>
-  error instanceof Error &&
-  (error.message.includes('net::ERR_ABORTED') ||
-    error.message.includes('interrupted by another navigation') ||
-    error.message.includes('Timeout') ||
-    error.message.includes('Execution context was destroyed'));
+const errorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const message = (error as { readonly message?: unknown }).message;
+
+    if (typeof message === 'string') {
+      return message;
+    }
+  }
+
+  return String(error);
+};
+
+const isTransientLocalNavigationError = (error: unknown) => {
+  const message = errorMessage(error);
+
+  return (
+    message.includes('net::ERR_ABORTED') ||
+    message.includes('interrupted by another navigation') ||
+    message.includes('Timeout') ||
+    message.includes('Execution context was destroyed') ||
+    message.includes("Cannot read properties of undefined (reading 'call')")
+  );
+};
 
 const waitForMeteorClient = async (page: Page) => {
-  await page.waitForFunction(() => Boolean(window.Meteor), undefined, {
-    timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
-  });
+  await page.waitForFunction(
+    () => typeof window.Meteor?.call === 'function',
+    undefined,
+    {
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    },
+  );
 };
 
 const evaluateMeteorCall = async <TResult>(
@@ -119,15 +147,20 @@ const createPublishedFixture = async (
     readonly team1DisplayName: string;
     readonly team2DisplayName: string;
     readonly venueDisplayName?: string;
+    readonly disabledBuiltInQuestionIds?: readonly BuiltInQuestionId[];
   },
-) =>
-  callMeteor<{ readonly fixtureId: string }>(
+) => {
+  const { disabledBuiltInQuestionIds, ...fixtureDetails } = details;
+
+  return callMeteor<{ readonly fixtureId: string }>(
     page,
     TEST_FIXTURE_METHODS.createPublished,
     {
-      details,
+      ...(disabledBuiltInQuestionIds ? { disabledBuiltInQuestionIds } : {}),
+      details: fixtureDetails,
     },
   );
+};
 
 const loginWithTestToken = async (page: Page, email: string) => {
   const session = await callMeteor<{
@@ -503,12 +536,21 @@ test.describe('prediction entry and submission', () => {
         `You picked ${team1} to win, but your scores put ${team2} ahead.`,
       ),
     ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
+    await expect(backButton(page)).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Edit match result' }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Edit scores' }),
+    ).toBeEnabled();
 
     await page.getByRole('button', { name: 'Edit match result' }).click();
     await chooseRadio(page, team2);
     await expect(
       page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
     ).toHaveCount(0);
+    await expect(continueButton(page)).toBeEnabled();
 
     await chooseRadio(page, 'Draw');
     await continueButton(page).click();
@@ -518,6 +560,7 @@ test.describe('prediction entry and submission', () => {
     await expect(
       page.getByText(`You picked Draw, but your scores put ${team2} ahead.`),
     ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
 
     await page.getByRole('button', { name: 'Edit scores' }).click();
     await teamNumberInput(page, team1, 'tries').fill('2');
@@ -528,6 +571,54 @@ test.describe('prediction entry and submission', () => {
     await expect(
       page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
     ).toHaveCount(0);
+    await expect(continueButton(page)).toBeEnabled();
+  });
+
+  test('blocks Continue when a selected winner conflicts with a drawn score', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Springboks');
+    const team2 = uniqueLabel('Wallabies');
+    const fixtureId = (
+      await createPublishedFixture(page, {
+        competitionDisplayName: 'Draw Consistency Cup',
+        scheduledKickoffAt: farFutureKickoff(),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+      })
+    ).fixtureId;
+
+    await loginAsPlayer(page, 'draw-consistency');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await startPrediction(page);
+    await chooseRadio(page, team1);
+    await continueButton(page).click();
+
+    await teamNumberInput(page, team1, 'tries').fill('1');
+    await teamNumberInput(page, team2, 'tries').fill('1');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'conversions').fill('1');
+    await teamNumberInput(page, team2, 'conversions').fill('1');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'penalty kicks').fill('0');
+    await teamNumberInput(page, team2, 'penalty kicks').fill('0');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'drop goals').fill('0');
+    await teamNumberInput(page, team2, 'drop goals').fill('0');
+
+    await expect(
+      page.getByText(
+        `You picked ${team1} to win, but your scores predict a draw.`,
+      ),
+    ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Edit match result' }).click();
+    await chooseRadio(page, 'Draw');
+    await expect(
+      page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
+    ).toHaveCount(0);
+    await expect(continueButton(page)).toBeEnabled();
   });
 
   test('applies first-try constraints from predicted tries', async ({
@@ -569,12 +660,142 @@ test.describe('prediction entry and submission', () => {
     await continueButton(page).click();
     await continueButton(page).click();
     await continueButton(page).click();
+    await expect(
+      page.getByText(`You picked Draw, but your scores put ${team1} ahead.`),
+    ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Edit match result' }).click();
+    await chooseRadio(page, team1);
+    await continueButton(page).click();
+    await continueButton(page).click();
+    await continueButton(page).click();
+    await continueButton(page).click();
     await continueButton(page).click();
     await continueButton(page).click();
     await expect(page.getByRole('radio', { name: team1 })).toBeChecked();
     await expect(
       page.getByRole('radio', { name: 'No Tries Today!' }),
     ).toBeDisabled();
+  });
+
+  test('hides inactive Review sections when card and optional questions are disabled', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Cheetahs');
+    const team2 = uniqueLabel('Pumas');
+    const fixtureId = (
+      await createPublishedFixture(page, {
+        competitionDisplayName: 'Ruleset Review Cup',
+        disabledBuiltInQuestionIds: [
+          'yellow-cards',
+          'red-cards',
+          'first-try',
+          'highest-scoring-half',
+          'half-time-leader',
+        ],
+        scheduledKickoffAt: farFutureKickoff(),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+      })
+    ).fixtureId;
+
+    await loginAsPlayer(page, 'ruleset-review-disabled');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await startPrediction(page);
+    await expectStep(page, 1, 5);
+    await chooseRadio(page, team1);
+    await continueButton(page).click();
+
+    await teamNumberInput(page, team1, 'tries').fill('1');
+    await teamNumberInput(page, team2, 'tries').fill('0');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'conversions').fill('1');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'penalty kicks').fill('0');
+    await teamNumberInput(page, team2, 'penalty kicks').fill('0');
+    await continueButton(page).click();
+    await expectStep(page, 5, 5);
+    await teamNumberInput(page, team1, 'drop goals').fill('0');
+    await teamNumberInput(page, team2, 'drop goals').fill('0');
+    await page.getByRole('button', { name: 'Review predictions' }).click();
+
+    await expect(reviewSection(page, 'MATCH RESULT')).toContainText(team1);
+    await expect(reviewSection(page, 'CARDS')).toHaveCount(0);
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Edit first try' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Edit highest-scoring half' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Edit half-time leader' }),
+    ).toHaveCount(0);
+  });
+
+  test('shows only enabled card rows and deduction copy for partial card enablement', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Griquas');
+    const team2 = uniqueLabel('Griffons');
+    const fixtureId = (
+      await createPublishedFixture(page, {
+        competitionDisplayName: 'Partial Cards Cup',
+        disabledBuiltInQuestionIds: ['yellow-cards'],
+        scheduledKickoffAt: farFutureKickoff(),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+      })
+    ).fixtureId;
+
+    await loginAsPlayer(page, 'partial-cards');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await startPrediction(page);
+    await chooseRadio(page, team1);
+    await continueButton(page).click();
+
+    await teamNumberInput(page, team1, 'tries').fill('2');
+    await teamNumberInput(page, team2, 'tries').fill('1');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'conversions').fill('2');
+    await teamNumberInput(page, team2, 'conversions').fill('1');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'penalty kicks').fill('0');
+    await teamNumberInput(page, team2, 'penalty kicks').fill('0');
+    await continueButton(page).click();
+    await teamNumberInput(page, team1, 'drop goals').fill('0');
+    await teamNumberInput(page, team2, 'drop goals').fill('0');
+    await continueButton(page).click();
+
+    await expect(
+      page.getByText('Red cards deduct 200 points per difference.'),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Yellow cards deduct 200 points per difference.'),
+    ).toHaveCount(0);
+    await expect(teamNumberInput(page, team1, 'yellow cards')).toHaveCount(0);
+    await expect(teamNumberInput(page, team2, 'yellow cards')).toHaveCount(0);
+    await teamNumberInput(page, team1, 'red cards').fill('1');
+    await teamNumberInput(page, team2, 'red cards').fill('0');
+    await continueButton(page).click();
+
+    await chooseRadio(page, team1);
+    await continueButton(page).click();
+    await chooseRadio(page, 'Second Half');
+    await continueButton(page).click();
+    await chooseRadio(page, 'Half-time Draw');
+    await page.getByRole('button', { name: 'Review predictions' }).click();
+
+    await expect(reviewSection(page, 'CARDS')).toContainText(team1);
+    await expect(reviewSection(page, 'CARDS')).toContainText(team2);
+    await expect(reviewSection(page, 'CARDS')).toContainText('Red');
+    await expect(reviewSection(page, 'CARDS').getByText('Yellow')).toHaveCount(
+      0,
+    );
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'Half-time Draw',
+    );
   });
 
   test('submits valid predictions and revisits the saved Review', async ({

@@ -52,7 +52,9 @@ export const teamNumericDeductionRate = (
 ): number | null => {
   const definition = question(ruleset, id);
 
-  return definition?.type === 'built-in-team-numeric' ? definition.rate : null;
+  return definition?.type === 'built-in-team-numeric' && definition.enabled
+    ? definition.rate
+    : null;
 };
 
 export const categoricalIncorrectDeduction = (
@@ -61,7 +63,7 @@ export const categoricalIncorrectDeduction = (
 ): number | null => {
   const definition = question(ruleset, id);
 
-  return definition?.type === 'built-in-categorical'
+  return definition?.type === 'built-in-categorical' && definition.enabled
     ? definition.incorrectDeduction
     : null;
 };
@@ -131,6 +133,27 @@ const cardExample: MessageTemplate = ({ ruleset }) => {
       )} points.`;
 };
 
+const cardBodyText =
+  (bothText: string, yellowText: string, redText: string): MessageTemplate =>
+  ({ ruleset }) => {
+    const yellowRate = teamNumericDeductionRate(ruleset, 'yellow-cards');
+    const redRate = teamNumericDeductionRate(ruleset, 'red-cards');
+
+    if (yellowRate !== null && redRate !== null) {
+      return bothText;
+    }
+
+    if (yellowRate !== null) {
+      return yellowText;
+    }
+
+    if (redRate !== null) {
+      return redText;
+    }
+
+    return null;
+  };
+
 const teamScoreDeduction: MessageTemplate = ({ ruleset }) => {
   const rate = teamNumericDeductionRate(ruleset, 'team-score');
 
@@ -139,14 +162,21 @@ const teamScoreDeduction: MessageTemplate = ({ ruleset }) => {
     : `You lose ${formatPredictionPoints(rate)} points for every point your prediction is above or below each team's final score. This is added to your other prediction deductions.`;
 };
 
-export const predictionIntroMessage = {
-  actionLabel: "Let's predict",
-  body: "You start with 10,000 points and lose points for incorrect predictions. Whoever has the most points at the end of the match wins. It's that easy!",
-  heading: 'Welcome to Rugby Rooster! 🐓',
-  scoreDistinction:
-    'Predicted rugby match scores are derived from tries, conversions, penalty kicks and drop goals. Rugby Rooster competition points start at 10,000 and go down only when prediction errors cause deductions.',
-  startingPoints: STARTING_POINTS,
-} as const;
+export const buildPredictionIntroMessage = (
+  startingPoints: number = STARTING_POINTS,
+) => {
+  const formattedStartingPoints = formatPredictionPoints(startingPoints);
+
+  return {
+    actionLabel: "Let's predict",
+    body: `You start with ${formattedStartingPoints} points and lose points for incorrect predictions. Whoever has the most points at the end of the match wins. It's that easy!`,
+    heading: 'Welcome to Rugby Rooster! 🐓',
+    scoreDistinction: `Predicted rugby match scores are derived from tries, conversions, penalty kicks and drop goals. Rugby Rooster competition points start at ${formattedStartingPoints} and go down only when prediction errors cause deductions.`,
+    startingPoints,
+  } as const;
+};
+
+export const predictionIntroMessage = buildPredictionIntroMessage();
 
 export const predictionMessageCatalog: Record<
   PredictionMessageId,
@@ -251,7 +281,11 @@ export const predictionMessageCatalog: Record<
     supportingText: [cardExample],
     variants: [
       {
-        body: 'How many yellow and red cards are coming?',
+        body: cardBodyText(
+          'How many yellow and red cards are coming?',
+          'How many yellow cards are coming?',
+          'How many red cards are coming?',
+        ),
         heading: 'NAUGHTY, NAUGHTY!',
       },
       {
@@ -259,7 +293,11 @@ export const predictionMessageCatalog: Record<
         heading: 'KEEP IT CLEAN!',
       },
       {
-        body: 'How many yellows and reds for each team?',
+        body: cardBodyText(
+          'How many yellows and reds for each team?',
+          'How many yellow cards for each team?',
+          'How many red cards for each team?',
+        ),
         heading: 'CARDS ON THE TABLE!',
       },
     ],
@@ -315,11 +353,11 @@ export const predictionMessageCatalog: Record<
         heading: 'FAST START!',
       },
       {
-        body: "Who'll be ahead at the break?",
+        body: "Who'll be ahead at half-time?",
         heading: 'HIT THE GROUND RUNNING!',
       },
       {
-        body: 'Who takes the lead into half-time?',
+        body: 'Who leads at half-time?',
         heading: 'FIRST-HALF BRAGGING RIGHTS!',
       },
     ],

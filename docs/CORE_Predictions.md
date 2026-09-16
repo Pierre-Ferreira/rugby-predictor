@@ -37,6 +37,14 @@ the same shared state, edit individual sections, submit or revise before
 kickoff, explicitly reload the saved entry, and see the persisted read-only
 entry after lock. Kaplay is not implemented in CCPP-007.
 
+CCPP-007A keeps that sequence intact while tightening ruleset-aware copy and
+Review behavior. Disabled built-in questions do not contribute player-facing
+deduction copy, Review hides disabled rows and sections that contain no active
+questions, Intro starting-points copy is interpolated from the shared scoring
+configuration, Half-Time Leader copy uses explicit half-time wording, and a
+known post-drop-goal result/score inconsistency disables forward Continue until
+the player corrects the result or score inputs.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -55,7 +63,7 @@ Signed-in verified players see:
   match scores while the fixture is open.
 - A numbered guided built-in prediction sequence while the fixture is open.
 - A Review screen with derived predicted rugby match scores, scoring detail,
-  cards, other predictions, and Edit actions.
+  active card predictions, active other predictions, and Edit actions.
 - A success confirmation after create or revision.
 - Their saved entry when revisiting the route.
 
@@ -75,7 +83,7 @@ these active numbered steps:
 - Each fixture team's red cards.
 - First try: fixture team one, fixture team two, or No tries.
 - Highest-scoring half: First half, Second half, or Equal points.
-- Half-time leader: fixture team one, fixture team two, or Draw.
+- Half-time leader: fixture team one, fixture team two, or Half-time Draw.
 
 Predicted team score is derived from tries, conversions, penalty kicks, and drop
 goals. It is shown for review but is not entered as a separate editable answer.
@@ -111,8 +119,16 @@ unavailable and shows the relevant validation reason where available.
 After drop goals, the standard sequence warns when the selected match result
 does not agree with derived predicted rugby scores. The warning allows direct
 navigation to adjust the chosen result or score steps. It never silently changes
-the selected result and never discards score inputs. Final Review submission is
-disabled while this known inconsistency remains.
+the selected result and never discards score inputs. From that point onward,
+forward Continue navigation is disabled while the known inconsistency remains;
+Back plus the warning's Edit match result and Edit scores actions remain
+available. Final Review submission is disabled while this known inconsistency
+remains.
+
+Review follows the active built-in sequence. A disabled question has no Review
+row, and grouped Review sections such as Cards or Other Predictions are hidden
+when none of their rows are active. Edit controls are rendered only for active
+step destinations.
 
 First-try answers are constrained by predicted tries. Zero predicted tries for
 both teams forces `No Tries Today!`; only one team with predicted tries forces

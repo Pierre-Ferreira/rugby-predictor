@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   activePredictionSteps,
+  buildPredictionIntroMessage,
   categoricalIncorrectDeduction,
   editStepIdForReviewSection,
   firstPredictionStepId,
+  formatPredictionPoints,
   isFinalPredictionStep,
   nextPredictionLocation,
   predictionMessageCatalog,
+  predictionIntroMessage,
   predictionStepPosition,
   previousPredictionLocation,
   resolvePredictionStepMessage,
@@ -17,14 +20,17 @@ import {
 } from '../../imports/shared/predictions';
 import {
   defaultRuleset,
+  STARTING_POINTS,
   type BuiltInQuestionId,
   type RulesetSnapshot,
 } from '../../imports/shared/scoring';
 import {
   emptyFormForRuleset,
   firstTryConstraintForForm,
+  halfTimeLeaderLabel,
   resultConsistencyIssue,
   setTeamPredictionField,
+  matchResultLabel,
   teamDisplayName,
 } from '../../imports/ui/predictions/standardPredictionState';
 
@@ -81,6 +87,42 @@ describe('prediction sequence definition', () => {
       current: activeSteps.length,
       total: activeSteps.length,
     });
+  });
+
+  it('omits cards when both card questions are disabled', () => {
+    const activeSteps = activePredictionSteps(
+      rulesetWithDisabledQuestions(['yellow-cards', 'red-cards']),
+    );
+
+    expect(activeSteps.map((step) => step.id)).not.toContain('cards');
+    expect(editStepIdForReviewSection(activeSteps, 'cards')).toBeNull();
+  });
+
+  it('keeps the cards step active for partial card enablement', () => {
+    const activeSteps = activePredictionSteps(
+      rulesetWithDisabledQuestions(['yellow-cards']),
+    );
+
+    expect(activeSteps.map((step) => step.id)).toContain('cards');
+    expect(editStepIdForReviewSection(activeSteps, 'cards')).toBe('cards');
+  });
+
+  it('does not return edit targets for disabled optional prediction rows', () => {
+    const activeSteps = activePredictionSteps(
+      rulesetWithDisabledQuestions([
+        'first-try',
+        'highest-scoring-half',
+        'half-time-leader',
+      ]),
+    );
+
+    expect(editStepIdForReviewSection(activeSteps, 'first-try')).toBeNull();
+    expect(
+      editStepIdForReviewSection(activeSteps, 'highest-scoring-half'),
+    ).toBeNull();
+    expect(
+      editStepIdForReviewSection(activeSteps, 'half-time-leader'),
+    ).toBeNull();
   });
 
   it('calculates previous, next, Review, and edit destinations', () => {
@@ -156,6 +198,86 @@ describe('prediction message catalog', () => {
       ),
     );
   });
+
+  it('does not surface disabled numeric deduction copy', () => {
+    const ruleset = rulesetWithDisabledQuestions(['tries']);
+    const message = resolvePredictionStepMessage(
+      'tries',
+      { tries: 0 },
+      {
+        ...messageContext,
+        ruleset,
+      },
+    );
+
+    expect(teamNumericDeductionRate(ruleset, 'tries')).toBeNull();
+    expect(message.deduction).toBeNull();
+    expect(message.supportingText).toHaveLength(0);
+  });
+
+  it('does not surface disabled categorical deduction copy', () => {
+    const ruleset = rulesetWithDisabledQuestions(['first-try']);
+    const message = resolvePredictionStepMessage(
+      'first-try',
+      { 'first-try': 0 },
+      {
+        ...messageContext,
+        ruleset,
+      },
+    );
+
+    expect(categoricalIncorrectDeduction(ruleset, 'first-try')).toBeNull();
+    expect(message.deduction).toBeNull();
+  });
+
+  it('uses only enabled card questions for card deduction copy', () => {
+    const ruleset = rulesetWithDisabledQuestions(['yellow-cards']);
+    const message = resolvePredictionStepMessage(
+      'cards',
+      { cards: 0 },
+      {
+        ...messageContext,
+        ruleset,
+      },
+    );
+
+    expect(teamNumericDeductionRate(ruleset, 'yellow-cards')).toBeNull();
+    expect(teamNumericDeductionRate(ruleset, 'red-cards')).toBe(200);
+    expect(message.body).toBe('How many red cards are coming?');
+    expect(message.deduction).toBe(
+      'Red cards deduct 200 points per difference.',
+    );
+  });
+
+  it('derives Intro starting-points copy from shared scoring configuration', () => {
+    const alternateIntro = buildPredictionIntroMessage(12_345);
+
+    expect(predictionIntroMessage.startingPoints).toBe(STARTING_POINTS);
+    expect(predictionIntroMessage.body).toContain(
+      formatPredictionPoints(STARTING_POINTS),
+    );
+    expect(alternateIntro.body).toContain('12,345');
+    expect(alternateIntro.scoreDistinction).toContain('12,345');
+  });
+
+  it('uses explicit half-time wording in Half-Time Leader variants', () => {
+    const expectedBodies = [
+      'Who will lead at half-time?',
+      "Who'll be ahead at half-time?",
+      'Who leads at half-time?',
+    ];
+
+    expectedBodies.forEach((body, variantIndex) => {
+      const message = resolvePredictionStepMessage(
+        'half-time-leader',
+        { 'half-time-leader': variantIndex },
+        messageContext,
+      );
+
+      expect(message.body).toBe(body);
+      expect(message.body).not.toContain('the break');
+    });
+  });
 });
 
 describe('standard prediction state helpers', () => {
@@ -194,5 +316,10 @@ describe('standard prediction state helpers', () => {
     expect(issue?.selectedResult).toBe('team1');
     expect(issue?.derivedResult).toBe('team2');
     expect(form.matchResult).toBe('team1');
+  });
+
+  it('labels half-time draws without changing Match Result draw copy', () => {
+    expect(halfTimeLeaderLabel(fixtureNames, 'draw')).toBe('Half-time Draw');
+    expect(matchResultLabel(fixtureNames, 'draw')).toBe('Draw');
   });
 });

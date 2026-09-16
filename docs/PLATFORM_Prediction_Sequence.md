@@ -47,6 +47,8 @@ The score-building steps remain present because the current prediction validator
 requires scoring components to derive predicted rugby scores and validate match
 result consistency. Existing ruleset enablement is respected for built-in
 categorical steps and for the cards step when card questions are disabled.
+Review uses the same active-step model for Edit destinations and additionally
+hides grouped sections when no active rows remain.
 
 ## Message Catalog
 
@@ -59,8 +61,15 @@ edits, and local form updates.
 Deduction values are not duplicated in React. Message resolution reads the
 fixture's stored ruleset snapshot through narrow helpers such as
 `teamNumericDeductionRate(...)` and `categoricalIncorrectDeduction(...)`.
-Team names are interpolated through the message context where the catalog uses
-them.
+Those helpers return values only for enabled questions, so disabled built-in
+numeric or categorical questions cannot surface as active deduction copy. Card
+copy derives from the enabled card questions only. Team names are interpolated
+through the message context where the catalog uses them.
+
+Intro copy is built from the shared scoring configuration instead of embedding a
+separate rendered starting-points literal. Half-Time Leader variants use
+explicit half-time wording, and the Half-Time Leader draw display is
+`Half-time Draw`; Match Result keeps the generic `Draw` label.
 
 No runtime AI-generated copy is used.
 
@@ -76,9 +85,11 @@ formula. Rugby component point values are exported from
 `imports/shared/scoring/derived.ts` and used by `deriveTeamScore`.
 
 Result consistency warnings are shown only after score-producing categories are
-known. The warning never changes the selected result or score inputs. Review
-disables final submission when the chosen result conflicts with derived scores;
-the server remains authoritative.
+known. The warning never changes the selected result or score inputs. From that
+point onward, the standard step view disables forward Continue navigation while
+keeping Back and the warning's Edit match result/Edit scores actions usable.
+Review disables final submission when the chosen result conflicts with derived
+scores; the server remains authoritative.
 
 First-try constraints are derived from predicted tries. Impossible hidden answers
 are removed immediately, and forced answers are explained as based on predicted

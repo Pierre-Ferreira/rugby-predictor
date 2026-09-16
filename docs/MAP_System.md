@@ -42,6 +42,9 @@
 - `docs/AUDIT_007_Standard_Sequential_Predictions.md` - CCPP-007 standard
   sequential prediction experience, shared sequence/message architecture, tests,
   unresolved product questions, and review archive evidence.
+- `docs/AUDIT_007A_Ruleset_Aware_Prediction_Cleanup.md` - CCPP-007A
+  ruleset-aware prediction copy, Review cleanup, result-consistency navigation,
+  tests, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -58,6 +61,8 @@
 - `docs/TEMP_006B_Resume.md` - temporary CCPP-006B checkpoint for prediction UI correctness and terminology refinement.
 - `docs/TEMP_007_Resume.md` - temporary CCPP-007 checkpoint for standard
   sequential predictions and final packaging handoff.
+- `docs/TEMP_007A_Resume.md` - temporary CCPP-007A checkpoint for ruleset-aware
+  prediction cleanup and final packaging handoff.
 
 ## Application Entry Points
 
@@ -121,7 +126,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/api/fixtures/collection.ts` - shared `fixtures` Mongo collection.
 - `imports/server/fixtures/server.ts` - fixture methods, cursor publications, indexes, revision backfill, and write-path protections.
 - `imports/server/fixtures/ruleset.ts` - default ruleset snapshot creation for fixture publication.
-- `imports/server/fixtures/testSupport.ts` - isolated fixture test helpers.
+- `imports/server/fixtures/testSupport.ts` - isolated fixture test helpers,
+  including test-only disabled built-in question snapshots for prediction
+  browser coverage.
 - `imports/ui/fixtures/AdminFixtureManager.tsx` - admin fixture form, paginated list, publish, and cancel UI.
 - `imports/ui/fixtures/fixtureUi.ts` - shared fixture UI labels and paths.
 
@@ -130,8 +137,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/predictions/` - prediction method/publication names, domain types, submission validation, and storage normalization.
 - `imports/shared/predictions/sequence.ts` - CCPP-007 standard built-in
   prediction sequence definitions and active navigation helpers.
-- `imports/shared/predictions/messages.ts` - CCPP-007 shared prediction message
-  catalog, variant selection, interpolation, and ruleset-derived deduction text.
+- `imports/shared/predictions/messages.ts` - CCPP-007/007A shared prediction
+  message catalog, variant selection, interpolation, ruleset-derived
+  enabled-question deduction text, and Intro starting-points copy.
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
 - `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
 - `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
@@ -166,8 +174,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
 - `tests/unit/predictions.test.ts` - prediction submission validation, internal
   team-side value, and bypassed invalid conversion unit tests.
-- `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard sequence,
-  message catalog, and state-helper unit tests.
+- `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A standard sequence,
+  message catalog, ruleset-aware copy, and state-helper unit tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
@@ -177,9 +185,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing, public/admin pagination controls, and admin fixture create/publish/cancel workflow.
 - `tests/e2e/predictions.spec.ts` - browser tests for prediction return path,
   standard sequential Intro/progress/navigation, score-building steps,
-  conversion clamping, result consistency, first-try constraints, submit/revisit,
-  Review Edit and Return to Review, edit before kickoff, persisted locked
-  read-only display after dirty local edits, and conflict value preservation.
+  conversion clamping, result consistency, ruleset-aware Review filtering,
+  first-try constraints, submit/revisit, Review Edit and Return to Review, edit
+  before kickoff, persisted locked read-only display after dirty local edits,
+  and conflict value preservation.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories

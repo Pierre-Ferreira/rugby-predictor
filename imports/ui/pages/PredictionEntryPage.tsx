@@ -64,6 +64,7 @@ import {
   enforceFirstTryConsistency,
   firstTryConstraintForForm,
   firstTryLabel,
+  halfTimeLeaderLabel,
   formFromPrediction,
   highestHalfLabel,
   matchResultLabel,
@@ -869,6 +870,7 @@ const PredictionStepView = ({
             ? 'Review predictions'
             : 'Continue'
         }
+        forwardNavigationDisabled={consistencyIssue !== null}
         nextLocation={nextPredictionLocation(activeSteps, step.id)}
         onLocationChange={onLocationChange}
         onReturnToReview={onReturnToReview}
@@ -903,6 +905,7 @@ const PredictionProgress = ({
 const StepNavigation = ({
   backLocation,
   continueLabel,
+  forwardNavigationDisabled,
   nextLocation,
   onLocationChange,
   onReturnToReview,
@@ -910,6 +913,7 @@ const StepNavigation = ({
 }: {
   readonly backLocation: PredictionSequenceLocation;
   readonly continueLabel: string;
+  readonly forwardNavigationDisabled: boolean;
   readonly nextLocation: PredictionSequenceLocation;
   readonly onLocationChange: (location: PredictionSequenceLocation) => void;
   readonly onReturnToReview: () => void;
@@ -926,7 +930,8 @@ const StepNavigation = ({
     <div className="flex flex-col gap-3 sm:flex-row">
       {returnToReviewAvailable ? (
         <button
-          className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
+          className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted sm:w-auto"
+          disabled={forwardNavigationDisabled}
           type="button"
           onClick={onReturnToReview}
         >
@@ -934,7 +939,8 @@ const StepNavigation = ({
         </button>
       ) : null}
       <button
-        className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink sm:w-auto"
+        className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
+        disabled={forwardNavigationDisabled}
         type="button"
         onClick={() => onLocationChange(nextLocation)}
       >
@@ -1222,7 +1228,7 @@ const HalfTimeLeaderStep = ({
       { label: teamDisplayName(fixture, 'team2'), value: 'team2' },
       { label: 'Half-time Draw', value: 'draw' },
     ]}
-    selectedLabel={matchResultLabel(fixture, form.halfTimeLeader)}
+    selectedLabel={halfTimeLeaderLabel(fixture, form.halfTimeLeader)}
     value={form.halfTimeLeader}
   />
 );
@@ -1571,6 +1577,17 @@ const PredictionReviewSummary = ({
   readonly ruleset: RulesetSnapshot;
 }) => {
   const derived = deriveScoresFromForm(form, fixture);
+  const isYellowCardsActive = isBuiltInEnabled(ruleset, 'yellow-cards');
+  const isRedCardsActive = isBuiltInEnabled(ruleset, 'red-cards');
+  const isFirstTryActive = isBuiltInEnabled(ruleset, 'first-try');
+  const isHighestScoringHalfActive = isBuiltInEnabled(
+    ruleset,
+    'highest-scoring-half',
+  );
+  const isHalfTimeLeaderActive = isBuiltInEnabled(ruleset, 'half-time-leader');
+  const hasActiveCardQuestions = isYellowCardsActive || isRedCardsActive;
+  const hasActiveOtherPredictions =
+    isFirstTryActive || isHighestScoringHalfActive || isHalfTimeLeaderActive;
 
   return (
     <div className="grid gap-4">
@@ -1635,58 +1652,62 @@ const PredictionReviewSummary = ({
         ))}
       </ReviewSection>
 
-      <ReviewSection
-        editStepId={editStepIdForReviewSection(activeSteps, 'cards')}
-        onEditStep={onEditStep}
-        title="CARDS"
-      >
-        {(['team1', 'team2'] as const).map((side) => (
-          <div
-            className="rounded-md border border-rooster-line bg-rooster-paper p-3"
-            key={side}
-          >
-            <p className="text-sm font-black text-rooster-ink">
-              {teamDisplayName(fixture, side)}
-            </p>
-            {isBuiltInEnabled(ruleset, 'yellow-cards') ? (
-              <ReviewLine label="Yellow" value={form[side].yellowCards} />
-            ) : null}
-            {isBuiltInEnabled(ruleset, 'red-cards') ? (
-              <ReviewLine label="Red" value={form[side].redCards} />
-            ) : null}
-          </div>
-        ))}
-      </ReviewSection>
+      {hasActiveCardQuestions ? (
+        <ReviewSection
+          editStepId={editStepIdForReviewSection(activeSteps, 'cards')}
+          onEditStep={onEditStep}
+          title="CARDS"
+        >
+          {(['team1', 'team2'] as const).map((side) => (
+            <div
+              className="rounded-md border border-rooster-line bg-rooster-paper p-3"
+              key={side}
+            >
+              <p className="text-sm font-black text-rooster-ink">
+                {teamDisplayName(fixture, side)}
+              </p>
+              {isYellowCardsActive ? (
+                <ReviewLine label="Yellow" value={form[side].yellowCards} />
+              ) : null}
+              {isRedCardsActive ? (
+                <ReviewLine label="Red" value={form[side].redCards} />
+              ) : null}
+            </div>
+          ))}
+        </ReviewSection>
+      ) : null}
 
-      <ReviewSection title="OTHER PREDICTIONS">
-        {isBuiltInEnabled(ruleset, 'first-try') ? (
-          <ReviewEditableLine
-            activeSteps={activeSteps}
-            label="First try"
-            onEditStep={onEditStep}
-            reviewSectionId="first-try"
-            value={firstTryLabel(fixture, form.firstTry)}
-          />
-        ) : null}
-        {isBuiltInEnabled(ruleset, 'highest-scoring-half') ? (
-          <ReviewEditableLine
-            activeSteps={activeSteps}
-            label="Highest-scoring half"
-            onEditStep={onEditStep}
-            reviewSectionId="highest-scoring-half"
-            value={highestHalfLabel(form.highestScoringHalf)}
-          />
-        ) : null}
-        {isBuiltInEnabled(ruleset, 'half-time-leader') ? (
-          <ReviewEditableLine
-            activeSteps={activeSteps}
-            label="Half-time leader"
-            onEditStep={onEditStep}
-            reviewSectionId="half-time-leader"
-            value={matchResultLabel(fixture, form.halfTimeLeader)}
-          />
-        ) : null}
-      </ReviewSection>
+      {hasActiveOtherPredictions ? (
+        <ReviewSection title="OTHER PREDICTIONS">
+          {isFirstTryActive ? (
+            <ReviewEditableLine
+              activeSteps={activeSteps}
+              label="First try"
+              onEditStep={onEditStep}
+              reviewSectionId="first-try"
+              value={firstTryLabel(fixture, form.firstTry)}
+            />
+          ) : null}
+          {isHighestScoringHalfActive ? (
+            <ReviewEditableLine
+              activeSteps={activeSteps}
+              label="Highest-scoring half"
+              onEditStep={onEditStep}
+              reviewSectionId="highest-scoring-half"
+              value={highestHalfLabel(form.highestScoringHalf)}
+            />
+          ) : null}
+          {isHalfTimeLeaderActive ? (
+            <ReviewEditableLine
+              activeSteps={activeSteps}
+              label="Half-time leader"
+              onEditStep={onEditStep}
+              reviewSectionId="half-time-leader"
+              value={halfTimeLeaderLabel(fixture, form.halfTimeLeader)}
+            />
+          ) : null}
+        </ReviewSection>
+      ) : null}
     </div>
   );
 };

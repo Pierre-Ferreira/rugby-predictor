@@ -206,6 +206,17 @@ export const matchResultLabel = (
   return 'Not selected';
 };
 
+export const halfTimeLeaderLabel = (
+  fixture: Pick<FixtureDocument, 'team1DisplayName' | 'team2DisplayName'>,
+  value: string,
+): string => {
+  if (value === 'draw') {
+    return 'Half-time Draw';
+  }
+
+  return matchResultLabel(fixture, value);
+};
+
 export const firstTryLabel = (
   fixture: Pick<FixtureDocument, 'team1DisplayName' | 'team2DisplayName'>,
   value: string,

@@ -85,8 +85,9 @@ Current unit test files:
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard prediction
   sequence definitions, active progress totals, navigation destinations, shared
   message catalog variant stability, ruleset-derived deduction values,
-  team-name interpolation, first-try constraints, conversion clamping, and
-  score/result consistency helpers.
+  disabled-question copy suppression, Intro starting-points interpolation,
+  Half-Time Leader wording/display labels, team-name interpolation, first-try
+  constraints, conversion clamping, and score/result consistency helpers.
 
 Commands:
 
@@ -181,10 +182,12 @@ The current browser suite covers:
 - Prediction entry return-path support, standard Intro/progress/navigation,
   answer preservation through Back/Continue, stable step copy during navigation,
   running predicted rugby score updates, conversion maximums and clamping,
-  result/score consistency warnings after drop goals, first-try constraints,
-  valid submit and saved-entry Review revisit, Review Edit and Return to Review,
-  edit before kickoff, persisted locked saved-entry display after dirty local
-  edits, and stale revision conflict value preservation.
+  result/score consistency warnings after drop goals, disabled Continue while a
+  known result/score inconsistency remains, first-try constraints, ruleset-aware
+  Review hiding for disabled card/optional questions, valid submit and
+  saved-entry Review revisit, Review Edit and Return to Review, edit before
+  kickoff, persisted locked saved-entry display after dirty local edits, and
+  stale revision conflict value preservation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only
