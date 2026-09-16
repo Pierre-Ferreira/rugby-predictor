@@ -71,6 +71,9 @@ const isSafeNonNegativeInteger = (value: unknown): value is number =>
 const isPositiveSafeInteger = (value: unknown): value is number =>
   isSafeNonNegativeInteger(value) && value > 0;
 
+const normalizeLabelForComparison = (value: string): string =>
+  value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-ZA');
+
 const addNumericIssue = (
   issues: ValidationIssue[],
   path: readonly (string | number)[],
@@ -274,6 +277,42 @@ export const validateRuleset = (ruleset: unknown): ValidationResult => {
         );
       }
 
+      validateCustomQuestionPlayerFields(question, path, issues);
+
+      if (!isSafeNonNegativeInteger(question.min)) {
+        issues.push(
+          issue(
+            'invalid_minimum',
+            [...path, 'min'],
+            'Custom numeric minimum must be a finite non-negative safe integer.',
+          ),
+        );
+      }
+
+      if (!isSafeNonNegativeInteger(question.max)) {
+        issues.push(
+          issue(
+            'invalid_maximum',
+            [...path, 'max'],
+            'Custom numeric maximum must be a finite non-negative safe integer.',
+          ),
+        );
+      }
+
+      if (
+        isSafeNonNegativeInteger(question.min) &&
+        isSafeNonNegativeInteger(question.max) &&
+        question.max < question.min
+      ) {
+        issues.push(
+          issue(
+            'invalid_range',
+            [...path, 'max'],
+            'Custom numeric maximum must be greater than or equal to minimum.',
+          ),
+        );
+      }
+
       if (!isPositiveSafeInteger(question.rate)) {
         issues.push(
           issue(
@@ -296,6 +335,8 @@ export const validateRuleset = (ruleset: unknown): ValidationResult => {
         );
       }
 
+      validateCustomQuestionPlayerFields(question, path, issues);
+
       if (!isPositiveSafeInteger(question.incorrectDeduction)) {
         issues.push(
           issue(
@@ -316,6 +357,7 @@ export const validateRuleset = (ruleset: unknown): ValidationResult => {
         );
       } else {
         const seenOptionIds = new Set<string>();
+        const seenOptionLabels = new Set<string>();
 
         question.options.forEach((option, optionIndex) => {
           const optionPath = [...path, 'options', optionIndex] as const;
@@ -359,6 +401,20 @@ export const validateRuleset = (ruleset: unknown): ValidationResult => {
                 'Custom categorical option label is required.',
               ),
             );
+          } else {
+            const normalizedLabel = normalizeLabelForComparison(option.label);
+
+            if (seenOptionLabels.has(normalizedLabel)) {
+              issues.push(
+                issue(
+                  'duplicate_option_label',
+                  [...optionPath, 'label'],
+                  'Custom categorical option labels must be unique.',
+                ),
+              );
+            } else {
+              seenOptionLabels.add(normalizedLabel);
+            }
           }
         });
       }
@@ -366,6 +422,56 @@ export const validateRuleset = (ruleset: unknown): ValidationResult => {
   });
 
   return validationResult(issues);
+};
+
+const validateCustomQuestionPlayerFields = (
+  question: Record<string, unknown>,
+  path: readonly (string | number)[],
+  issues: ValidationIssue[],
+): void => {
+  if (!isNonEmptyString(question.prompt)) {
+    issues.push(
+      issue(
+        'invalid_question_prompt',
+        [...path, 'prompt'],
+        'Custom question prompt is required.',
+      ),
+    );
+  }
+
+  if (
+    question.banter !== undefined &&
+    question.banter !== null &&
+    typeof question.banter !== 'string'
+  ) {
+    issues.push(
+      issue(
+        'invalid_question_banter',
+        [...path, 'banter'],
+        'Custom question banter/context must be text.',
+      ),
+    );
+  }
+
+  if (!isNonEmptyString(question.countingDefinition)) {
+    issues.push(
+      issue(
+        'invalid_counting_definition',
+        [...path, 'countingDefinition'],
+        'Custom question counting definition is required.',
+      ),
+    );
+  }
+
+  if (!isPositiveSafeInteger(question.order)) {
+    issues.push(
+      issue(
+        'invalid_question_order',
+        [...path, 'order'],
+        'Custom question order must be a positive safe integer.',
+      ),
+    );
+  }
 };
 
 export const createRulesetSnapshot = (
@@ -379,17 +485,37 @@ export const createRulesetSnapshot = (
     id: ruleset.id,
     version: ruleset.version,
     questions: ruleset.questions.map((question) => {
+      if (question.type === 'custom-numeric') {
+        return {
+          id: question.id,
+          label: question.label,
+          type: question.type,
+          enabled: question.enabled,
+          ...(question.banter ? { banter: question.banter } : {}),
+          countingDefinition: question.countingDefinition,
+          max: question.max,
+          min: question.min,
+          order: question.order,
+          prompt: question.prompt,
+          rate: question.rate,
+        };
+      }
+
       if (question.type === 'custom-categorical') {
         return {
           id: question.id,
           label: question.label,
           type: question.type,
           enabled: question.enabled,
+          ...(question.banter ? { banter: question.banter } : {}),
+          countingDefinition: question.countingDefinition,
           incorrectDeduction: question.incorrectDeduction,
+          order: question.order,
           options: question.options.map((option) => ({
             id: option.id,
             label: option.label,
           })),
+          prompt: question.prompt,
         };
       }
 
@@ -887,6 +1013,14 @@ const validateCustomPredictionAnswers = (
     if (question.type === 'custom-numeric') {
       if (!isSafeNonNegativeInteger(value)) {
         addNumericIssue(issues, ['prediction', 'customAnswers', question.id]);
+      } else if (value < question.min || value > question.max) {
+        issues.push(
+          issue(
+            'numeric_answer_out_of_range',
+            ['prediction', 'customAnswers', question.id],
+            `Custom numeric answer must be between ${question.min} and ${question.max}.`,
+          ),
+        );
       }
     } else if (
       typeof value !== 'string' ||

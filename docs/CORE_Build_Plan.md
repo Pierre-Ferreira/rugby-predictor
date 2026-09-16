@@ -432,6 +432,33 @@ Not implemented:
   settlement, voiding, result administration, leaderboard changes, or
   cross-fixture score balancing.
 
+## CCPP-008A Scope
+
+Milestone status: implemented for custom questions in the Standard prediction
+sequence. Verification evidence is recorded in
+`docs/AUDIT_008A_Custom_Questions_Standard_Sequence.md`.
+
+Implemented:
+
+- Published custom Number and Choice questions render after active built-in
+  Standard steps and before Review.
+- Custom answers persist through the existing prediction entry as
+  `customAnswers` keyed by stable custom question ID.
+- Review, Edit, revisit, revision conflict, and locked read-only display support
+  custom answers from the frozen fixture snapshot.
+- Server validation derives custom answer requirements, ranges, option IDs, and
+  deductions from the published snapshot.
+- Valid custom-question fixtures can publish; the temporary CCPP-008 publish
+  gate is removed.
+- Custom deductions are positive safe integers greater than zero, and the admin
+  projected player-step count derives from the active sequence.
+
+Not implemented:
+
+- Custom official answers, custom result settlement, custom scoring against
+  actual answers, cross-fixture score balancing, Kaplay custom screens,
+  leaderboards, or match-result administration.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

@@ -376,6 +376,24 @@ const customQuestionConfig = (): FixturePredictionQuestionConfig => ({
       order: 1,
       prompt: 'How many scrum penalties will the All Blacks concede?',
     },
+    {
+      answerType: 'choice',
+      countingDefinition: 'The official player of the match positional group.',
+      id: 'custom-choice-server',
+      incorrectDeduction: 300,
+      options: [
+        {
+          id: 'backs',
+          label: 'Backs',
+        },
+        {
+          id: 'forwards',
+          label: 'Forwards',
+        },
+      ],
+      order: 2,
+      prompt: 'Which group produces the player of the match?',
+    },
   ],
 });
 
@@ -1255,10 +1273,56 @@ describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
     );
   });
 
-  it('saves custom questions but blocks publication until player custom predictions exist', async () => {
+  it('rejects invalid custom configuration and publishes valid custom questions into the frozen snapshot', async () => {
     const admin = await createVerifiedAdmin();
     const created = await createDraftFixture(admin.invocation);
     const draft = await fixtureById(created.fixtureId);
+    const invalidConfig = {
+      ...customQuestionConfig(),
+      customQuestions: [
+        {
+          ...customQuestionConfig().customQuestions[0],
+          deductionPerUnit: 0,
+        },
+      ],
+    };
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: invalidConfig,
+          expectedRevision: draft.revision,
+          fixtureId: draft._id,
+        }),
+      /deduction per unit must be a finite whole number greater than zero/i,
+    );
+
+    await Fixtures.updateAsync(draft._id, {
+      $set: {
+        predictionQuestionConfig: invalidConfig,
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        callMethod(
+          FIXTURE_METHODS.publish,
+          [
+            {
+              expectedRevision: draft.revision,
+              fixtureId: draft._id,
+            },
+          ],
+          admin.invocation,
+        ),
+      /deduction per unit must be a finite whole number greater than zero/i,
+    );
+
+    await Fixtures.updateAsync(draft._id, {
+      $unset: {
+        predictionQuestionConfig: 1 as const,
+      },
+    });
 
     await saveQuestionConfig(admin.invocation, {
       config: customQuestionConfig(),
@@ -1270,32 +1334,69 @@ describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
 
     assert.equal(
       configured.predictionQuestionConfig?.customQuestions.length,
-      1,
+      2,
     );
+
+    await callMethod(
+      FIXTURE_METHODS.publish,
+      [
+        {
+          expectedRevision: configured.revision,
+          fixtureId: configured._id,
+        },
+      ],
+      admin.invocation,
+    );
+
+    const published = await fixtureById(draft._id);
+    const customNumber = published.rulesetSnapshot?.questions.find(
+      (question) => question.id === 'custom-number-server',
+    );
+    const customChoice = published.rulesetSnapshot?.questions.find(
+      (question) => question.id === 'custom-choice-server',
+    );
+
+    assert.equal(published.visibility, 'published');
+    assert.equal(customNumber?.type, 'custom-numeric');
+    assert.deepEqual(customNumber, {
+      countingDefinition:
+        'Scrum penalties awarded against the All Blacks during regulation time.',
+      enabled: true,
+      id: 'custom-number-server',
+      label: 'How many scrum penalties will the All Blacks concede?',
+      max: 20,
+      min: 0,
+      order: 1,
+      prompt: 'How many scrum penalties will the All Blacks concede?',
+      rate: 150,
+      type: 'custom-numeric',
+    });
+    assert.equal(customChoice?.type, 'custom-categorical');
+    assert.deepEqual(customChoice, {
+      countingDefinition: 'The official player of the match positional group.',
+      enabled: true,
+      id: 'custom-choice-server',
+      incorrectDeduction: 300,
+      label: 'Which group produces the player of the match?',
+      options: [
+        { id: 'backs', label: 'Backs' },
+        { id: 'forwards', label: 'Forwards' },
+      ],
+      order: 2,
+      prompt: 'Which group produces the player of the match?',
+      type: 'custom-categorical',
+    });
 
     await assert.rejects(
       () =>
-        callMethod(
-          FIXTURE_METHODS.publish,
-          [
-            {
-              expectedRevision: configured.revision,
-              fixtureId: configured._id,
-            },
-          ],
-          admin.invocation,
-        ),
-      /custom-question player predictions are not enabled yet|fixture-custom-questions-not-publishable/i,
+        saveQuestionConfig(admin.invocation, {
+          config: customQuestionConfig(),
+          expectedRevision: published.revision,
+          fixtureId: published._id,
+        }),
+      /published fixture question configuration is read-only|fixture-published/i,
     );
-
-    const afterAttempt = await fixtureById(draft._id);
-
-    assert.equal(afterAttempt.visibility, 'draft');
-    assert.equal(afterAttempt.rulesetSnapshot, undefined);
-    assert.equal(
-      afterAttempt.predictionQuestionConfig?.customQuestions.length,
-      1,
-    );
+    assert.equal(published.predictionQuestionConfig?.customQuestions.length, 2);
   });
 
   it('derives canonical defaults for legacy drafts without explicit question configuration', async () => {

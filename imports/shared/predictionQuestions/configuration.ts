@@ -472,7 +472,7 @@ const sanitizeCustomQuestion = (
       ...base,
       ...(banter ? { banter } : {}),
       answerType: 'number',
-      deductionPerUnit: sanitizeNonNegativeInteger(
+      deductionPerUnit: sanitizePositiveInteger(
         record.deductionPerUnit,
         'Deduction per unit',
       ),
@@ -501,7 +501,7 @@ const sanitizeCustomQuestion = (
     ...base,
     ...(banter ? { banter } : {}),
     answerType: 'choice',
-    incorrectDeduction: sanitizeNonNegativeInteger(
+    incorrectDeduction: sanitizePositiveInteger(
       record.incorrectDeduction,
       'Incorrect-answer deduction',
     ),
@@ -596,10 +596,43 @@ export const buildConfiguredRulesetSnapshot = (
       return { ...question };
     },
   );
+  const customQuestions = config.customQuestions.map((question) => {
+    if (question.answerType === 'number') {
+      return {
+        id: question.id,
+        label: question.prompt,
+        type: 'custom-numeric',
+        enabled: true,
+        ...(question.banter ? { banter: question.banter } : {}),
+        countingDefinition: question.countingDefinition,
+        max: question.max,
+        min: question.min,
+        order: question.order,
+        prompt: question.prompt,
+        rate: question.deductionPerUnit,
+      } satisfies QuestionDefinition;
+    }
+
+    return {
+      id: question.id,
+      label: question.prompt,
+      type: 'custom-categorical',
+      enabled: true,
+      ...(question.banter ? { banter: question.banter } : {}),
+      countingDefinition: question.countingDefinition,
+      incorrectDeduction: question.incorrectDeduction,
+      options: question.options.map((option) => ({
+        id: option.id,
+        label: option.label,
+      })),
+      order: question.order,
+      prompt: question.prompt,
+    } satisfies QuestionDefinition;
+  });
 
   return createRulesetSnapshot({
     id: baseRuleset.id,
-    questions,
+    questions: [...questions, ...customQuestions],
     schemaVersion: baseRuleset.schemaVersion,
     version: baseRuleset.version,
   });

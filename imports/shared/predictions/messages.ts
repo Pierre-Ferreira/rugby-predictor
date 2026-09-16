@@ -2,12 +2,13 @@ import {
   STARTING_POINTS,
   questionById,
   type BuiltInQuestionId,
+  type QuestionDefinition,
   type RulesetSnapshot,
   type TeamNumericBuiltInQuestionId,
 } from '/imports/shared/scoring';
-import type { PredictionStepId } from './sequence';
+import type { BuiltInPredictionStepId } from './sequence';
 
-export type PredictionMessageId = PredictionStepId;
+export type PredictionMessageId = BuiltInPredictionStepId;
 
 export interface PredictionMessageContext {
   readonly ruleset: RulesetSnapshot;
@@ -42,6 +43,21 @@ export type PredictionMessageVariantSelection = Partial<
 
 export const formatPredictionPoints = (value: number): string =>
   value.toLocaleString('en-US');
+
+export const customNumberDeductionText = (
+  question: Extract<QuestionDefinition, { readonly type: 'custom-numeric' }>,
+): string =>
+  `You lose ${formatPredictionPoints(question.rate)} points for every unit your prediction is above or below the actual result.`;
+
+export const customChoiceDeductionText = (
+  question: Extract<
+    QuestionDefinition,
+    { readonly type: 'custom-categorical' }
+  >,
+): string =>
+  `Get this prediction wrong and lose ${formatPredictionPoints(
+    question.incorrectDeduction,
+  )} points!`;
 
 const question = (ruleset: RulesetSnapshot, id: BuiltInQuestionId) =>
   questionById(ruleset).get(id);

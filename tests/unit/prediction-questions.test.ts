@@ -119,7 +119,22 @@ describe('prediction question configuration validation', () => {
           },
         ]),
       ),
-    ).toThrow(/deduction per unit must be a finite non-negative whole number/i);
+    ).toThrow(
+      /deduction per unit must be a finite whole number greater than zero/i,
+    );
+
+    expect(() =>
+      normalizeFixturePredictionQuestionConfig(
+        configWithCustomQuestions([
+          {
+            ...validNumberQuestion(),
+            deductionPerUnit: 0,
+          },
+        ]),
+      ),
+    ).toThrow(
+      /deduction per unit must be a finite whole number greater than zero/i,
+    );
   });
 
   it('accepts a valid CHOICE custom question', () => {
@@ -214,7 +229,20 @@ describe('prediction question configuration validation', () => {
         ]),
       ),
     ).toThrow(
-      /incorrect-answer deduction must be a finite non-negative whole number/i,
+      /incorrect-answer deduction must be a finite whole number greater than zero/i,
+    );
+
+    expect(() =>
+      normalizeFixturePredictionQuestionConfig(
+        configWithCustomQuestions([
+          {
+            ...validChoiceQuestion(),
+            incorrectDeduction: 0,
+          },
+        ]),
+      ),
+    ).toThrow(
+      /incorrect-answer deduction must be a finite whole number greater than zero/i,
     );
   });
 
@@ -354,5 +382,54 @@ describe('prediction question configuration validation', () => {
     expect(
       activePredictionSteps(snapshot).map((step) => step.id),
     ).not.toContain('first-try');
+  });
+
+  it('freezes custom questions into the ruleset snapshot and player sequence', () => {
+    const config = normalizeFixturePredictionQuestionConfig(
+      configWithCustomQuestions([
+        validChoiceQuestion('custom-choice-later'),
+        validNumberQuestion('custom-number-first'),
+      ]),
+    );
+    const snapshot = buildConfiguredRulesetSnapshot(config);
+
+    expect(
+      snapshot.questions.find(
+        (question) => question.id === 'custom-number-first',
+      ),
+    ).toMatchObject({
+      countingDefinition:
+        'Scrum penalties awarded against the All Blacks during regulation time.',
+      enabled: true,
+      label: 'How many scrum penalties will the All Blacks concede?',
+      max: 20,
+      min: 0,
+      order: 2,
+      prompt: 'How many scrum penalties will the All Blacks concede?',
+      rate: 150,
+      type: 'custom-numeric',
+    });
+    expect(
+      snapshot.questions.find(
+        (question) => question.id === 'custom-choice-later',
+      ),
+    ).toMatchObject({
+      countingDefinition:
+        'The team officially listed as scoring the first points.',
+      enabled: true,
+      incorrectDeduction: 300,
+      options: [
+        { id: 'custom-choice-later-option-a', label: 'Stormers' },
+        { id: 'custom-choice-later-option-b', label: 'Bulls' },
+      ],
+      order: 1,
+      prompt: 'Who scores first?',
+      type: 'custom-categorical',
+    });
+    expect(
+      activePredictionSteps(snapshot)
+        .map((step) => step.id)
+        .slice(-2),
+    ).toEqual(['custom:custom-choice-later', 'custom:custom-number-first']);
   });
 });

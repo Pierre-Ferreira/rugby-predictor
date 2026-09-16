@@ -26,6 +26,7 @@ import {
   type QuestionDefinition,
   type RulesetSnapshot,
 } from '/imports/shared/scoring';
+import { activePredictionSteps } from '/imports/shared/predictions';
 import { callMeteorMethod } from '../auth/methodCall';
 
 export interface QuestionConfigSession {
@@ -104,7 +105,7 @@ const emptyConfig = (): FixturePredictionQuestionConfig => ({
 const newNumberQuestion = (): CustomNumberQuestionConfig => ({
   answerType: 'number',
   countingDefinition: '',
-  deductionPerUnit: 0,
+  deductionPerUnit: 1,
   id: newStableId('custom-number'),
   max: 10,
   min: 0,
@@ -116,7 +117,7 @@ const newChoiceQuestion = (): CustomChoiceQuestionConfig => ({
   answerType: 'choice',
   countingDefinition: '',
   id: newStableId('custom-choice'),
-  incorrectDeduction: 0,
+  incorrectDeduction: 1,
   options: [
     {
       id: newStableId('option'),
@@ -182,11 +183,11 @@ export const AdminFixtureQuestionConfigurator = ({
     (currentFixture.visibility === 'published' || currentFixture.isCancelled),
   );
   const rulesetForCore = currentFixture?.rulesetSnapshot ?? defaultRuleset;
-  const projectedRuleset = useMemo(() => {
+  const projectedActiveStepCount = useMemo(() => {
     try {
-      return buildConfiguredRulesetSnapshot(form);
+      return activePredictionSteps(buildConfiguredRulesetSnapshot(form)).length;
     } catch {
-      return defaultRuleset;
+      return null;
     }
   }, [form]);
   const hasCustomQuestions = form.customQuestions.length > 0;
@@ -458,10 +459,9 @@ export const AdminFixtureQuestionConfigurator = ({
         ) : null}
 
         {hasCustomQuestions ? (
-          <p className="mt-4 rounded-md border border-rooster-red/30 bg-rooster-red/10 px-3 py-2 text-sm font-bold text-rooster-red">
-            Custom questions are saved for this draft, but fixtures containing
-            custom questions cannot be published until player custom predictions
-            are enabled.
+          <p className="mt-4 rounded-md border border-rooster-grass/30 bg-rooster-grass/10 px-3 py-2 text-sm font-bold text-rooster-ink">
+            Custom questions will appear after the active standard prediction
+            steps when this fixture is published.
           </p>
         ) : null}
 
@@ -639,11 +639,8 @@ export const AdminFixtureQuestionConfigurator = ({
             </p>
           ) : null}
           <p className="text-sm font-bold text-rooster-muted">
-            Active standard steps:{' '}
-            {
-              projectedRuleset.questions.filter((question) => question.enabled)
-                .length
-            }
+            Projected player steps:{' '}
+            {projectedActiveStepCount ?? 'Fix validation to preview'}
           </p>
         </div>
       </form>
@@ -839,7 +836,7 @@ const NumberQuestionFields = ({
         className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 py-2 font-normal"
         disabled={disabled}
         inputMode="numeric"
-        min={0}
+        min={1}
         type="number"
         value={question.deductionPerUnit}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>
@@ -881,7 +878,7 @@ const ChoiceQuestionFields = ({
         className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 py-2 font-normal"
         disabled={disabled}
         inputMode="numeric"
-        min={0}
+        min={1}
         type="number"
         value={question.incorrectDeduction}
         onChange={(event: ChangeEvent<HTMLInputElement>) =>

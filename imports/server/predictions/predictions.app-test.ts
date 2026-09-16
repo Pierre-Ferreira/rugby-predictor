@@ -21,6 +21,10 @@ import {
   type FixturePrediction,
   type RulesetSnapshot,
 } from '/imports/shared/scoring';
+import {
+  buildConfiguredRulesetSnapshot,
+  defaultFixturePredictionQuestionConfig,
+} from '/imports/shared/predictionQuestions';
 import { getAuthTestRunId } from '/imports/server/auth/settings';
 import { resetTestAuthData } from '/imports/server/auth/testSupport';
 import { resetFixtureTestData } from '/imports/server/fixtures/testSupport';
@@ -243,6 +247,46 @@ const validPrediction = (
   ...overrides,
 });
 
+const customRulesetSnapshot = (): RulesetSnapshot =>
+  buildConfiguredRulesetSnapshot({
+    ...defaultFixturePredictionQuestionConfig(),
+    customQuestions: [
+      {
+        answerType: 'number',
+        countingDefinition:
+          'Scrum penalties awarded against Team 2 during regulation time.',
+        deductionPerUnit: 25,
+        id: 'scrum-pressure',
+        max: 12,
+        min: 0,
+        order: 1,
+        prompt: 'How many scrum penalties?',
+      },
+      {
+        answerType: 'choice',
+        countingDefinition: 'Official player of the match group.',
+        id: 'player-band',
+        incorrectDeduction: 75,
+        options: [
+          { id: 'backs', label: 'Backs' },
+          { id: 'forwards', label: 'Forwards' },
+        ],
+        order: 2,
+        prompt: 'Which group produces the player of the match?',
+      },
+    ],
+  });
+
+const validCustomPrediction = (
+  customAnswers: FixturePrediction['customAnswers'] = {
+    'player-band': 'forwards',
+    'scrum-pressure': 4,
+  },
+): FixturePrediction =>
+  validPrediction({
+    customAnswers,
+  });
+
 const submitPrediction = (
   invocation: TestInvocation,
   input: {
@@ -395,6 +439,133 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
     assert.equal(result.status, 'created');
     assert.equal(entry?.ruleset.id, 'snapshot-without-first-try');
     assert.equal(entry?.prediction.firstTry, undefined);
+  });
+
+  it('publishes custom question definitions to the prediction context and persists custom answers', async () => {
+    const player = await createVerifiedPlayer();
+    const otherPlayer = await createVerifiedPlayer('other-player');
+    const fixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+
+    const fixtureRows = await fetchPublication<FixtureDocument>(
+      PREDICTION_PUBLICATIONS.fixtureContext,
+      [fixtureId],
+      player.userId,
+    );
+
+    assert.equal(fixtureRows.length, 1);
+    assert.equal(
+      fixtureRows[0].rulesetSnapshot?.questions.some(
+        (question) => question.id === 'scrum-pressure',
+      ),
+      true,
+    );
+
+    const created = await submitPrediction(player.invocation, {
+      fixtureId,
+      prediction: validCustomPrediction(),
+    });
+    const entry = await predictionByOwner(fixtureId, player.userId);
+
+    assert.equal(created.status, 'created');
+    assert.deepEqual(entry?.prediction.customAnswers, {
+      'player-band': 'forwards',
+      'scrum-pressure': 4,
+    });
+
+    assert.equal(
+      (
+        await fetchPublication<PredictionEntryDocument>(
+          PREDICTION_PUBLICATIONS.currentUserEntry,
+          [fixtureId],
+          otherPlayer.userId,
+        )
+      ).length,
+      0,
+    );
+
+    const updated = await submitPrediction(player.invocation, {
+      expectedRevision: created.revision,
+      fixtureId,
+      prediction: validCustomPrediction({
+        'player-band': 'backs',
+        'scrum-pressure': 7,
+      }),
+    });
+    const revised = await predictionByOwner(fixtureId, player.userId);
+
+    assert.equal(updated.status, 'updated');
+    assert.deepEqual(revised?.prediction.customAnswers, {
+      'player-band': 'backs',
+      'scrum-pressure': 7,
+    });
+  });
+
+  it('rejects malformed custom answers and injected custom configuration', async () => {
+    const player = await createVerifiedPlayer();
+    const customFixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+    const plainFixtureId = await insertFixtureDocument();
+
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          fixtureId: customFixtureId,
+          prediction: validPrediction(),
+        }),
+      /Custom answer 'scrum-pressure' is required|invalid-prediction/i,
+    );
+
+    for (const customAnswers of [
+      {
+        'player-band': 'forwards',
+        'scrum-pressure': 13,
+      },
+      {
+        'player-band': 'forwards',
+        'scrum-pressure': 1.5,
+      },
+      {
+        'player-band': 'Forward pack',
+        'scrum-pressure': 4,
+      },
+      {
+        'player-band': 'forwards',
+        'scrum-pressure': 4,
+        unknown: 1,
+      },
+      {
+        'player-band': {
+          incorrectDeduction: 0,
+          label: 'Injected',
+          value: 'forwards',
+        },
+        'scrum-pressure': 4,
+      },
+    ]) {
+      await assert.rejects(
+        () =>
+          submitPrediction(player.invocation, {
+            fixtureId: customFixtureId,
+            prediction: {
+              ...validPrediction(),
+              customAnswers,
+            },
+          }),
+        /invalid-prediction/i,
+      );
+    }
+
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          fixtureId: plainFixtureId,
+          prediction: validCustomPrediction(),
+        }),
+      /Custom answer 'scrum-pressure' is not enabled|invalid-prediction/i,
+    );
   });
 
   it('rejects anonymous, unverified, and ownership-spoofing attempts', async () => {
@@ -641,6 +812,50 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
     const entry = await predictionByOwner(fixtureId, player.userId);
 
     assert.equal(entry?.prediction.highestScoringHalf, 'first');
+    assert.equal(entry?.revision, created.revision + 1);
+  });
+
+  it('rejects stale custom-answer revisions without overwriting newer custom answers', async () => {
+    const player = await createVerifiedPlayer();
+    const fixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+    const created = await submitPrediction(player.invocation, {
+      fixtureId,
+      prediction: validCustomPrediction({
+        'player-band': 'forwards',
+        'scrum-pressure': 4,
+      }),
+    });
+
+    await submitPrediction(player.invocation, {
+      expectedRevision: created.revision,
+      fixtureId,
+      prediction: validCustomPrediction({
+        'player-band': 'backs',
+        'scrum-pressure': 5,
+      }),
+    });
+
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          expectedRevision: created.revision,
+          fixtureId,
+          prediction: validCustomPrediction({
+            'player-band': 'forwards',
+            'scrum-pressure': 9,
+          }),
+        }),
+      /changed before your update|prediction-conflict/i,
+    );
+
+    const entry = await predictionByOwner(fixtureId, player.userId);
+
+    assert.deepEqual(entry?.prediction.customAnswers, {
+      'player-band': 'backs',
+      'scrum-pressure': 5,
+    });
     assert.equal(entry?.revision, created.revision + 1);
   });
 

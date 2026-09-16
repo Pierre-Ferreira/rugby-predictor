@@ -193,20 +193,22 @@ The fixture server creates indexes for the implemented queries:
 ## Ruleset Snapshot
 
 Publishing attaches a validated independent ruleset snapshot using the existing
-scoring engine snapshot utility. For standard-only configured fixtures, the
-snapshot starts from `defaultRuleset` and applies configured optional standard
-enabled states and incorrect-answer deductions. Drafts cannot publish if the
-required ruleset is invalid.
+scoring engine snapshot utility. For configured fixtures, the snapshot starts
+from `defaultRuleset`, applies configured optional standard enabled states and
+incorrect-answer deductions, and appends valid custom Number/Choice definitions
+from `predictionQuestionConfig`. Drafts cannot publish if the required ruleset
+or custom question configuration is invalid.
 
-Draft fixtures with custom questions cannot publish in CCPP-008 because players
-cannot answer custom questions yet. The server rejects publication with a clear
-admin-facing error and leaves the fixture draft with its custom configuration
-saved.
+CCPP-008A removed the temporary custom-question publication gate. A draft with
+valid custom questions can publish because the Standard prediction sequence can
+now answer those custom questions.
 
 The snapshot timing is first successful publication. Repeated publication of an
 already published fixture does not regenerate the snapshot. Ordinary edits do
 not replace it. Later in-memory or future default ruleset changes do not alter
-stored fixture snapshots.
+stored fixture snapshots. For custom questions, prompt, banter/context,
+counting definition, answer type, min/max, option IDs/labels, deductions, and
+order are frozen in that snapshot.
 
 The protection is provided by server write paths and snapshot cloning. This is
 not database-level immutability.

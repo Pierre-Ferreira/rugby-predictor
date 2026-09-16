@@ -49,8 +49,13 @@ CCPP-008 adds fixture-level prediction question configuration for admins.
 Permanent core questions remain always included. Optional standard questions
 can be enabled/disabled and configured on draft fixtures, then published through
 the fixture's frozen ruleset snapshot. Custom Number and Choice questions can be
-authored on drafts, but custom-question fixtures cannot publish until player
-custom prediction answering is implemented.
+authored on drafts.
+
+CCPP-008A integrates published custom Number and Choice questions into the
+Standard prediction sequence. Valid custom-question fixtures can publish, custom
+answers are captured in the same prediction entry, and server validation derives
+all custom semantics from the frozen fixture snapshot. Custom result capture,
+settlement, and scoring against official custom answers remain future work.
 
 ## Player Flow
 
@@ -68,18 +73,21 @@ Signed-in verified players see:
 - Whether entry is open or locked.
 - An Intro explaining Rugby Rooster competition points versus predicted rugby
   match scores while the fixture is open.
-- A numbered guided built-in prediction sequence while the fixture is open.
+- A numbered guided prediction sequence while the fixture is open. Active
+  built-in standard steps come first, followed by active custom questions from
+  the frozen fixture snapshot.
 - A Review screen with derived predicted rugby match scores, scoring detail,
-  active card predictions, active other predictions, and Edit actions.
+  active card predictions, active other predictions, active custom questions,
+  and Edit actions.
 - A success confirmation after create or revision.
 - Their saved entry when revisiting the route.
 
 ## Supported Prediction Fields
 
-The standard sequence renders active built-in steps from the fixture's stored
-ruleset snapshot. Intro and Review are outside numbered progress. Player-facing
-labels use the fixture team display names. The default CCPP-003 ruleset includes
-these active numbered steps:
+The standard sequence renders active steps from the fixture's stored ruleset
+snapshot. Intro and Review are outside numbered progress. Player-facing labels
+use the fixture team display names. The default CCPP-003 ruleset includes these
+active numbered built-in steps:
 
 - Match result: fixture team one, fixture team two, or Draw.
 - Each fixture team's tries.
@@ -101,11 +109,20 @@ Internal prediction values continue to use stable domain identifiers such as
 `team1`, `team2`, and `draw`. CCPP-006B changes presentation labels only and
 does not migrate stored prediction shapes.
 
-The CCPP-007 sequence does not render custom fixture questions. CCPP-008 stores
-custom question configuration for future sequence integration, but the Standard
-prediction sequence still renders only supported built-in questions from the
-published ruleset snapshot. Custom prediction storage, scoring, settlement, and
-official-answer workflows remain future work.
+CCPP-008A appends active custom questions after the active built-in standard
+steps and before Review. Custom Number questions require a valid integer within
+the frozen minimum/maximum range. Custom Choice questions require one frozen
+option ID. Custom answers are stored as:
+
+```ts
+customAnswers: {
+  "<custom-question-id>": number | "<choice-option-id>";
+}
+```
+
+The client never submits prompts, deductions, min/max values, option labels, or
+question definitions. The server validates every custom answer against the
+fixture's frozen published snapshot.
 
 ## Validation And Review
 
@@ -132,10 +149,10 @@ Back plus the warning's Edit match result and Edit scores actions remain
 available. Final Review submission is disabled while this known inconsistency
 remains.
 
-Review follows the active built-in sequence. A disabled question has no Review
-row, and grouped Review sections such as Cards or Other Predictions are hidden
-when none of their rows are active. Edit controls are rendered only for active
-step destinations.
+Review follows the active sequence. A disabled question has no Review row, and
+grouped Review sections such as Cards, Other Predictions, or Custom Questions
+are hidden when none of their rows are active. Edit controls are rendered only
+for active step destinations.
 
 First-try answers are constrained by predicted tries. Zero predicted tries for
 both teams forces `No Tries Today!`; only one team with predicted tries forces
@@ -170,7 +187,8 @@ reload that intentionally replaces unsaved values with the saved entry.
 When the fixture becomes read-only while a player has unsaved local changes, the
 editable form is removed and the "Saved prediction" display shows the current
 persisted entry. This applies to kickoff locking and cancellation. The client
-must not fabricate a saved prediction from dirty form state.
+must not fabricate a saved prediction from dirty form state, including dirty
+custom answers.
 
 When the authenticated account changes or signs out, displayed prediction form
 state is cleared and repopulated only from the new account's own subscription.
@@ -210,18 +228,20 @@ future Kaplay experience should also consume. It does not implement Kaplay,
 animations, animation toggles, reduced-motion handling, capability detection,
 lazy loading, or runtime animation fallback.
 
+CCPP-008A keeps custom questions on the same ordered sequence and form state as
+built-in questions. Dynamic custom steps are suitable for future Kaplay
+consumption, but CCPP-008A implements only the Standard React presentation.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
 - Match results and final scoring persistence.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
-- Player integration for configured custom fixture questions.
 - Kaplay animation design, mascot behavior, capability detection, fallback
   machinery, and player animation controls.
-- Custom-question player answering, custom-question scoring or settlement,
-  official-answer workflows, and future balancing across fixtures with different
-  optional/custom question sets.
+- Custom-question scoring or settlement, official-answer workflows, and future
+  balancing across fixtures with different optional/custom question sets.
 - Detailed card-event normalization, including second-yellow dismissals and card
   upgrades, remains unresolved unless a future scoring/match-event milestone
   explicitly resolves it.

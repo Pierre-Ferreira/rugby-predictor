@@ -1,10 +1,12 @@
 import {
+  enabledQuestions,
   isBuiltInEnabled,
   type BuiltInQuestionId,
+  type QuestionDefinition,
   type RulesetSnapshot,
 } from '/imports/shared/scoring';
 
-export const predictionStepIds = [
+export const builtInPredictionStepIds = [
   'match-result',
   'tries',
   'conversions',
@@ -16,12 +18,22 @@ export const predictionStepIds = [
   'half-time-leader',
 ] as const;
 
-export type PredictionStepId = (typeof predictionStepIds)[number];
+export const predictionStepIds = builtInPredictionStepIds;
 
-export type PredictionStepKind = 'cards' | 'choice' | 'team-score-component';
+export type BuiltInPredictionStepId = (typeof builtInPredictionStepIds)[number];
+export type CustomPredictionStepId = `custom:${string}`;
+export type PredictionStepId = BuiltInPredictionStepId | CustomPredictionStepId;
+
+export type PredictionStepKind =
+  | 'cards'
+  | 'choice'
+  | 'custom-choice'
+  | 'custom-number'
+  | 'team-score-component';
 
 export type PredictionReviewSectionId =
   | 'cards'
+  | 'custom-questions'
   | 'first-try'
   | 'half-time-leader'
   | 'highest-scoring-half'
@@ -34,23 +46,35 @@ export type PredictionSequenceLocation =
   | { readonly kind: 'review' }
   | { readonly kind: 'step'; readonly stepId: PredictionStepId };
 
-export interface PredictionSequenceStepDefinition {
-  readonly id: PredictionStepId;
-  readonly kind: PredictionStepKind;
-  readonly messageId: PredictionStepId;
+interface BuiltInPredictionSequenceStepDefinition {
+  readonly id: BuiltInPredictionStepId;
+  readonly kind: Exclude<PredictionStepKind, 'custom-choice' | 'custom-number'>;
+  readonly messageId: BuiltInPredictionStepId;
   readonly reviewSectionId: PredictionReviewSectionId;
   readonly requiredQuestionIds?: readonly BuiltInQuestionId[];
   readonly requiredAnyQuestionIds?: readonly BuiltInQuestionId[];
 }
+
+export interface CustomPredictionSequenceStepDefinition {
+  readonly answerType: 'choice' | 'number';
+  readonly id: CustomPredictionStepId;
+  readonly kind: 'custom-choice' | 'custom-number';
+  readonly questionId: string;
+  readonly reviewSectionId: 'custom-questions';
+}
+
+export type PredictionSequenceStepDefinition =
+  | BuiltInPredictionSequenceStepDefinition
+  | CustomPredictionSequenceStepDefinition;
 
 export const scoreProducingPredictionStepIds = [
   'tries',
   'conversions',
   'penalty-kicks',
   'drop-goals',
-] as const satisfies readonly PredictionStepId[];
+] as const satisfies readonly BuiltInPredictionStepId[];
 
-export const standardPredictionStepDefinitions: readonly PredictionSequenceStepDefinition[] =
+export const standardPredictionStepDefinitions: readonly BuiltInPredictionSequenceStepDefinition[] =
   [
     {
       id: 'match-result',
@@ -113,10 +137,69 @@ export const standardPredictionStepDefinitions: readonly PredictionSequenceStepD
     },
   ];
 
+export const isCustomQuestionDefinition = (
+  question: QuestionDefinition,
+): question is Extract<
+  QuestionDefinition,
+  { readonly type: 'custom-categorical' | 'custom-numeric' }
+> =>
+  question.type === 'custom-categorical' || question.type === 'custom-numeric';
+
+export const customPredictionStepId = (
+  questionId: string,
+): CustomPredictionStepId => `custom:${questionId}`;
+
+const customQuestionOrder = (
+  question: Extract<
+    QuestionDefinition,
+    { readonly type: 'custom-categorical' | 'custom-numeric' }
+  >,
+  fallbackIndex: number,
+): number => question.order ?? fallbackIndex + 1;
+
+export const activeCustomQuestions = (
+  ruleset: RulesetSnapshot,
+): readonly Extract<
+  QuestionDefinition,
+  { readonly type: 'custom-categorical' | 'custom-numeric' }
+>[] =>
+  enabledQuestions(ruleset)
+    .map((question, index) => ({ index, question }))
+    .filter(
+      (
+        item,
+      ): item is {
+        readonly index: number;
+        readonly question: Extract<
+          QuestionDefinition,
+          { readonly type: 'custom-categorical' | 'custom-numeric' }
+        >;
+      } => isCustomQuestionDefinition(item.question),
+    )
+    .sort(
+      (left, right) =>
+        customQuestionOrder(left.question, left.index) -
+          customQuestionOrder(right.question, right.index) ||
+        left.index - right.index,
+    )
+    .map((item) => item.question);
+
+const activeCustomPredictionSteps = (
+  ruleset: RulesetSnapshot,
+): readonly CustomPredictionSequenceStepDefinition[] =>
+  activeCustomQuestions(ruleset).map((question) => ({
+    answerType: question.type === 'custom-numeric' ? 'number' : 'choice',
+    id: customPredictionStepId(question.id),
+    kind:
+      question.type === 'custom-numeric' ? 'custom-number' : 'custom-choice',
+    questionId: question.id,
+    reviewSectionId: 'custom-questions',
+  }));
+
 export const activePredictionSteps = (
   ruleset: RulesetSnapshot,
-): readonly PredictionSequenceStepDefinition[] =>
-  standardPredictionStepDefinitions.filter((step) => {
+): readonly PredictionSequenceStepDefinition[] => {
+  const builtInSteps = standardPredictionStepDefinitions.filter((step) => {
     const allRequiredEnabled =
       step.requiredQuestionIds?.every((questionId) =>
         isBuiltInEnabled(ruleset, questionId),
@@ -129,6 +212,19 @@ export const activePredictionSteps = (
 
     return allRequiredEnabled && anyRequiredEnabled;
   });
+
+  return [...builtInSteps, ...activeCustomPredictionSteps(ruleset)];
+};
+
+export const isBuiltInPredictionStep = (
+  step: PredictionSequenceStepDefinition,
+): step is BuiltInPredictionSequenceStepDefinition =>
+  step.kind !== 'custom-choice' && step.kind !== 'custom-number';
+
+export const isCustomPredictionStep = (
+  step: PredictionSequenceStepDefinition,
+): step is CustomPredictionSequenceStepDefinition =>
+  step.kind === 'custom-choice' || step.kind === 'custom-number';
 
 export const predictionStepPosition = (
   activeSteps: readonly PredictionSequenceStepDefinition[],
@@ -221,3 +317,11 @@ export const editStepIdForReviewSection = (
     null
   );
 };
+
+export const editStepIdForCustomQuestion = (
+  activeSteps: readonly PredictionSequenceStepDefinition[],
+  questionId: string,
+): PredictionStepId | null =>
+  activeSteps.find(
+    (step) => isCustomPredictionStep(step) && step.questionId === questionId,
+  )?.id ?? null;

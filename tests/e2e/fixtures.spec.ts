@@ -483,7 +483,7 @@ test.describe('fixture management and browsing', () => {
     await expect(page.getByText('Cancelled')).toBeVisible();
   });
 
-  test('configures draft prediction questions and preserves values through publish gate and conflict reload', async ({
+  test('configures draft prediction questions and preserves values through conflict reload', async ({
     page,
   }) => {
     const team1 = uniqueLabel('Question Springboks');
@@ -529,6 +529,9 @@ test.describe('fixture management and browsing', () => {
     await numberCard
       .getByRole('textbox', { name: 'Question' })
       .fill('How many scrum penalties will the All Blacks concede?');
+    await expect(numberCard).toContainText(
+      'How many scrum penalties will the All Blacks concede?',
+    );
     await numberCard
       .getByRole('textbox', { name: 'Banter/context' })
       .fill('Bok power!');
@@ -569,15 +572,10 @@ test.describe('fixture management and browsing', () => {
     );
     await expect(
       page.getByText(
-        'Custom questions are saved for this draft, but fixtures containing custom questions cannot be published',
+        'Custom questions will appear after the active standard prediction steps when this fixture is published.',
       ),
     ).toBeVisible();
-
-    await row.getByRole('button', { name: 'Publish' }).click();
-    await expect(page.getByRole('alert')).toContainText(
-      'custom-question player predictions are not enabled yet',
-    );
-    await expect(row.getByText('Draft')).toBeVisible();
+    await expect(page.getByText('Projected player steps: 10')).toBeVisible();
 
     await page.getByRole('button', { name: 'Close' }).click();
     await row.getByRole('button', { name: 'Prediction questions' }).click();

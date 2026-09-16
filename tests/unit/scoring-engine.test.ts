@@ -578,6 +578,11 @@ describe('Rugby Rooster scoring engine', () => {
           label: 'Winning margin',
           type: 'custom-numeric',
           enabled: true,
+          countingDefinition: 'Final confirmed winning margin.',
+          max: 80,
+          min: 0,
+          order: 1,
+          prompt: 'Winning margin',
           rate: 30,
         },
         {
@@ -585,11 +590,14 @@ describe('Rugby Rooster scoring engine', () => {
           label: 'Weather',
           type: 'custom-categorical',
           enabled: true,
+          countingDefinition: 'Official match weather at kickoff.',
           incorrectDeduction: 75,
+          order: 2,
           options: [
             { id: 'dry', label: 'Dry' },
             { id: 'wet', label: 'Wet' },
           ],
+          prompt: 'Weather',
         },
       ],
     });
@@ -1114,11 +1122,14 @@ describe('Rugby Rooster scoring engine', () => {
           label: 'Weather',
           type: 'custom-categorical',
           enabled: true,
+          countingDefinition: 'Official match weather at kickoff.',
           incorrectDeduction: 75,
+          order: 1,
           options: [
             { id: 'dry', label: 'Dry' },
             { id: 'wet', label: 'Wet' },
           ],
+          prompt: 'Weather',
         },
       ],
     };

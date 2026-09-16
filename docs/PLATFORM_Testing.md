@@ -80,18 +80,21 @@ Current unit test files:
   validation, and South African time to UTC conversion.
 - `tests/unit/predictions.test.ts` - prediction submission input validation,
   captured revision validation, server-owned field rejection, internal
-  team-side value preservation, bypassed invalid conversion rejection, and
-  delegation to the shared scoring validation contract.
+  team-side value preservation, bypassed invalid conversion rejection, custom
+  answer validation, custom answer injection rejection, and delegation to the
+  shared scoring validation contract.
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard prediction
   sequence definitions, active progress totals, navigation destinations, shared
   message catalog variant stability, ruleset-derived deduction values,
   disabled-question copy suppression, Intro starting-points interpolation,
   Half-Time Leader wording/display labels, team-name interpolation, first-try
-  constraints, conversion clamping, and score/result consistency helpers.
+  constraints, conversion clamping, custom step ordering/progress, custom Review
+  edit destinations, and score/result consistency helpers.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,
-  permanent core protection, and optional standard ruleset projection.
+  permanent core protection, positive custom deduction rules, optional standard
+  ruleset projection, and custom snapshot projection.
 
 Commands:
 
@@ -180,7 +183,8 @@ The current browser suite covers:
 - Platform-admin fixture create, publish, and cancel workflow.
 - Draft fixture prediction-question configuration workflow for optional
   standard toggles/deductions, Number and Choice custom questions, reordering,
-  validation feedback, save/revisit persistence, custom publish gate, conflict
+  validation feedback, save/revisit persistence, projected player step count,
+  conflict
   preservation, and explicit reload.
 - Published and cancelled fixture question configuration read-only display.
 - Public and admin fixture pagination controls.
@@ -281,13 +285,14 @@ The integration suite includes coverage for:
   ruleset rejection, and admin fixture publication authorization.
 - Fixture question configuration authorization, admin-only read projection,
   draft-only mutation, revision conflicts, core-question injection rejection,
-  standard-only publication snapshots, custom-question publish gate, and legacy
-  draft default derivation.
+  standard/custom publication snapshots, invalid custom publication rejection,
+  and legacy draft default derivation.
 - Prediction mutation authorization, owner-only publication boundaries, draft /
   cancelled / missing / snapshotless fixture rejection, stored-snapshot
   validation, strict before/equal/after kickoff boundaries with a controlled
-  clock, concurrent first submissions, stale revisions, server-owned field
-  injection rejection, and locked saved-entry readability.
+  clock, custom answer persistence/injection rejection, concurrent first
+  submissions, stale revisions, server-owned field injection rejection, and
+  locked saved-entry readability.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
 the existing auth, fixture, and prediction integration suites.

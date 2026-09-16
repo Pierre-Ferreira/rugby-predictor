@@ -61,18 +61,39 @@ enter those IDs.
 
 Custom questions require an objective counting definition. This is plain text
 that explains what will be counted or settled later, for example whether a stat
-includes only regulation time. CCPP-008 stores this definition for admin/future
-settlement use and does not decide final player-facing presentation.
+includes only regulation time. CCPP-008A shows this counting definition to
+players as secondary helper content so the prediction meaning is explicit.
 
-## Temporary Custom Publish Gate
+Custom Number `deductionPerUnit` and Custom Choice `incorrectDeduction` must be
+positive safe integers greater than zero. Zero-point custom questions are not
+publishable and are rejected rather than silently coerced.
 
-Players cannot answer custom questions yet. A draft fixture with one or more
-custom questions is saveable, but it cannot be published until player custom
-prediction answering is implemented.
+## Standard Player Answering
 
-The gate is server-authoritative. The admin UI also explains the blocked
-publication state, but disabling or hiding a client control is not the security
-boundary.
+CCPP-008A makes published custom questions answerable in the Standard React
+prediction sequence. The order is:
+
+- active built-in standard steps;
+- active custom questions in fixture-configured order;
+- Review.
+
+Intro and Review remain outside numbered progress. If optional standard
+questions are disabled, numbering collapses from the actual active sequence.
+
+Custom answers are stored on the existing prediction entry as `customAnswers`
+keyed by stable custom question ID. Number answers persist as numbers. Choice
+answers persist as stable option IDs, not labels.
+
+Review shows a `CUSTOM QUESTIONS` section only when the fixture has active
+custom questions. Choice answers are resolved back to frozen player-facing
+labels from the fixture snapshot. Locked/read-only views display persisted
+custom answers only; dirty local values are not presented as saved data.
+
+Draft fixtures with valid custom questions can publish. Publication freezes the
+complete player-safe custom definition into the fixture ruleset snapshot:
+prompt, optional banter/context, counting definition, answer type, ranges,
+option IDs/labels, deductions, and order. Player routes and server validation
+use that frozen snapshot, not mutable draft configuration.
 
 ## Future Settlement States
 
@@ -82,12 +103,12 @@ Future result/settlement milestones should model custom question outcomes as:
 - Settled: an official answer is available and can score predictions.
 - Void: the question cannot be settled reliably and deducts nothing.
 
-CCPP-008 does not implement official answers, result entry, settlement, or
+CCPP-008A does not implement official answers, result entry, settlement, or
 voiding workflows.
 
 ## Unresolved Balancing Policy
 
 Rugby Rooster still has an unresolved product decision around fixtures with
-different question counts and deduction weights. CCPP-008 does not normalize
+different question counts and deduction weights. CCPP-008A does not normalize
 scores, scale to percentages, alter the 10,000-point starting score, or change
 the zero floor.

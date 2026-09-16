@@ -18,10 +18,16 @@ import {
   type FixtureDocument,
 } from '/imports/shared/fixtures';
 import {
+  activeCustomQuestions,
   activePredictionSteps,
+  customChoiceDeductionText,
+  customNumberDeductionText,
+  editStepIdForCustomQuestion,
   editStepIdForReviewSection,
   firstPredictionStepId,
+  isBuiltInPredictionStep,
   isFinalPredictionStep,
+  isCustomPredictionStep,
   isScoreKnownAtStep,
   nextPredictionLocation,
   predictionIntroMessage,
@@ -58,6 +64,9 @@ import {
 } from '../fixtures/fixtureUi';
 import {
   buildPredictionPayload,
+  customAnswerDisplayValue,
+  customQuestionById,
+  customStepValidationMessage,
   deriveScoresFromForm,
   deriveTeamScoreFromForm,
   emptyFormForRuleset,
@@ -74,6 +83,7 @@ import {
   resultConsistencyIssue,
   setTeamPredictionField,
   teamDisplayName,
+  type ActiveCustomQuestion,
   type PredictionFormState,
   type TeamPredictionForm,
 } from '../predictions/standardPredictionState';
@@ -91,6 +101,7 @@ interface PredictionStepContentProps {
   readonly fixture: FixtureDocument;
   readonly form: PredictionFormState;
   readonly onChoiceChange: (field: ChoiceFieldName, value: string) => void;
+  readonly onCustomAnswerChange: (questionId: string, value: string) => void;
   readonly onEditStep: (stepId: PredictionStepId) => void;
   readonly onTeamFieldChange: (
     side: TeamSide,
@@ -365,7 +376,9 @@ const PredictionEntrySession = ({
     initialExpectedRevision === null ? { kind: 'intro' } : { kind: 'review' },
   );
   const [messageSelection] = useState<PredictionMessageVariantSelection>(() =>
-    selectPredictionMessageVariants(activeSteps.map((step) => step.messageId)),
+    selectPredictionMessageVariants(
+      activeSteps.filter(isBuiltInPredictionStep).map((step) => step.messageId),
+    ),
   );
   const [isEditingFromReview, setIsEditingFromReview] = useState(false);
   const [editSession, setEditSession] = useState<PredictionEditSession>({
@@ -451,6 +464,16 @@ const PredictionEntrySession = ({
         ? enforceFirstTryConsistency(next).form
         : next;
     });
+  };
+
+  const updateCustomAnswer = (questionId: string, value: string) => {
+    setForm((current) => ({
+      ...current,
+      customAnswers: {
+        ...current.customAnswers,
+        [questionId]: value,
+      },
+    }));
   };
 
   const updateTeamField = (
@@ -577,6 +600,7 @@ const PredictionEntrySession = ({
               form={form}
               messageSelection={messageSelection}
               onChoiceChange={updateChoice}
+              onCustomAnswerChange={updateCustomAnswer}
               onEditStep={goToStep}
               onLocationChange={goToLocation}
               onReturnToReview={() => {
@@ -766,6 +790,7 @@ const PredictionStepView = ({
   form,
   messageSelection,
   onChoiceChange,
+  onCustomAnswerChange,
   onEditStep,
   onLocationChange,
   onReturnToReview,
@@ -781,6 +806,7 @@ const PredictionStepView = ({
   readonly form: PredictionFormState;
   readonly messageSelection: PredictionMessageVariantSelection;
   readonly onChoiceChange: PredictionStepContentProps['onChoiceChange'];
+  readonly onCustomAnswerChange: PredictionStepContentProps['onCustomAnswerChange'];
   readonly onEditStep: (stepId: PredictionStepId) => void;
   readonly onLocationChange: (location: PredictionSequenceLocation) => void;
   readonly onReturnToReview: () => void;
@@ -796,16 +822,42 @@ const PredictionStepView = ({
     return null;
   }
 
-  const message = resolvePredictionStepMessage(
-    step.messageId,
-    messageSelection,
-    {
-      ruleset,
-      team1Name: fixture.team1DisplayName,
-      team2Name: fixture.team2DisplayName,
-    },
-  );
-  const StepContent = stepRenderers[step.id];
+  const customQuestion = isCustomPredictionStep(step)
+    ? customQuestionById(ruleset, step.questionId)
+    : null;
+
+  if (isCustomPredictionStep(step) && !customQuestion) {
+    return null;
+  }
+
+  const message = isBuiltInPredictionStep(step)
+    ? resolvePredictionStepMessage(step.messageId, messageSelection, {
+        ruleset,
+        team1Name: fixture.team1DisplayName,
+        team2Name: fixture.team2DisplayName,
+      })
+    : {
+        body: customQuestion?.banter ?? null,
+        deduction:
+          customQuestion?.type === 'custom-numeric'
+            ? customNumberDeductionText(customQuestion)
+            : customQuestion
+              ? customChoiceDeductionText(customQuestion)
+              : null,
+        heading: customQuestion?.prompt ?? '',
+        supportingText: [],
+      };
+  const customValidationMessage = customQuestion
+    ? customStepValidationMessage(
+        customQuestion,
+        form.customAnswers[customQuestion.id] ?? '',
+      )
+    : null;
+  const BuiltInStepContent = isBuiltInPredictionStep(step)
+    ? builtInStepRenderers[step.id]
+    : null;
+  const forwardNavigationDisabled =
+    consistencyIssue !== null || customValidationMessage !== null;
 
   return (
     <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
@@ -842,15 +894,24 @@ const PredictionStepView = ({
       </div>
 
       <div className="mt-6">
-        <StepContent
-          conversionAdjustmentNotice={conversionAdjustmentNotice}
-          fixture={fixture}
-          form={form}
-          onChoiceChange={onChoiceChange}
-          onEditStep={onEditStep}
-          onTeamFieldChange={onTeamFieldChange}
-          ruleset={ruleset}
-        />
+        {BuiltInStepContent ? (
+          <BuiltInStepContent
+            conversionAdjustmentNotice={conversionAdjustmentNotice}
+            fixture={fixture}
+            form={form}
+            onChoiceChange={onChoiceChange}
+            onCustomAnswerChange={onCustomAnswerChange}
+            onEditStep={onEditStep}
+            onTeamFieldChange={onTeamFieldChange}
+            ruleset={ruleset}
+          />
+        ) : customQuestion ? (
+          <CustomQuestionStep
+            form={form}
+            question={customQuestion}
+            onCustomAnswerChange={onCustomAnswerChange}
+          />
+        ) : null}
       </div>
 
       {consistencyIssue ? (
@@ -863,6 +924,15 @@ const PredictionStepView = ({
         </div>
       ) : null}
 
+      {customValidationMessage ? (
+        <p
+          className="mt-5 rounded-md border border-rooster-sun/50 bg-rooster-sun/10 p-3 text-sm font-bold text-rooster-ink"
+          role="alert"
+        >
+          {customValidationMessage}
+        </p>
+      ) : null}
+
       <StepNavigation
         backLocation={previousPredictionLocation(activeSteps, step.id)}
         continueLabel={
@@ -870,7 +940,7 @@ const PredictionStepView = ({
             ? 'Review predictions'
             : 'Continue'
         }
-        forwardNavigationDisabled={consistencyIssue !== null}
+        forwardNavigationDisabled={forwardNavigationDisabled}
         nextLocation={nextPredictionLocation(activeSteps, step.id)}
         onLocationChange={onLocationChange}
         onReturnToReview={onReturnToReview}
@@ -950,7 +1020,10 @@ const StepNavigation = ({
   </div>
 );
 
-const stepRenderers: Record<PredictionStepId, PredictionStepRenderer> = {
+const builtInStepRenderers: Record<
+  Exclude<PredictionStepId, `custom:${string}`>,
+  PredictionStepRenderer
+> = {
   cards: (props) => <CardsStep {...props} />,
   conversions: (props) => (
     <ScoreComponentStep component="conversions" {...props} />
@@ -1233,6 +1306,87 @@ const HalfTimeLeaderStep = ({
   />
 );
 
+const CustomQuestionStep = ({
+  form,
+  onCustomAnswerChange,
+  question,
+}: {
+  readonly form: PredictionFormState;
+  readonly onCustomAnswerChange: (questionId: string, value: string) => void;
+  readonly question: ActiveCustomQuestion;
+}) => {
+  const value = form.customAnswers[question.id] ?? '';
+
+  if (question.type === 'custom-numeric') {
+    const normalizeOnBlur = () => {
+      const parsed = parseFormWholeNumber(value);
+
+      if (parsed === null) {
+        return;
+      }
+
+      onCustomAnswerChange(
+        question.id,
+        String(Math.min(question.max, Math.max(question.min, parsed))),
+      );
+    };
+
+    return (
+      <div className="grid gap-4">
+        <CustomQuestionExplanation question={question} />
+        <div className="max-w-sm">
+          <NumericPredictionControl
+            inputLabel={`${question.prompt} answer`}
+            label="Your prediction"
+            max={String(question.max)}
+            min={String(question.min)}
+            onBlur={normalizeOnBlur}
+            onChange={(nextValue) =>
+              onCustomAnswerChange(question.id, nextValue)
+            }
+            supportingText={`Range: ${question.min} to ${question.max}`}
+            value={value}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4">
+      <CustomQuestionExplanation question={question} />
+      <PredictionChoiceGroup
+        label={question.prompt}
+        name={`custom-${question.id}`}
+        onChange={(nextValue) => onCustomAnswerChange(question.id, nextValue)}
+        options={question.options.map((option) => ({
+          label: option.label,
+          value: option.id,
+        }))}
+        selectedLabel={customAnswerDisplayValue(question, value)}
+        value={value}
+      />
+    </div>
+  );
+};
+
+const CustomQuestionExplanation = ({
+  question,
+}: {
+  readonly question: ActiveCustomQuestion;
+}) => (
+  <div className="grid gap-3">
+    <section className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+      <h3 className="text-xs font-black uppercase text-rooster-muted">
+        What counts
+      </h3>
+      <p className="mt-2 text-sm font-semibold leading-6 text-rooster-ink">
+        {question.countingDefinition}
+      </p>
+    </section>
+  </div>
+);
+
 const TeamPredictionGrid = ({ children }: { readonly children: ReactNode }) => (
   <div className="grid gap-4 md:grid-cols-2">{children}</div>
 );
@@ -1270,6 +1424,8 @@ const NumericPredictionControl = ({
   inputLabel,
   label,
   max,
+  min = '0',
+  onBlur,
   onChange,
   supportingText,
   value,
@@ -1278,22 +1434,25 @@ const NumericPredictionControl = ({
   readonly inputLabel: string;
   readonly label: string;
   readonly max?: string;
+  readonly min?: string;
+  readonly onBlur?: () => void;
   readonly onChange: (value: string) => void;
   readonly supportingText?: string;
   readonly value: string;
 }) => {
   const id = useId();
   const parsed = parseFormWholeNumber(value);
+  const parsedMin = parseFormWholeNumber(min) ?? 0;
   const parsedMax = max === undefined ? null : parseFormWholeNumber(max);
-  const canDecrement = !disabled && parsed !== null && parsed > 0;
+  const canDecrement = !disabled && parsed !== null && parsed > parsedMin;
   const canIncrement =
-    !disabled && parsed !== null && (parsedMax === null || parsed < parsedMax);
+    !disabled && (parsed === null || parsedMax === null || parsed < parsedMax);
 
   const increment = () => {
-    onChange(String((parsed ?? 0) + 1));
+    onChange(String(parsed === null ? parsedMin : parsed + 1));
   };
   const decrement = () => {
-    onChange(String(Math.max(0, (parsed ?? 0) - 1)));
+    onChange(String(Math.max(parsedMin, (parsed ?? parsedMin) - 1)));
   };
 
   return (
@@ -1318,7 +1477,8 @@ const NumericPredictionControl = ({
           id={id}
           inputMode="numeric"
           max={max}
-          min="0"
+          min={min}
+          onBlur={onBlur}
           onChange={(event: ChangeEvent<HTMLInputElement>) =>
             onChange(event.target.value)
           }
@@ -1588,6 +1748,7 @@ const PredictionReviewSummary = ({
   const hasActiveCardQuestions = isYellowCardsActive || isRedCardsActive;
   const hasActiveOtherPredictions =
     isFirstTryActive || isHighestScoringHalfActive || isHalfTimeLeaderActive;
+  const customQuestions = activeCustomQuestions(ruleset);
 
   return (
     <div className="grid gap-4">
@@ -1708,6 +1869,20 @@ const PredictionReviewSummary = ({
           ) : null}
         </ReviewSection>
       ) : null}
+
+      {customQuestions.length > 0 ? (
+        <ReviewSection title="CUSTOM QUESTIONS">
+          {customQuestions.map((question) => (
+            <ReviewCustomQuestion
+              activeSteps={activeSteps}
+              form={form}
+              key={question.id}
+              onEditStep={onEditStep}
+              question={question}
+            />
+          ))}
+        </ReviewSection>
+      ) : null}
     </div>
   );
 };
@@ -1791,6 +1966,47 @@ const ReviewEditableLine = ({
           onClick={() => onEditStep(editStepId)}
         >
           Edit {label.toLowerCase()}
+        </button>
+      ) : null}
+    </div>
+  );
+};
+
+const ReviewCustomQuestion = ({
+  activeSteps,
+  form,
+  onEditStep,
+  question,
+}: {
+  readonly activeSteps: readonly PredictionSequenceStepDefinition[];
+  readonly form: PredictionFormState;
+  readonly onEditStep?: (stepId: PredictionStepId) => void;
+  readonly question: ActiveCustomQuestion;
+}) => {
+  const editStepId = editStepIdForCustomQuestion(activeSteps, question.id);
+  const value = form.customAnswers[question.id] ?? '';
+  const deduction =
+    question.type === 'custom-numeric'
+      ? customNumberDeductionText(question)
+      : customChoiceDeductionText(question);
+
+  return (
+    <div className="rounded-md border border-rooster-line bg-rooster-paper p-3">
+      <ReviewLine
+        detail={deduction}
+        label={question.prompt}
+        value={customAnswerDisplayValue(question, value)}
+      />
+      <p className="mt-2 text-xs font-semibold leading-5 text-rooster-muted">
+        What counts: {question.countingDefinition}
+      </p>
+      {editStepId && onEditStep ? (
+        <button
+          className="focus-ring mt-3 min-h-9 rounded-md border border-rooster-line bg-white px-3 text-xs font-black text-rooster-ink transition hover:bg-rooster-paper"
+          type="button"
+          onClick={() => onEditStep(editStepId)}
+        >
+          Edit custom question
         </button>
       ) : null}
     </div>

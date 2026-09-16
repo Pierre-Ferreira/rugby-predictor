@@ -13,8 +13,8 @@ reimplementing prediction business rules in animation code.
 
 ## Source Map
 
-- `imports/shared/predictions/sequence.ts` - built-in step definitions and
-  active-step/navigation helpers.
+- `imports/shared/predictions/sequence.ts` - built-in step definitions,
+  dynamic custom step projection, and active-step/navigation helpers.
 - `imports/shared/predictions/messages.ts` - shared Intro/step copy catalog,
   stable variant selection, team-name interpolation, and ruleset-derived
   deduction text.
@@ -24,10 +24,10 @@ reimplementing prediction business rules in animation code.
 - `imports/ui/pages/PredictionEntryPage.tsx` - route wrapper, standard sequence
   presentation, Review, submit/revise/reload/conflict/read-only behavior.
 
-## Current Built-In Sequence
+## Current Sequence
 
 Intro and Review are outside numbered prediction progress. The current default
-enabled sequence is:
+enabled built-in sequence is:
 
 1. Match result
 2. Tries
@@ -42,6 +42,17 @@ enabled sequence is:
 The active numbered list is built from `activePredictionSteps(ruleset)`.
 Progress, Back/Continue, final `Review predictions`, Review edit destinations,
 and locked read-only Review rendering consume that active list.
+
+CCPP-008A extends that same active list with dynamic custom steps from the
+fixture's frozen ruleset snapshot. Custom step IDs use
+`custom:<questionId>`. The player order is:
+
+1. active built-in standard steps;
+2. active custom questions ordered by the frozen custom `order`;
+3. Review.
+
+No custom insertion between Tries, Conversions, Cards, or other built-in steps
+exists in CCPP-008A.
 
 The score-building steps remain present because the current prediction validator
 requires scoring components to derive predicted rugby scores and validate match
@@ -73,11 +84,21 @@ explicit half-time wording, and the Half-Time Leader draw display is
 
 No runtime AI-generated copy is used.
 
+Custom questions are fixture-authored and do not use randomized message
+variants. The Standard view renders the frozen prompt, optional banter/context,
+standardized Number or Choice deduction text from shared helpers, and the frozen
+counting definition.
+
 ## Standard State Rules
 
 The standard experience keeps one `PredictionFormState` for the whole sequence.
 Intro, numbered steps, Review, Edit-from-Review, submit/revise, reload, and
 conflict handling all read or update that same state.
+
+Custom answers live in the same form state under `customAnswers`, keyed by
+stable custom question ID. Number custom answers are kept as strings while
+editing and normalized to numbers only when building the submission payload.
+Choice custom answers store the stable option ID selected by the player.
 
 Predicted rugby match scores are derived with shared scoring helpers. The view
 does not maintain a separately editable score and does not duplicate the score
@@ -95,22 +116,21 @@ First-try constraints are derived from predicted tries. Impossible hidden answer
 are removed immediately, and forced answers are explained as based on predicted
 tries.
 
-## Future Extension Point
+## Custom Questions
 
 CCPP-008 makes optional standard question enablement configurable through the
 fixture ruleset snapshot. The existing active-step helper already includes only
 enabled built-in optional steps, so disabled First Try, Highest-Scoring Half, or
 Half-Time Leader questions disappear from player progress and Review.
 
-Future milestones may supply additional sequence items for configured custom
-questions by extending the active ordered step list and providing matching
-message/review/render metadata. The current extension plan is to append custom
-questions after built-in configured prediction questions and before Review unless
-a later product decision changes that ordering.
+CCPP-008A supplies additional sequence items for configured custom questions.
+`activeCustomQuestions(ruleset)` reads enabled `custom-numeric` and
+`custom-categorical` definitions from the frozen snapshot. Review uses
+`editStepIdForCustomQuestion(...)` so each custom Review row returns to the
+correct custom step.
 
-CCPP-008 still does not define or implement:
+CCPP-008A still does not define or implement:
 
-- custom-question prediction storage changes;
 - custom-question scoring or settlement;
 - custom official-answer workflows;
 - future balancing across fixtures with different question counts or weights.

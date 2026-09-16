@@ -133,6 +133,12 @@ export interface BuiltInCategoricalQuestion extends QuestionBase {
 
 export interface CustomNumericQuestion extends QuestionBase {
   readonly type: 'custom-numeric';
+  readonly banter?: string;
+  readonly countingDefinition: string;
+  readonly max: number;
+  readonly min: number;
+  readonly order: number;
+  readonly prompt: string;
   readonly rate: number;
 }
 
@@ -143,8 +149,12 @@ export interface CustomCategoricalOption {
 
 export interface CustomCategoricalQuestion extends QuestionBase {
   readonly type: 'custom-categorical';
+  readonly banter?: string;
+  readonly countingDefinition: string;
   readonly incorrectDeduction: number;
+  readonly order: number;
   readonly options: readonly CustomCategoricalOption[];
+  readonly prompt: string;
 }
 
 export type QuestionDefinition =

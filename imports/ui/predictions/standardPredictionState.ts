@@ -1,8 +1,8 @@
 import type { FixtureDocument } from '/imports/shared/fixtures';
+import { activeCustomQuestions } from '/imports/shared/predictions/sequence';
 import {
   deriveMatchResult,
   deriveTeamScore,
-  enabledQuestions,
   isBuiltInEnabled,
   ScoringValidationError,
   type FirstTryAnswer,
@@ -67,21 +67,16 @@ const emptyTeamForm = (): TeamPredictionForm => ({
   yellowCards: '0',
 });
 
-const isCustomQuestion = (
-  question: QuestionDefinition,
-): question is Extract<
+export type ActiveCustomQuestion = Extract<
   QuestionDefinition,
   { readonly type: 'custom-categorical' | 'custom-numeric' }
-> =>
-  question.type === 'custom-categorical' || question.type === 'custom-numeric';
+>;
 
 export const emptyFormForRuleset = (
   ruleset: RulesetSnapshot,
 ): PredictionFormState => ({
   customAnswers: Object.fromEntries(
-    enabledQuestions(ruleset)
-      .filter(isCustomQuestion)
-      .map((question) => [question.id, '']),
+    activeCustomQuestions(ruleset).map((question) => [question.id, '']),
   ),
   firstTry: '',
   halfTimeLeader: '',
@@ -99,14 +94,12 @@ export const formFromPrediction = (
   ruleset: RulesetSnapshot,
 ): PredictionFormState => ({
   customAnswers: Object.fromEntries(
-    enabledQuestions(ruleset)
-      .filter(isCustomQuestion)
-      .map((question) => [
-        question.id,
-        prediction.customAnswers?.[question.id] === undefined
-          ? ''
-          : String(prediction.customAnswers[question.id]),
-      ]),
+    activeCustomQuestions(ruleset).map((question) => [
+      question.id,
+      prediction.customAnswers?.[question.id] === undefined
+        ? ''
+        : String(prediction.customAnswers[question.id]),
+    ]),
   ),
   firstTry: prediction.firstTry ?? '',
   halfTimeLeader: prediction.halfTimeLeader ?? '',
@@ -158,6 +151,84 @@ export const parseWholeNumber = (value: string, label: string): number => {
   }
 
   return parsed;
+};
+
+export const parseCustomNumberAnswer = (
+  value: string,
+  question: Extract<ActiveCustomQuestion, { readonly type: 'custom-numeric' }>,
+): number => {
+  const parsed = parseWholeNumber(value, question.prompt);
+
+  if (parsed < question.min || parsed > question.max) {
+    throw new Error(
+      `${question.prompt} must be between ${question.min} and ${question.max}.`,
+    );
+  }
+
+  return parsed;
+};
+
+export const customQuestionById = (
+  ruleset: RulesetSnapshot,
+  questionId: string,
+): ActiveCustomQuestion | null =>
+  activeCustomQuestions(ruleset).find(
+    (question) => question.id === questionId,
+  ) ?? null;
+
+export const customChoiceAnswerLabel = (
+  question: Extract<
+    ActiveCustomQuestion,
+    { readonly type: 'custom-categorical' }
+  >,
+  value: string,
+): string =>
+  question.options.find((option) => option.id === value)?.label ?? 'Not saved';
+
+export const customAnswerDisplayValue = (
+  question: ActiveCustomQuestion,
+  value: string,
+): string => {
+  if (!value) {
+    return 'Not saved';
+  }
+
+  if (question.type === 'custom-numeric') {
+    return parseFormWholeNumber(value) === null ? 'Not saved' : value;
+  }
+
+  return customChoiceAnswerLabel(question, value);
+};
+
+export const customStepValidationMessage = (
+  question: ActiveCustomQuestion,
+  value: string,
+): string | null => {
+  if (question.type === 'custom-numeric') {
+    if (!value.trim()) {
+      return `Enter a whole number from ${question.min} to ${question.max} to continue.`;
+    }
+
+    const parsed = parseFormWholeNumber(value);
+
+    if (parsed === null) {
+      return `Enter a whole number from ${question.min} to ${question.max} to continue.`;
+    }
+
+    if (parsed < question.min || parsed > question.max) {
+      return `Enter a value from ${question.min} to ${question.max} to continue.`;
+    }
+
+    return null;
+  }
+
+  if (!value) {
+    return 'Choose one option to continue.';
+  }
+
+  return question.options.some((option) => option.id === value)
+    ? null
+    : 'Choose one of the listed options to continue.';
 };
 
 export const maxAttributeForWholeNumber = (
@@ -529,7 +600,7 @@ export const buildPredictionPayload = (
       : {}),
   });
 
-  const customQuestions = enabledQuestions(ruleset).filter(isCustomQuestion);
+  const customQuestions = activeCustomQuestions(ruleset);
 
   return {
     ...(isBuiltInEnabled(ruleset, 'match-result')
@@ -559,7 +630,7 @@ export const buildPredictionPayload = (
               const rawValue = form.customAnswers[question.id] ?? '';
               const value =
                 question.type === 'custom-numeric'
-                  ? parseWholeNumber(rawValue, question.label)
+                  ? parseCustomNumberAnswer(rawValue, question)
                   : rawValue;
 
               return [question.id, value];

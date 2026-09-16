@@ -20,11 +20,11 @@
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
 - `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
 - `docs/PLATFORM_Prediction_Sequence.md` - CCPP-007 standard prediction
-  sequence/message architecture, active-step navigation, Review edit
-  destinations, and future optional/custom question extension boundaries.
+  sequence/message architecture, active-step navigation, dynamic custom
+  question steps, and Review edit destinations.
 - `docs/PLATFORM_Prediction_Question_Configuration.md` - CCPP-008 fixture
   question configuration storage, validation, authorization, revision,
-  snapshot, and custom publish-gate architecture.
+  snapshot, and custom publication architecture.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
@@ -54,6 +54,9 @@
 - `docs/AUDIT_008_Fixture_Question_Configuration.md` - CCPP-008 fixture
   question configuration implementation, validation, authorization, revision,
   snapshot, publish-gate, and verification evidence.
+- `docs/AUDIT_008A_Custom_Questions_Standard_Sequence.md` - CCPP-008A custom
+  questions in the Standard prediction sequence, snapshot validation,
+  publish-gate removal, and verification evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -74,6 +77,8 @@
   prediction cleanup and final packaging handoff.
 - `docs/TEMP_008_Resume.md` - temporary CCPP-008 checkpoint for fixture
   prediction question configuration and packaging handoff.
+- `docs/TEMP_008A_Resume.md` - temporary CCPP-008A checkpoint for custom
+  questions in the Standard prediction sequence and final packaging handoff.
 
 ## Application Entry Points
 
@@ -153,8 +158,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/predictionQuestions/` - CCPP-008 fixture prediction question
   configuration types, constants, validation, normalization, legacy defaults,
   and ruleset snapshot projection.
-- `imports/shared/predictions/sequence.ts` - CCPP-007 standard built-in
-  prediction sequence definitions and active navigation helpers.
+- `imports/shared/predictions/sequence.ts` - CCPP-007/008A prediction sequence
+  definitions, dynamic custom step projection, and active navigation helpers.
 - `imports/shared/predictions/messages.ts` - CCPP-007/007A shared prediction
   message catalog, variant selection, interpolation, ruleset-derived
   enabled-question deduction text, and Intro starting-points copy.
@@ -192,8 +197,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
 - `tests/unit/predictions.test.ts` - prediction submission validation, internal
   team-side value, and bypassed invalid conversion unit tests.
-- `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A standard sequence,
-  message catalog, ruleset-aware copy, and state-helper unit tests.
+- `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A/008A standard
+  sequence, custom step ordering, message catalog, ruleset-aware copy, and
+  state-helper unit tests.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
@@ -204,14 +210,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing,
   public/admin pagination controls, admin fixture create/publish/cancel
-  workflow, fixture question configuration, custom publish gate, conflict
-  reload, and published/cancelled question read-only display.
+  workflow, fixture question configuration, projected player step count,
+  conflict reload, and published/cancelled question read-only display.
 - `tests/e2e/predictions.spec.ts` - browser tests for prediction return path,
   standard sequential Intro/progress/navigation, score-building steps,
   conversion clamping, result consistency, ruleset-aware Review filtering,
   first-try constraints, submit/revisit, Review Edit and Return to Review, edit
   before kickoff, persisted locked read-only display after dirty local edits,
-  and conflict value preservation.
+  custom Number/Choice questions, and conflict value preservation.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories

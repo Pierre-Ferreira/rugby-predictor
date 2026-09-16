@@ -4,9 +4,11 @@ import {
   activePredictionSteps,
   buildPredictionIntroMessage,
   categoricalIncorrectDeduction,
+  editStepIdForCustomQuestion,
   editStepIdForReviewSection,
   firstPredictionStepId,
   formatPredictionPoints,
+  isBuiltInPredictionStep,
   isFinalPredictionStep,
   nextPredictionLocation,
   predictionMessageCatalog,
@@ -18,6 +20,10 @@ import {
   standardPredictionStepDefinitions,
   teamNumericDeductionRate,
 } from '../../imports/shared/predictions';
+import {
+  buildConfiguredRulesetSnapshot,
+  defaultFixturePredictionQuestionConfig,
+} from '../../imports/shared/predictionQuestions';
 import {
   defaultRuleset,
   STARTING_POINTS,
@@ -43,6 +49,34 @@ const rulesetWithDisabledQuestions = (
       ? { ...question, enabled: false }
       : question,
   ),
+});
+
+const customQuestionConfig = () => ({
+  ...defaultFixturePredictionQuestionConfig(),
+  customQuestions: [
+    {
+      answerType: 'choice' as const,
+      countingDefinition: 'Official player of the match group.',
+      id: 'player-band',
+      incorrectDeduction: 75,
+      options: [
+        { id: 'backs', label: 'Backs' },
+        { id: 'forwards', label: 'Forwards' },
+      ],
+      order: 1,
+      prompt: 'Which group produces the player of the match?',
+    },
+    {
+      answerType: 'number' as const,
+      countingDefinition: 'Scrum penalties against Team 2 in regulation time.',
+      deductionPerUnit: 25,
+      id: 'scrum-pressure',
+      max: 20,
+      min: 0,
+      order: 2,
+      prompt: 'How many scrum penalties against Team 2?',
+    },
+  ],
 });
 
 const fixtureNames = {
@@ -144,6 +178,77 @@ describe('prediction sequence definition', () => {
       'tries',
     );
   });
+
+  it('appends active custom questions after built-ins and before Review', () => {
+    const activeSteps = activePredictionSteps(
+      buildConfiguredRulesetSnapshot(customQuestionConfig()),
+    );
+
+    expect(activeSteps).toHaveLength(11);
+    expect(activeSteps.map((step) => step.id).slice(-2)).toEqual([
+      'custom:player-band',
+      'custom:scrum-pressure',
+    ]);
+    expect(predictionStepPosition(activeSteps, 'custom:player-band')).toEqual({
+      current: 10,
+      total: 11,
+    });
+    expect(nextPredictionLocation(activeSteps, 'half-time-leader')).toEqual({
+      kind: 'step',
+      stepId: 'custom:player-band',
+    });
+    expect(
+      previousPredictionLocation(activeSteps, 'custom:player-band'),
+    ).toEqual({
+      kind: 'step',
+      stepId: 'half-time-leader',
+    });
+    expect(
+      nextPredictionLocation(activeSteps, 'custom:scrum-pressure'),
+    ).toEqual({
+      kind: 'review',
+    });
+    expect(isFinalPredictionStep(activeSteps, 'custom:scrum-pressure')).toBe(
+      true,
+    );
+    expect(editStepIdForCustomQuestion(activeSteps, 'scrum-pressure')).toBe(
+      'custom:scrum-pressure',
+    );
+  });
+
+  it('collapses optional standard steps while still counting custom questions', () => {
+    const config = {
+      ...customQuestionConfig(),
+      optionalStandardQuestions:
+        defaultFixturePredictionQuestionConfig().optionalStandardQuestions.map(
+          (question) =>
+            question.id === 'first-try' || question.id === 'half-time-leader'
+              ? { ...question, enabled: false }
+              : question,
+        ),
+    };
+    const activeSteps = activePredictionSteps(
+      buildConfiguredRulesetSnapshot(config),
+    );
+
+    expect(activeSteps.map((step) => step.id)).toEqual([
+      'match-result',
+      'tries',
+      'conversions',
+      'penalty-kicks',
+      'drop-goals',
+      'cards',
+      'highest-scoring-half',
+      'custom:player-band',
+      'custom:scrum-pressure',
+    ]);
+    expect(
+      predictionStepPosition(activeSteps, 'custom:scrum-pressure'),
+    ).toEqual({
+      current: 9,
+      total: 9,
+    });
+  });
 });
 
 describe('prediction message catalog', () => {
@@ -156,7 +261,7 @@ describe('prediction message catalog', () => {
   it('keeps selected variants stable when the same selection is reused', () => {
     const activeSteps = activePredictionSteps(defaultRuleset);
     const selection = selectPredictionMessageVariants(
-      activeSteps.map((step) => step.messageId),
+      activeSteps.filter(isBuiltInPredictionStep).map((step) => step.messageId),
       () => 0.7,
     );
 

@@ -110,12 +110,6 @@ const conflictError = (): Meteor.Error =>
     'This fixture changed before your update could be saved. Refresh and try again.',
   );
 
-const customQuestionPublishGateError = (): Meteor.Error =>
-  new Meteor.Error(
-    'fixture-custom-questions-not-publishable',
-    'Custom questions are configured for this fixture, but custom-question player predictions are not enabled yet.',
-  );
-
 const notFoundError = (): Meteor.Error =>
   new Meteor.Error('fixture-not-found', 'Fixture was not found.');
 
@@ -448,10 +442,6 @@ const registerFixtureMethods = () => {
         }
 
         const questionConfig = predictionQuestionConfigForFixture(current);
-
-        if (questionConfig.customQuestions.length > 0) {
-          throw customQuestionPublishGateError();
-        }
 
         const rulesetSnapshot = buildConfiguredRulesetSnapshot(questionConfig);
         const now = new Date();

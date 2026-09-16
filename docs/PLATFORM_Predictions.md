@@ -33,6 +33,11 @@ The full immutable scoring snapshot remains on the fixture. Prediction entries
 do not copy the full ruleset snapshot and do not store match results, calculated
 fixture scores, leaderboard scores, or result observations.
 
+When the fixture snapshot contains active custom questions, the stored
+`prediction` payload includes `customAnswers` keyed by stable custom question
+ID. Number answers are stored as numbers. Choice answers are stored as stable
+option IDs from the frozen snapshot.
+
 ## Methods
 
 Player prediction method:
@@ -79,6 +84,12 @@ The method validates submitted answers against the fixture's stored
 `validatePrediction` contract and then normalizes a plain stored prediction
 payload. This preserves existing scoring rules for contradictions and unknown
 fields while preventing extra client payload fields from being stored.
+
+Custom answer validation is additive to the built-in validation. The server
+requires an answer for every enabled custom question in the frozen snapshot and
+rejects missing answers, unknown custom question IDs, wrong answer types,
+out-of-range custom Number values, non-integers, invalid custom Choice option
+IDs, and injected question definitions or deduction metadata.
 
 ## Revision And Atomicity
 
@@ -168,7 +179,8 @@ When `isReadOnly` becomes true because scheduled kickoff has passed or the
 fixture is cancelled, the read-only saved-entry view derives its review values
 from the current persisted prediction entry. It does not read from mutable form
 state, so dirty unsaved values cannot be shown as saved answers. If the current
-user has no entry, the locked view shows the no-saved-prediction state.
+user has no entry, the locked view shows the no-saved-prediction state. This
+same persisted-entry rule applies to custom answers.
 
 CCPP-006B kept the original route and form structure but corrected presentation
 details in `PredictionEntryPage.tsx`:
@@ -223,15 +235,17 @@ all-at-once standard form with a guided standard sequence:
 - Read-only locked/cancelled display continues to render the persisted saved
   entry, not dirty local state.
 
-CCPP-008 adds admin configuration for optional standard questions and draft-only
-custom question definitions. Published standard-only fixtures store configured
-optional standard enabled states and deductions in the fixture ruleset snapshot,
-which the existing Standard sequence already consumes. CCPP-008 does not render
-custom questions in the player sequence and blocks publishing fixtures that
-contain custom questions until the player answering milestone exists.
+CCPP-008A extends the same sequence with active custom questions from the frozen
+ruleset snapshot. Custom questions appear after active built-in steps and before
+Review. Custom Number steps render prompt, optional banter/context, deduction
+semantics, counting definition, and bounded numeric controls. Custom Choice
+steps render prompt, optional banter/context, deduction semantics, counting
+definition, and frozen option labels while storing the selected option ID.
 
-Future custom questions must extend the ordered sequence and message/review/render
-definitions rather than adding page-local navigation branches.
+Review shows a `CUSTOM QUESTIONS` section only when custom questions exist.
+Each custom row resolves the saved answer through the frozen question
+definition and can Edit back to that specific custom step while the fixture is
+open.
 
 ## Prediction Presentation Architecture
 

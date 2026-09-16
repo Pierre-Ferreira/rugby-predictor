@@ -5,8 +5,13 @@ import {
   sanitizeSubmitPredictionInput,
 } from '../../imports/shared/predictions';
 import {
+  buildConfiguredRulesetSnapshot,
+  defaultFixturePredictionQuestionConfig,
+} from '../../imports/shared/predictionQuestions';
+import {
   defaultRuleset,
   type FixturePrediction,
+  type RulesetSnapshot,
 } from '../../imports/shared/scoring';
 
 const validPrediction = (): FixturePrediction => ({
@@ -29,6 +34,43 @@ const validPrediction = (): FixturePrediction => ({
     redCards: 0,
     tries: 1,
     yellowCards: 0,
+  },
+});
+
+const customRuleset = (): RulesetSnapshot =>
+  buildConfiguredRulesetSnapshot({
+    ...defaultFixturePredictionQuestionConfig(),
+    customQuestions: [
+      {
+        answerType: 'number',
+        countingDefinition: 'Scrum penalties awarded against Team 2.',
+        deductionPerUnit: 25,
+        id: 'scrum-pressure',
+        max: 12,
+        min: 0,
+        order: 1,
+        prompt: 'How many scrum penalties?',
+      },
+      {
+        answerType: 'choice',
+        countingDefinition: 'Official player of the match group.',
+        id: 'player-band',
+        incorrectDeduction: 75,
+        options: [
+          { id: 'backs', label: 'Backs' },
+          { id: 'forwards', label: 'Forwards' },
+        ],
+        order: 2,
+        prompt: 'Which group produces the player of the match?',
+      },
+    ],
+  });
+
+const validCustomPrediction = (): FixturePrediction => ({
+  ...validPrediction(),
+  customAnswers: {
+    'player-band': 'forwards',
+    'scrum-pressure': 4,
   },
 });
 
@@ -129,6 +171,161 @@ describe('prediction submission validation', () => {
               yellowCards: 0,
             },
           },
+        },
+        defaultRuleset,
+      ),
+    ).toThrow(/Scoring input is invalid/);
+  });
+
+  it('accepts valid custom number and choice answers from the frozen ruleset', () => {
+    const result = sanitizeSubmitPredictionInput(
+      {
+        fixtureId: 'fixture_123',
+        prediction: validCustomPrediction(),
+      },
+      customRuleset(),
+    );
+
+    expect(result.prediction.customAnswers).toEqual({
+      'player-band': 'forwards',
+      'scrum-pressure': 4,
+    });
+  });
+
+  it('accepts custom numeric minimum and maximum bounds', () => {
+    const ruleset = customRuleset();
+
+    expect(
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              ...validCustomPrediction().customAnswers,
+              'scrum-pressure': 0,
+            },
+          },
+        },
+        ruleset,
+      ).prediction.customAnswers?.['scrum-pressure'],
+    ).toBe(0);
+    expect(
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              ...validCustomPrediction().customAnswers,
+              'scrum-pressure': 12,
+            },
+          },
+        },
+        ruleset,
+      ).prediction.customAnswers?.['scrum-pressure'],
+    ).toBe(12);
+  });
+
+  it('rejects malformed custom numeric answers', () => {
+    const ruleset = customRuleset();
+
+    for (const answer of [-1, 13, 2.5, Number.POSITIVE_INFINITY, '4']) {
+      expect(() =>
+        sanitizeSubmitPredictionInput(
+          {
+            fixtureId: 'fixture_123',
+            prediction: {
+              ...validCustomPrediction(),
+              customAnswers: {
+                ...validCustomPrediction().customAnswers,
+                'scrum-pressure': answer,
+              },
+            },
+          },
+          ruleset,
+        ),
+      ).toThrow(/Scoring input is invalid/);
+    }
+  });
+
+  it('rejects missing, unknown, and invalid custom choice answers', () => {
+    const ruleset = customRuleset();
+
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              'player-band': 'forwards',
+            },
+          },
+        },
+        ruleset,
+      ),
+    ).toThrow(/Scoring input is invalid/);
+
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              ...validCustomPrediction().customAnswers,
+              'player-band': 'Forward pack',
+            },
+          },
+        },
+        ruleset,
+      ),
+    ).toThrow(/Scoring input is invalid/);
+
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              ...validCustomPrediction().customAnswers,
+              unknown: 1,
+            },
+          },
+        },
+        ruleset,
+      ),
+    ).toThrow(/Scoring input is invalid/);
+  });
+
+  it('rejects injected custom question definitions and custom answers without matching frozen questions', () => {
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validCustomPrediction(),
+            customAnswers: {
+              'player-band': {
+                incorrectDeduction: 0,
+                label: 'Injected label',
+                value: 'forwards',
+              },
+              'scrum-pressure': 4,
+            },
+          },
+        },
+        customRuleset(),
+      ),
+    ).toThrow(/Scoring input is invalid/);
+
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: validCustomPrediction(),
         },
         defaultRuleset,
       ),

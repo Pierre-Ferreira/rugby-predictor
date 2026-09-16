@@ -31,7 +31,8 @@ The module owns:
 - text limits
 - validation and normalization
 - default derivation
-- projection from standard question config to a scoring ruleset snapshot
+- projection from standard and custom question config to a scoring ruleset
+  snapshot
 
 The implementation reuses the existing scoring domain concepts:
 
@@ -39,9 +40,9 @@ The implementation reuses the existing scoring domain concepts:
 - `custom-categorical`
 - `customAnswers`
 
-CCPP-008 stores richer draft custom configuration for future player/settlement
-milestones, but custom-question fixtures are blocked from publication until the
-player sequence can answer them.
+CCPP-008A projects valid custom Number and Choice questions into the published
+ruleset snapshot so players can answer them in the Standard sequence. Custom
+settlement and official-answer workflows remain future milestones.
 
 ## IDs And Ordering
 
@@ -73,8 +74,11 @@ Server validation is authoritative and rejects:
 - duplicate question or option IDs
 
 Optional standard incorrect deductions use the existing scoring ruleset
-constraint: finite positive safe integers. Custom Number and Choice deductions
-accept finite non-negative safe integers for draft configuration.
+constraint: finite positive safe integers. Custom Number `deductionPerUnit` and
+Custom Choice `incorrectDeduction` also require finite positive safe integers
+greater than zero. Existing drafts with zero custom deductions remain editable
+but cannot save or publish until corrected; the server does not silently coerce
+zero to one.
 
 ## Methods And Publications
 
@@ -99,8 +103,10 @@ Admin publication:
 This admin-only publication now includes `predictionQuestionConfig`.
 
 Public fixture publications do not include draft question configuration. The
-player prediction fixture context continues to publish only the published
-fixture context and `rulesetSnapshot`.
+player prediction fixture context publishes the published fixture context and
+`rulesetSnapshot` to verified players on the prediction route. Custom
+player-facing definitions come from that frozen snapshot, not from mutable draft
+configuration.
 
 ## Revision And Concurrency
 
@@ -129,6 +135,9 @@ Published fixtures:
 - question configuration is read-only
 - optional standard enabled states and deductions are frozen in the stored
   `rulesetSnapshot`
+- custom prompt, banter/context, counting definition, answer type, min/max,
+  option IDs/labels, deductions, and order are frozen in the stored
+  `rulesetSnapshot`
 - repeated publication does not regenerate the snapshot
 
 Cancelled fixtures:
@@ -137,35 +146,27 @@ Cancelled fixtures:
 
 ## Snapshot Integration
 
-Publishing a standard-only draft builds the fixture ruleset snapshot from the
-stored question configuration:
+Publishing a draft builds the fixture ruleset snapshot from the stored question
+configuration:
 
 - permanent core questions remain from the authoritative default ruleset
 - optional standard enabled states are applied
 - optional standard incorrect deductions are applied
 - disabled optional standard questions remain in the snapshot as disabled
   question definitions
+- custom Number questions are appended as enabled `custom-numeric` definitions
+  with prompt, optional banter/context, counting definition, order, min, max, and
+  positive deduction rate
+- custom Choice questions are appended as enabled `custom-categorical`
+  definitions with prompt, optional banter/context, counting definition, order,
+  stable option IDs/labels, and positive incorrect-answer deduction
 
-The player standard sequence already consumes active built-in questions from the
-stored snapshot, so disabled optional standard questions remain ignored by the
-player flow.
-
-## Temporary Custom Publish Gate
-
-If a draft fixture contains one or more custom questions, `fixtures.admin.publish`
-rejects with:
-
-`Custom questions are configured for this fixture, but custom-question player predictions are not enabled yet.`
-
-The fixture remains draft, its custom question configuration remains saved, and
-no ruleset snapshot is written.
+The player Standard sequence consumes active built-in and custom questions from
+the stored snapshot, so disabled optional standard questions remain ignored and
+custom questions appear after active built-in steps.
 
 ## Future Extension Points
 
-Future player integration can append custom questions after built-in configured
-prediction questions and before Review unless a later product decision changes
-the ordering model.
-
 Future settlement/result work should add official answers, pending/settled/void
 state transitions, and scoring against the stored custom question identities and
-counting definitions. CCPP-008 does not implement those workflows.
+counting definitions. CCPP-008A does not implement those workflows.
