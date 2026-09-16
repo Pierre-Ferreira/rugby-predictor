@@ -12,6 +12,11 @@ import {
   type FixtureMutationResult,
 } from '/imports/shared/fixtures';
 import { defaultRuleset, type RulesetSnapshot } from '/imports/shared/scoring';
+import {
+  defaultFixturePredictionQuestionConfig,
+  predictionQuestionConfigForFixture,
+  type FixturePredictionQuestionConfig,
+} from '/imports/shared/predictionQuestions';
 import { TEST_AUTH_METHODS } from '/imports/shared/auth/methods';
 import { getAuthTestRunId } from '/imports/server/auth/settings';
 import { resetTestAuthData } from '/imports/server/auth/testSupport';
@@ -311,6 +316,89 @@ const rulesetRate = (
   return null;
 };
 
+const rulesetCategoricalDeduction = (
+  snapshot: RulesetSnapshot,
+  questionId: string,
+): number | null => {
+  const question = snapshot.questions.find(
+    (candidate) => candidate.id === questionId,
+  );
+
+  if (question?.type === 'built-in-categorical') {
+    return question.incorrectDeduction;
+  }
+
+  return null;
+};
+
+const rulesetEnabled = (
+  snapshot: RulesetSnapshot,
+  questionId: string,
+): boolean | null => {
+  const question = snapshot.questions.find(
+    (candidate) => candidate.id === questionId,
+  );
+
+  return question?.enabled ?? null;
+};
+
+const standardQuestionConfig = (): FixturePredictionQuestionConfig => ({
+  ...defaultFixturePredictionQuestionConfig(),
+  optionalStandardQuestions:
+    defaultFixturePredictionQuestionConfig().optionalStandardQuestions.map(
+      (question) =>
+        question.id === 'first-try'
+          ? {
+              ...question,
+              enabled: false,
+              incorrectDeduction: 375,
+            }
+          : question.id === 'half-time-leader'
+            ? {
+                ...question,
+                incorrectDeduction: 425,
+              }
+            : question,
+    ),
+});
+
+const customQuestionConfig = (): FixturePredictionQuestionConfig => ({
+  ...standardQuestionConfig(),
+  customQuestions: [
+    {
+      answerType: 'number',
+      countingDefinition:
+        'Scrum penalties awarded against the All Blacks during regulation time.',
+      deductionPerUnit: 150,
+      id: 'custom-number-server',
+      max: 20,
+      min: 0,
+      order: 1,
+      prompt: 'How many scrum penalties will the All Blacks concede?',
+    },
+  ],
+});
+
+const saveQuestionConfig = (
+  invocation: TestInvocation,
+  input: {
+    readonly config: FixturePredictionQuestionConfig | Record<string, unknown>;
+    readonly expectedRevision: number;
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod(
+    FIXTURE_METHODS.saveQuestionConfig,
+    [
+      {
+        config: input.config,
+        expectedRevision: input.expectedRevision,
+        fixtureId: input.fixtureId,
+      },
+    ],
+    invocation,
+  );
+
 describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
   this.timeout(20_000);
 
@@ -369,6 +457,191 @@ describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
           admin.invocation,
         ),
       /unsupported fields|unknown-fixture-field/i,
+    );
+  });
+
+  it('requires admin authorization for fixture question configuration writes', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+
+    await assert.rejects(
+      () =>
+        callMethod(FIXTURE_METHODS.saveQuestionConfig, [
+          {
+            config: standardQuestionConfig(),
+            expectedRevision: draft.revision,
+            fixtureId: draft._id,
+          },
+        ]),
+      /Sign in to continue|not-authenticated/i,
+    );
+
+    const playerInvocation = await createVerifiedPlayerInvocation();
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(playerInvocation, {
+          config: standardQuestionConfig(),
+          expectedRevision: draft.revision,
+          fixtureId: draft._id,
+        }),
+      /admin area|access|not-authorized/i,
+    );
+  });
+
+  it('lets admins read and update draft question configuration through the admin fixture boundary', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+    const saved = (await saveQuestionConfig(admin.invocation, {
+      config: standardQuestionConfig(),
+      expectedRevision: draft.revision,
+      fixtureId: draft._id,
+    })) as {
+      readonly revision: number;
+      readonly status: string;
+    };
+    const updated = await fixtureById(draft._id);
+
+    assert.equal(saved.status, 'updated');
+    assert.equal(saved.revision, draft.revision + 1);
+    assert.equal(updated.predictionQuestionConfig?.customQuestions.length, 0);
+    assert.equal(
+      updated.predictionQuestionConfig?.optionalStandardQuestions.find(
+        (question) => question.id === 'first-try',
+      )?.enabled,
+      false,
+    );
+
+    const adminRows = await fetchPublication<FixtureDocument>(
+      FIXTURE_PUBLICATIONS.adminList,
+      [
+        {
+          limit: 10,
+        },
+      ],
+      admin.userId,
+    );
+    const publishedConfig = adminRows.find(
+      (fixture) => fixture._id === draft._id,
+    )?.predictionQuestionConfig;
+
+    assert.equal(publishedConfig?.optionalStandardQuestions.length, 3);
+    assert.equal(publishedConfig?.customQuestions.length, 0);
+  });
+
+  it('rejects stale, published, cancelled, unknown-field, and core-injection question configuration writes', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+
+    await saveQuestionConfig(admin.invocation, {
+      config: standardQuestionConfig(),
+      expectedRevision: draft.revision,
+      fixtureId: draft._id,
+    });
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: customQuestionConfig(),
+          expectedRevision: draft.revision,
+          fixtureId: draft._id,
+        }),
+      /changed before your update|fixture-conflict/i,
+    );
+
+    const afterConflict = await fixtureById(draft._id);
+    assert.equal(
+      afterConflict.predictionQuestionConfig?.customQuestions.length,
+      0,
+    );
+
+    await assert.rejects(
+      () =>
+        callMethod(
+          FIXTURE_METHODS.saveQuestionConfig,
+          [
+            {
+              config: standardQuestionConfig(),
+              expectedRevision: afterConflict.revision,
+              fixtureId: afterConflict._id,
+              visibility: 'draft',
+            },
+          ],
+          admin.invocation,
+        ),
+      /unsupported fields|unknown-fixture-field/i,
+    );
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: {
+            ...standardQuestionConfig(),
+            optionalStandardQuestions: [
+              {
+                enabled: false,
+                id: 'match-result',
+                incorrectDeduction: 1,
+              },
+              ...standardQuestionConfig().optionalStandardQuestions,
+            ],
+          },
+          expectedRevision: afterConflict.revision,
+          fixtureId: afterConflict._id,
+        }),
+      /core questions cannot be disabled|core-question-not-configurable/i,
+    );
+
+    await callMethod(
+      FIXTURE_METHODS.publish,
+      [
+        {
+          expectedRevision: afterConflict.revision,
+          fixtureId: afterConflict._id,
+        },
+      ],
+      admin.invocation,
+    );
+
+    const published = await fixtureById(draft._id);
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: standardQuestionConfig(),
+          expectedRevision: published.revision,
+          fixtureId: published._id,
+        }),
+      /published fixture question configuration is read-only|fixture-published/i,
+    );
+
+    const cancelledId = (await createDraftFixture(admin.invocation)).fixtureId;
+    const cancellable = await fixtureById(cancelledId);
+
+    await callMethod(
+      FIXTURE_METHODS.cancel,
+      [
+        {
+          expectedRevision: cancellable.revision,
+          fixtureId: cancellable._id,
+        },
+      ],
+      admin.invocation,
+    );
+
+    const cancelled = await fixtureById(cancelledId);
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: standardQuestionConfig(),
+          expectedRevision: cancelled.revision,
+          fixtureId: cancelled._id,
+        }),
+      /read-only|cancelled/i,
     );
   });
 
@@ -716,6 +989,7 @@ describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
     assert.deepEqual(publicIds, [publishTarget._id]);
     assert.equal('createdByAdminId' in publicList[0], false);
     assert.equal('updatedByAdminId' in publicList[0], false);
+    assert.equal('predictionQuestionConfig' in publicList[0], false);
     assert.equal('revision' in publicList[0], false);
     assert.equal('rulesetSnapshot' in publicList[0], false);
     assert.equal('rugbyRoosterTest' in publicList[0], false);
@@ -925,6 +1199,127 @@ describe('CCPP-005 fixture management', function (this: Mocha.Suite) {
     } finally {
       triesQuestion.rate = originalRate;
     }
+  });
+
+  it('publishes standard-only question configuration into the frozen ruleset snapshot', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+
+    await saveQuestionConfig(admin.invocation, {
+      config: standardQuestionConfig(),
+      expectedRevision: draft.revision,
+      fixtureId: draft._id,
+    });
+
+    const configured = await fixtureById(draft._id);
+
+    await callMethod(
+      FIXTURE_METHODS.publish,
+      [
+        {
+          expectedRevision: configured.revision,
+          fixtureId: configured._id,
+        },
+      ],
+      admin.invocation,
+    );
+
+    const published = await fixtureById(draft._id);
+
+    assert.equal(published.visibility, 'published');
+    assert.equal(
+      rulesetEnabled(published.rulesetSnapshot!, 'first-try'),
+      false,
+    );
+    assert.equal(
+      rulesetCategoricalDeduction(published.rulesetSnapshot!, 'first-try'),
+      375,
+    );
+    assert.equal(
+      rulesetCategoricalDeduction(
+        published.rulesetSnapshot!,
+        'half-time-leader',
+      ),
+      425,
+    );
+
+    await assert.rejects(
+      () =>
+        saveQuestionConfig(admin.invocation, {
+          config: customQuestionConfig(),
+          expectedRevision: published.revision,
+          fixtureId: published._id,
+        }),
+      /published fixture question configuration is read-only|fixture-published/i,
+    );
+  });
+
+  it('saves custom questions but blocks publication until player custom predictions exist', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+
+    await saveQuestionConfig(admin.invocation, {
+      config: customQuestionConfig(),
+      expectedRevision: draft.revision,
+      fixtureId: draft._id,
+    });
+
+    const configured = await fixtureById(draft._id);
+
+    assert.equal(
+      configured.predictionQuestionConfig?.customQuestions.length,
+      1,
+    );
+
+    await assert.rejects(
+      () =>
+        callMethod(
+          FIXTURE_METHODS.publish,
+          [
+            {
+              expectedRevision: configured.revision,
+              fixtureId: configured._id,
+            },
+          ],
+          admin.invocation,
+        ),
+      /custom-question player predictions are not enabled yet|fixture-custom-questions-not-publishable/i,
+    );
+
+    const afterAttempt = await fixtureById(draft._id);
+
+    assert.equal(afterAttempt.visibility, 'draft');
+    assert.equal(afterAttempt.rulesetSnapshot, undefined);
+    assert.equal(
+      afterAttempt.predictionQuestionConfig?.customQuestions.length,
+      1,
+    );
+  });
+
+  it('derives canonical defaults for legacy drafts without explicit question configuration', async () => {
+    const admin = await createVerifiedAdmin();
+    const created = await createDraftFixture(admin.invocation);
+    const draft = await fixtureById(created.fixtureId);
+
+    assert.equal(draft.predictionQuestionConfig, undefined);
+
+    const derived = predictionQuestionConfigForFixture(draft);
+
+    assert.equal(derived.customQuestions.length, 0);
+    assert.deepEqual(
+      derived.optionalStandardQuestions.map((question) => [
+        question.id,
+        question.enabled,
+        question.incorrectDeduction,
+      ]),
+      [
+        ['first-try', true, 250],
+        ['highest-scoring-half', true, 250],
+        ['half-time-leader', true, 250],
+      ],
+    );
   });
 
   it('rejects publishing when the required default ruleset is invalid', async () => {

@@ -223,11 +223,15 @@ all-at-once standard form with a guided standard sequence:
 - Read-only locked/cancelled display continues to render the persisted saved
   entry, not dirty local state.
 
-CCPP-007 does not add Kaplay, custom questions, optional-question admin controls,
-custom-question schemas, custom prediction storage, custom settlement, or scoring
-rule changes. Future optional/custom questions must extend the ordered sequence
-and message/review/render definitions rather than adding page-local navigation
-branches.
+CCPP-008 adds admin configuration for optional standard questions and draft-only
+custom question definitions. Published standard-only fixtures store configured
+optional standard enabled states and deductions in the fixture ruleset snapshot,
+which the existing Standard sequence already consumes. CCPP-008 does not render
+custom questions in the player sequence and blocks publishing fixtures that
+contain custom questions until the player answering milestone exists.
+
+Future custom questions must extend the ordered sequence and message/review/render
+definitions rather than adding page-local navigation branches.
 
 ## Prediction Presentation Architecture
 

@@ -34,6 +34,7 @@ Stored fixture documents include:
 - `cancelledAt`
 - `cancelledByAdminId`
 - `rulesetSnapshot`
+- `predictionQuestionConfig`
 - `rugbyRoosterTest.ownerRunId` when created inside isolated tests
 
 Team and competition entities are not normalized into separate collections in
@@ -47,6 +48,7 @@ Admin fixture methods:
 - `fixtures.admin.editDetails`
 - `fixtures.admin.publish`
 - `fixtures.admin.cancel`
+- `fixtures.admin.saveQuestionConfig`
 
 Every method calls the existing server-owned platform-admin authorization path.
 The UI auth state is only a hint.
@@ -63,6 +65,10 @@ Inputs are allowlisted and validated:
 
 Ordinary edit payloads cannot set actor IDs, timestamps, visibility,
 cancellation fields, test ownership, stored revisions, or ruleset snapshots.
+
+Question configuration payloads cannot set fixture state, actor IDs,
+timestamps, test ownership, or ruleset snapshots. They accept only `fixtureId`,
+`expectedRevision`, and the full prediction question configuration.
 
 ## Conditional Writes
 
@@ -106,6 +112,13 @@ still targets the captured fixture ID/revision and may receive the normal server
 conflict/error.
 
 Admin Next/Previous pagination clears the edit session and form values together.
+
+The prediction question configuration editor follows the same explicit session
+principle. Opening the editor captures a fixture revision and a local copy of
+the question configuration. Reactive list changes do not replace unsaved
+question values or advance the captured revision. A stale save returns
+`fixture-conflict`; `Reload` intentionally replaces local question values with
+the latest visible fixture configuration and captures the latest revision.
 
 ## Publications
 
@@ -160,7 +173,8 @@ Public fields:
 - `isCancelled`
 
 Actor IDs, timestamps other than kickoff, test ownership, cancellation actor
-metadata, stored revisions, and `rulesetSnapshot` are not public.
+metadata, stored revisions, `predictionQuestionConfig`, and `rulesetSnapshot`
+are not public.
 
 CCPP-006 keeps `rulesetSnapshot` out of public fixture publications. The
 signed-in prediction route uses `predictions.fixtureContext` to publish one
@@ -178,9 +192,16 @@ The fixture server creates indexes for the implemented queries:
 
 ## Ruleset Snapshot
 
-Publishing attaches a validated independent snapshot of `defaultRuleset` using
-the existing scoring engine snapshot utility. Drafts cannot publish if the
-required default ruleset is invalid.
+Publishing attaches a validated independent ruleset snapshot using the existing
+scoring engine snapshot utility. For standard-only configured fixtures, the
+snapshot starts from `defaultRuleset` and applies configured optional standard
+enabled states and incorrect-answer deductions. Drafts cannot publish if the
+required ruleset is invalid.
+
+Draft fixtures with custom questions cannot publish in CCPP-008 because players
+cannot answer custom questions yet. The server rejects publication with a clear
+admin-facing error and leaves the fixture draft with its custom configuration
+saved.
 
 The snapshot timing is first successful publication. Repeated publication of an
 already published fixture does not regenerate the snapshot. Ordinary edits do

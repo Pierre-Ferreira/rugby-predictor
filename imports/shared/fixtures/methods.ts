@@ -3,6 +3,7 @@ export const FIXTURE_METHODS = {
   createDraft: 'fixtures.admin.createDraft',
   editDetails: 'fixtures.admin.editDetails',
   publish: 'fixtures.admin.publish',
+  saveQuestionConfig: 'fixtures.admin.saveQuestionConfig',
 } as const;
 
 export const TEST_FIXTURE_METHODS = {

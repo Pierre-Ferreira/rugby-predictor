@@ -97,17 +97,22 @@ tries.
 
 ## Future Extension Point
 
-Future milestones may supply additional sequence items for optional standard
-questions or configured custom questions by extending the active ordered step
-list and providing matching message/review/render metadata.
+CCPP-008 makes optional standard question enablement configurable through the
+fixture ruleset snapshot. The existing active-step helper already includes only
+enabled built-in optional steps, so disabled First Try, Highest-Scoring Half, or
+Half-Time Leader questions disappear from player progress and Review.
 
-CCPP-007 does not define or implement:
+Future milestones may supply additional sequence items for configured custom
+questions by extending the active ordered step list and providing matching
+message/review/render metadata. The current extension plan is to append custom
+questions after built-in configured prediction questions and before Review unless
+a later product decision changes that ordering.
 
-- custom-question persistence;
+CCPP-008 still does not define or implement:
+
 - custom-question prediction storage changes;
 - custom-question scoring or settlement;
 - custom official-answer workflows;
-- admin configuration or CRUD;
 - future balancing across fixtures with different question counts or weights.
 
 Those product decisions must be documented and implemented in later milestones.

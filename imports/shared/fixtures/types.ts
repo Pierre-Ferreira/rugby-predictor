@@ -1,4 +1,5 @@
 import type { RulesetSnapshot } from '/imports/shared/scoring';
+import type { FixturePredictionQuestionConfig } from '/imports/shared/predictionQuestions';
 
 export const fixtureVisibilities = ['draft', 'published'] as const;
 export const fixtureListModes = ['upcoming', 'past'] as const;
@@ -29,6 +30,7 @@ export interface FixtureDocument {
   readonly cancelledAt?: Date;
   readonly cancelledByAdminId?: string;
   readonly rulesetSnapshot?: RulesetSnapshot;
+  readonly predictionQuestionConfig?: FixturePredictionQuestionConfig;
   readonly rugbyRoosterTest?: FixtureTestOwnership;
 }
 

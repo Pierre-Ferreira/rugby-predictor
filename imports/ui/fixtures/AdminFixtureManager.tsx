@@ -19,6 +19,11 @@ import {
   fixtureStatusLabel,
   kickoffLabel,
 } from './fixtureUi';
+import {
+  AdminFixtureQuestionConfigurator,
+  type QuestionConfigSession,
+} from './AdminFixtureQuestionConfigurator';
+import { predictionQuestionConfigForFixture } from '/imports/shared/predictionQuestions';
 
 interface FixtureFormState {
   readonly competitionDisplayName: string;
@@ -128,6 +133,8 @@ export const AdminFixtureManager = () => {
   } | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pagination, setPagination] = useState(firstPageState);
+  const [questionSession, setQuestionSession] =
+    useState<QuestionConfigSession | null>(null);
   const pageSize = DEFAULT_ADMIN_FIXTURE_LIMIT;
 
   const { fixtures, isReady } = useTracker(() => {
@@ -161,6 +168,13 @@ export const AdminFixtureManager = () => {
         (fixture) => fixture._id === editSession?.fixtureId,
       ) ?? null,
     [editSession?.fixtureId, visibleFixtures],
+  );
+  const questionFixture = useMemo(
+    () =>
+      visibleFixtures.find(
+        (fixture) => fixture._id === questionSession?.fixtureId,
+      ) ?? null,
+    [questionSession?.fixtureId, visibleFixtures],
   );
   const isEditing = Boolean(editSession);
   const hasEditConflict = isEditing && feedback?.code === 'fixture-conflict';
@@ -204,6 +218,44 @@ export const AdminFixtureManager = () => {
       kind: 'success',
       message: 'Fixture form reloaded. Unsaved values were replaced.',
     });
+  };
+
+  const openQuestionConfiguration = (fixture: FixtureDocument) => {
+    try {
+      setQuestionSession({
+        config: predictionQuestionConfigForFixture(fixture),
+        expectedRevision: fixture.revision,
+        fixtureId: fixture._id,
+        fixtureLabel: `${fixture.team1DisplayName} vs ${fixture.team2DisplayName}`,
+      });
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        message: messageFromError(error),
+      });
+    }
+  };
+
+  const reloadQuestionConfiguration = () => {
+    if (!questionFixture || !questionSession) {
+      return;
+    }
+
+    try {
+      setQuestionSession({
+        config: predictionQuestionConfigForFixture(questionFixture),
+        expectedRevision: questionFixture.revision,
+        fixtureId: questionFixture._id,
+        fixtureLabel: `${questionFixture.team1DisplayName} vs ${questionFixture.team2DisplayName}`,
+      });
+      setFeedback(null);
+    } catch (error) {
+      setFeedback({
+        kind: 'error',
+        message: messageFromError(error),
+      });
+    }
   };
 
   const detailsPayload = () => {
@@ -346,6 +398,7 @@ export const AdminFixtureManager = () => {
     }
 
     resetForm();
+    setQuestionSession(null);
     setFeedback(null);
     setPagination((current) => ({
       cursor: cursorFromFixture(lastVisibleFixture),
@@ -355,6 +408,7 @@ export const AdminFixtureManager = () => {
 
   const goToPreviousPage = () => {
     resetForm();
+    setQuestionSession(null);
     setFeedback(null);
     setPagination((current) => {
       const previousCursors = current.previousCursors.slice(0, -1);
@@ -569,6 +623,14 @@ export const AdminFixtureManager = () => {
                           Edit
                         </button>
                         <button
+                          className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={disabled}
+                          type="button"
+                          onClick={() => openQuestionConfiguration(fixture)}
+                        >
+                          Prediction questions
+                        </button>
+                        <button
                           className="focus-ring min-h-10 rounded-md bg-rooster-grass px-3 text-sm font-bold text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={
                             disabled ||
@@ -624,6 +686,27 @@ export const AdminFixtureManager = () => {
           ) : null}
         </div>
       </div>
+
+      {questionSession ? (
+        <AdminFixtureQuestionConfigurator
+          key={questionSession.fixtureId}
+          currentFixture={questionFixture}
+          session={questionSession}
+          onClose={() => setQuestionSession(null)}
+          onReload={reloadQuestionConfiguration}
+          onSaved={({ config, expectedRevision }) =>
+            setQuestionSession((current) =>
+              current
+                ? {
+                    ...current,
+                    config,
+                    expectedRevision,
+                  }
+                : current,
+            )
+          }
+        />
+      ) : null}
     </section>
   );
 };

@@ -5,6 +5,7 @@ import {
   FIXTURE_METHODS,
   TEST_FIXTURE_METHODS,
 } from '../../imports/shared/fixtures';
+import { defaultFixturePredictionQuestionConfig } from '../../imports/shared/predictionQuestions';
 
 const uniqueEmail = (label: string) =>
   `ccpp005-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
@@ -123,6 +124,24 @@ const createPublishedFixture = async (
     },
   );
 
+const createDraftFixture = async (
+  page: Page,
+  details: {
+    readonly competitionDisplayName: string;
+    readonly scheduledKickoffAt: string;
+    readonly team1DisplayName: string;
+    readonly team2DisplayName: string;
+    readonly venueDisplayName?: string;
+  },
+) =>
+  callMeteor<{ readonly fixtureId: string; readonly status: string }>(
+    page,
+    FIXTURE_METHODS.createDraft,
+    {
+      details,
+    },
+  );
+
 const loginAsFixtureAdmin = async (page: Page, label: string) => {
   const email = uniqueEmail(label);
 
@@ -160,6 +179,9 @@ const isoDaysFromNow = (days: number): string =>
 
 const futureKickoffIso = (index: number): string =>
   new Date(Date.UTC(2098, 0, index + 1, 12, 0, 0)).toISOString();
+
+const farFutureKickoffIso = (index: number): string =>
+  new Date(Date.UTC(2099, 11, index + 1, 12, 0, 0)).toISOString();
 
 const recentPastKickoffIso = (index: number): string =>
   new Date(Date.now() - (index + 1) * 60 * 1000).toISOString();
@@ -308,6 +330,20 @@ const editFixtureDetails = async (
     fixtureId: input.fixtureId,
   });
 
+const saveQuestionConfig = async (
+  page: Page,
+  input: {
+    readonly config: unknown;
+    readonly expectedRevision: number;
+    readonly fixtureId: string;
+  },
+) =>
+  callMeteor(page, FIXTURE_METHODS.saveQuestionConfig, {
+    config: input.config,
+    expectedRevision: input.expectedRevision,
+    fixtureId: input.fixtureId,
+  });
+
 declare global {
   interface Window {
     Meteor: {
@@ -445,6 +481,211 @@ test.describe('fixture management and browsing', () => {
       page.getByRole('heading', { level: 1, name: fixtureName }),
     ).toBeVisible();
     await expect(page.getByText('Cancelled')).toBeVisible();
+  });
+
+  test('configures draft prediction questions and preserves values through publish gate and conflict reload', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Question Springboks');
+    const team2 = uniqueLabel('Question All Blacks');
+    const fixtureName = `${team1} vs ${team2}`;
+
+    await loginAsFixtureAdmin(page, 'question-admin');
+    const fixtureId = (
+      await createDraftFixture(page, {
+        competitionDisplayName: 'Question Config Cup',
+        scheduledKickoffAt: farFutureKickoffIso(20),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+        venueDisplayName: 'Loftus Versfeld',
+      })
+    ).fixtureId;
+
+    await gotoLocal(page, '/admin');
+
+    const row = page.getByRole('listitem').filter({ hasText: fixtureName });
+
+    await row.getByRole('button', { name: 'Prediction questions' }).click();
+    await expect(
+      page.getByRole('heading', { level: 2, name: fixtureName }),
+    ).toBeVisible();
+    await expect(page.getByText('Always included')).toBeVisible();
+    await expect(page.getByText('Standard questions')).toBeVisible();
+
+    await page.getByRole('checkbox', { name: 'First try' }).uncheck();
+    await page.getByLabel('Half-time leader incorrect deduction').fill('425');
+
+    await page.getByRole('button', { name: 'Add Number' }).click();
+    await page
+      .getByRole('button', { name: 'Save prediction questions' })
+      .click();
+
+    await expect(page.getByRole('alert')).toContainText(
+      'Question is required.',
+    );
+
+    const numberCard = page.getByLabel('Custom question 1 Number');
+
+    await numberCard
+      .getByRole('textbox', { name: 'Question' })
+      .fill('How many scrum penalties will the All Blacks concede?');
+    await numberCard
+      .getByRole('textbox', { name: 'Banter/context' })
+      .fill('Bok power!');
+    await numberCard
+      .getByRole('textbox', { name: 'Counting definition' })
+      .fill(
+        'Scrum penalties awarded against the All Blacks during regulation match time.',
+      );
+    await page.getByLabel('Minimum answer').fill('0');
+    await page.getByLabel('Maximum answer').fill('20');
+    await page.getByLabel('Deduction per unit').fill('150');
+
+    await page.getByRole('button', { name: 'Add Choice' }).click();
+    const choiceCard = page.getByLabel('Custom question 2 Choice');
+
+    await choiceCard
+      .getByRole('textbox', { name: 'Question' })
+      .fill('Who scores first?');
+    await choiceCard
+      .getByRole('textbox', { name: 'Counting definition' })
+      .fill('The team officially listed as scoring the first points.');
+    await choiceCard
+      .getByRole('spinbutton', { name: 'Incorrect deduction' })
+      .fill('300');
+    await choiceCard.getByRole('textbox', { name: 'Choice 1' }).fill(team1);
+    await choiceCard.getByRole('textbox', { name: 'Choice 2' }).fill(team2);
+
+    await page
+      .getByLabel('Custom question 2 Choice')
+      .getByRole('button', { name: 'Up' })
+      .click();
+    await page
+      .getByRole('button', { name: 'Save prediction questions' })
+      .click();
+
+    await expect(page.getByRole('status')).toContainText(
+      'Prediction question configuration saved.',
+    );
+    await expect(
+      page.getByText(
+        'Custom questions are saved for this draft, but fixtures containing custom questions cannot be published',
+      ),
+    ).toBeVisible();
+
+    await row.getByRole('button', { name: 'Publish' }).click();
+    await expect(page.getByRole('alert')).toContainText(
+      'custom-question player predictions are not enabled yet',
+    );
+    await expect(row.getByText('Draft')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Close' }).click();
+    await row.getByRole('button', { name: 'Prediction questions' }).click();
+
+    await expect(
+      page.getByRole('checkbox', { name: 'First try' }),
+    ).not.toBeChecked();
+    await expect(
+      page.getByLabel('Half-time leader incorrect deduction'),
+    ).toHaveValue('425');
+    await expect(page.getByLabel('Custom question 1 Choice')).toContainText(
+      'Who scores first?',
+    );
+    await expect(page.getByLabel('Custom question 2 Number')).toContainText(
+      'How many scrum penalties',
+    );
+
+    const beforeConflict = await readClientFixture(page, fixtureId);
+
+    expect(beforeConflict?.revision).toBeGreaterThan(1);
+
+    await page
+      .getByLabel('Custom question 2 Number')
+      .getByRole('textbox', { name: 'Question' })
+      .fill('Unsaved conflict prompt?');
+
+    await saveQuestionConfig(page, {
+      config: defaultFixturePredictionQuestionConfig(),
+      expectedRevision: beforeConflict?.revision ?? 1,
+      fixtureId,
+    });
+
+    await expect
+      .poll(async () => (await readClientFixture(page, fixtureId))?.revision)
+      .toBe((beforeConflict?.revision ?? 1) + 1);
+
+    await page
+      .getByRole('button', { name: 'Save prediction questions' })
+      .click();
+
+    await expect(page.getByRole('alert')).toContainText(
+      'This fixture changed before your update could be saved.',
+    );
+    await expect(
+      page
+        .getByLabel('Custom question 2 Number')
+        .getByRole('textbox', { name: 'Question' }),
+    ).toHaveValue('Unsaved conflict prompt?');
+
+    await page.getByRole('button', { name: 'Reload' }).click();
+
+    await expect(
+      page.getByText('No custom questions configured.'),
+    ).toBeVisible();
+  });
+
+  test('shows published and cancelled question configuration as read-only', async ({
+    page,
+  }) => {
+    const publishedTeam1 = uniqueLabel('Published Questions');
+    const publishedTeam2 = uniqueLabel('Published Opponent');
+    const cancelledTeam1 = uniqueLabel('Cancelled Questions');
+    const cancelledTeam2 = uniqueLabel('Cancelled Opponent');
+
+    await loginAsFixtureAdmin(page, 'question-readonly-admin');
+
+    await createPublishedFixture(page, {
+      competitionDisplayName: 'Read Only Cup',
+      scheduledKickoffAt: farFutureKickoffIso(25),
+      team1DisplayName: publishedTeam1,
+      team2DisplayName: publishedTeam2,
+    });
+    const cancelledId = (
+      await createDraftFixture(page, {
+        competitionDisplayName: 'Read Only Cup',
+        scheduledKickoffAt: farFutureKickoffIso(26),
+        team1DisplayName: cancelledTeam1,
+        team2DisplayName: cancelledTeam2,
+      })
+    ).fixtureId;
+
+    await callMeteor(page, FIXTURE_METHODS.cancel, {
+      expectedRevision: 1,
+      fixtureId: cancelledId,
+    });
+
+    await gotoLocal(page, '/admin');
+
+    await page
+      .getByRole('listitem')
+      .filter({ hasText: `${publishedTeam1} vs ${publishedTeam2}` })
+      .getByRole('button', { name: 'Prediction questions' })
+      .click();
+    await expect(page.getByText(/Revision \d+ · Read-only/)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Save prediction questions' }),
+    ).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Close' }).click();
+    await page
+      .getByRole('listitem')
+      .filter({ hasText: `${cancelledTeam1} vs ${cancelledTeam2}` })
+      .getByRole('button', { name: 'Prediction questions' })
+      .click();
+    await expect(page.getByText(/Revision \d+ · Read-only/)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Save prediction questions' }),
+    ).toBeDisabled();
   });
 
   test('paginates public and admin fixture lists with next and previous controls', async ({

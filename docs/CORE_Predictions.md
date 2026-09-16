@@ -45,6 +45,13 @@ configuration, Half-Time Leader copy uses explicit half-time wording, and a
 known post-drop-goal result/score inconsistency disables forward Continue until
 the player corrects the result or score inputs.
 
+CCPP-008 adds fixture-level prediction question configuration for admins.
+Permanent core questions remain always included. Optional standard questions
+can be enabled/disabled and configured on draft fixtures, then published through
+the fixture's frozen ruleset snapshot. Custom Number and Choice questions can be
+authored on drafts, but custom-question fixtures cannot publish until player
+custom prediction answering is implemented.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -94,11 +101,11 @@ Internal prediction values continue to use stable domain identifiers such as
 `team1`, `team2`, and `draw`. CCPP-006B changes presentation labels only and
 does not migrate stored prediction shapes.
 
-The CCPP-007 sequence does not implement custom fixture questions. Future
-optional standard or custom questions must extend the shared ordered sequence
-and message/review definitions instead of adding scattered one-off page logic.
-CCPP-007 does not define custom-question persistence, scoring, settlement,
-official-answer workflows, or admin configuration.
+The CCPP-007 sequence does not render custom fixture questions. CCPP-008 stores
+custom question configuration for future sequence integration, but the Standard
+prediction sequence still renders only supported built-in questions from the
+published ruleset snapshot. Custom prediction storage, scoring, settlement, and
+official-answer workflows remain future work.
 
 ## Validation And Review
 
@@ -209,10 +216,10 @@ lazy loading, or runtime animation fallback.
 - Match results and final scoring persistence.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
-- Admin configuration for custom fixture questions.
+- Player integration for configured custom fixture questions.
 - Kaplay animation design, mascot behavior, capability detection, fallback
   machinery, and player animation controls.
-- Custom-question persistence, custom-question scoring or settlement,
+- Custom-question player answering, custom-question scoring or settlement,
   official-answer workflows, and future balancing across fixtures with different
   optional/custom question sets.
 - Detailed card-event normalization, including second-yellow dismissals and card

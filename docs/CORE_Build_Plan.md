@@ -402,6 +402,36 @@ Not implemented:
   sponsorships, quizzes, AI, service-worker caching, authentication redesign,
   fixture CRUD redesign, or scoring-rule changes.
 
+## CCPP-008 Scope
+
+Milestone status: implemented for fixture prediction question configuration.
+Verification evidence is recorded in
+`docs/AUDIT_008_Fixture_Question_Configuration.md`, product rules live in
+`docs/CORE_Prediction_Questions.md`, and platform details live in
+`docs/PLATFORM_Prediction_Question_Configuration.md`.
+
+Implemented:
+
+- Permanent core question visibility in the admin configuration experience.
+- Draft configuration of optional standard First Try, Highest-Scoring Half, and
+  Half-Time Leader enabled states and incorrect-answer deductions.
+- Draft authoring of up to two custom Number or Choice fixture questions with
+  stable IDs, prompt, optional banter, counting definition, deductions, numeric
+  bounds, choice options, and ordering.
+- Server-authoritative validation, platform-admin authorization, draft-only
+  mutation, and fixture-revision conflict protection.
+- Standard-only publication snapshot projection for configured optional
+  standard questions.
+- Temporary server-authoritative custom-question publish gate.
+- Unit, Meteor integration, and focused fixture browser coverage.
+
+Not implemented:
+
+- Player custom-question answering, custom prediction submission, custom Review
+  rendering, Kaplay custom rendering, custom scoring, official-answer entry,
+  settlement, voiding, result administration, leaderboard changes, or
+  cross-fixture score balancing.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

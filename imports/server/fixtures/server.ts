@@ -9,6 +9,7 @@ import {
   sanitizeAdminFixtureListOptions,
   sanitizeCreateDraftInput,
   sanitizeEditDetailsInput,
+  sanitizeExpectedRevision,
   sanitizeFixtureId,
   sanitizePublicFixtureListOptions,
   sanitizeStateMutationInput,
@@ -16,10 +17,16 @@ import {
   type FixtureListCursor,
   type FixtureMutationResult,
 } from '/imports/shared/fixtures';
+import {
+  PredictionQuestionConfigValidationError,
+  buildConfiguredRulesetSnapshot,
+  normalizeFixturePredictionQuestionConfig,
+  predictionQuestionConfigForFixture,
+  type FixtureQuestionConfigMutationResult,
+} from '/imports/shared/predictionQuestions';
 import { ScoringValidationError } from '/imports/shared/scoring';
 import { requirePlatformAdmin } from '/imports/server/auth/authorization';
 import { getAuthTestRunId } from '/imports/server/auth/settings';
-import { createDefaultFixtureRulesetSnapshot } from './ruleset';
 import { registerFixtureTestMethods } from './testSupport';
 
 const publicFixtureFields = {
@@ -41,6 +48,7 @@ const adminFixtureFields = {
   isCancelled: 1,
   publishedAt: 1,
   publishedByAdminId: 1,
+  predictionQuestionConfig: 1,
   revision: 1,
   rulesetSnapshot: 1,
   scheduledKickoffAt: 1,
@@ -54,6 +62,10 @@ const adminFixtureFields = {
 
 const asMeteorFixtureError = (error: unknown): Meteor.Error => {
   if (error instanceof FixtureValidationError) {
+    return new Meteor.Error(error.code, error.message);
+  }
+
+  if (error instanceof PredictionQuestionConfigValidationError) {
     return new Meteor.Error(error.code, error.message);
   }
 
@@ -98,8 +110,54 @@ const conflictError = (): Meteor.Error =>
     'This fixture changed before your update could be saved. Refresh and try again.',
   );
 
+const customQuestionPublishGateError = (): Meteor.Error =>
+  new Meteor.Error(
+    'fixture-custom-questions-not-publishable',
+    'Custom questions are configured for this fixture, but custom-question player predictions are not enabled yet.',
+  );
+
 const notFoundError = (): Meteor.Error =>
   new Meteor.Error('fixture-not-found', 'Fixture was not found.');
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const assertAllowedKeys = (
+  value: Record<string, unknown>,
+  allowedKeys: readonly string[],
+  label: string,
+): void => {
+  const allowed = new Set(allowedKeys);
+  const unknownKeys = Object.keys(value).filter((key) => !allowed.has(key));
+
+  if (unknownKeys.length > 0) {
+    throw new FixtureValidationError(
+      'unknown-fixture-field',
+      `${label} contains unsupported fields: ${unknownKeys.join(', ')}.`,
+    );
+  }
+};
+
+const sanitizeQuestionConfigMutationInput = (input: unknown) => {
+  if (!isRecord(input)) {
+    throw new FixtureValidationError(
+      'invalid-fixture-request',
+      'Fixture question configuration input is required.',
+    );
+  }
+
+  assertAllowedKeys(
+    input,
+    ['config', 'expectedRevision', 'fixtureId'],
+    'Fixture question configuration input',
+  );
+
+  return {
+    config: normalizeFixturePredictionQuestionConfig(input.config),
+    expectedRevision: sanitizeExpectedRevision(input.expectedRevision),
+    fixtureId: sanitizeFixtureId(input.fixtureId),
+  };
+};
 
 const readFixtureForStateMessage = async (fixtureId: string) =>
   Fixtures.findOneAsync(fixtureId, {
@@ -289,6 +347,67 @@ const registerFixtureMethods = () => {
       }
     },
 
+    [FIXTURE_METHODS.saveQuestionConfig]: async function saveQuestionConfig(
+      input: unknown,
+    ): Promise<FixtureQuestionConfigMutationResult> {
+      try {
+        const adminId = await requireAdminId(this);
+        const { config, expectedRevision, fixtureId } =
+          sanitizeQuestionConfigMutationInput(input);
+        const now = new Date();
+        const updatedCount = await Fixtures.updateAsync(
+          {
+            _id: fixtureId,
+            isCancelled: false,
+            revision: expectedRevision,
+            visibility: 'draft',
+          },
+          {
+            $inc: {
+              revision: 1,
+            },
+            $set: {
+              predictionQuestionConfig: config,
+              updatedAt: now,
+              updatedByAdminId: adminId,
+            },
+          },
+        );
+
+        if (updatedCount === 1) {
+          return {
+            fixtureId,
+            revision: expectedRevision + 1,
+            status: 'updated',
+          };
+        }
+
+        const current = await readFixtureForStateMessage(fixtureId);
+
+        if (!current) {
+          throw notFoundError();
+        }
+
+        if (current.isCancelled) {
+          throw new Meteor.Error(
+            'fixture-cancelled',
+            'Cancelled fixtures are read-only in this milestone.',
+          );
+        }
+
+        if (current.visibility === 'published') {
+          throw new Meteor.Error(
+            'fixture-published',
+            'Published fixture question configuration is read-only.',
+          );
+        }
+
+        throw conflictError();
+      } catch (error) {
+        throw asMeteorFixtureError(error);
+      }
+    },
+
     [FIXTURE_METHODS.publish]: async function publish(
       input: unknown,
     ): Promise<FixtureMutationResult> {
@@ -299,6 +418,7 @@ const registerFixtureMethods = () => {
         const current = await Fixtures.findOneAsync(fixtureId, {
           fields: {
             isCancelled: 1,
+            predictionQuestionConfig: 1,
             revision: 1,
             rulesetSnapshot: 1,
             visibility: 1,
@@ -327,7 +447,13 @@ const registerFixtureMethods = () => {
           throw conflictError();
         }
 
-        const rulesetSnapshot = createDefaultFixtureRulesetSnapshot();
+        const questionConfig = predictionQuestionConfigForFixture(current);
+
+        if (questionConfig.customQuestions.length > 0) {
+          throw customQuestionPublishGateError();
+        }
+
+        const rulesetSnapshot = buildConfiguredRulesetSnapshot(questionConfig);
         const now = new Date();
         const updatedCount = await Fixtures.updateAsync(
           {

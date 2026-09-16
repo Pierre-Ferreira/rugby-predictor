@@ -88,6 +88,10 @@ Current unit test files:
   disabled-question copy suppression, Intro starting-points interpolation,
   Half-Time Leader wording/display labels, team-name interpolation, first-try
   constraints, conversion clamping, and score/result consistency helpers.
+- `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
+  configuration validation, custom Number/Choice failure paths, max-two custom
+  limit, order normalization, stable ID preservation, unknown-field rejection,
+  permanent core protection, and optional standard ruleset projection.
 
 Commands:
 
@@ -174,6 +178,11 @@ The current browser suite covers:
 - Mobile and keyboard access for sign-in.
 - Public fixture browsing for upcoming, past, and detail views.
 - Platform-admin fixture create, publish, and cancel workflow.
+- Draft fixture prediction-question configuration workflow for optional
+  standard toggles/deductions, Number and Choice custom questions, reordering,
+  validation feedback, save/revisit persistence, custom publish gate, conflict
+  preservation, and explicit reload.
+- Published and cancelled fixture question configuration read-only display.
 - Public and admin fixture pagination controls.
 - Admin fixture edit-session regressions for stale revisions after reactive
   updates, conflict value preservation, explicit reload-and-replace behavior,
@@ -270,6 +279,10 @@ The integration suite includes coverage for:
   and admin cursor pagination, public draft exclusion, public field projection,
   ruleset snapshot independence, fixture revision backfill, invalid default
   ruleset rejection, and admin fixture publication authorization.
+- Fixture question configuration authorization, admin-only read projection,
+  draft-only mutation, revision conflicts, core-question injection rejection,
+  standard-only publication snapshots, custom-question publish gate, and legacy
+  draft default derivation.
 - Prediction mutation authorization, owner-only publication boundaries, draft /
   cancelled / missing / snapshotless fixture rejection, stored-snapshot
   validation, strict before/equal/after kickoff boundaries with a controlled
