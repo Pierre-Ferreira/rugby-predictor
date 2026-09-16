@@ -167,6 +167,26 @@ from the current persisted prediction entry. It does not read from mutable form
 state, so dirty unsaved values cannot be shown as saved answers. If the current
 user has no entry, the locked view shows the no-saved-prediction state.
 
+CCPP-006B keeps the same route and form structure but corrects presentation
+details in `PredictionEntryPage.tsx`:
+
+- Player-facing scoring headings, numeric accessible labels, match-result
+  choices, first-try choices, half-time-leader choices, review cards, and
+  read-only saved-entry review values use the fixture's real team display names
+  instead of generic Team 1 / Team 2 labels.
+- Select option values and stored prediction payloads still use the existing
+  internal domain values such as `team1`, `team2`, and `draw`.
+- The review uses the shared scoring helpers `deriveTeamScore` and
+  `deriveMatchResult` to display each team's derived predicted rugby match score
+  and the derived result. It does not calculate Rugby Rooster player points,
+  leaderboard scores, deductions, or comparisons with actual match results.
+- Invalid or incomplete scoring inputs display unavailable score/result states
+  with the available validation reason instead of a misleading numeric score.
+- Each conversion input receives a dynamic maximum from that team's predicted
+  tries. Local form state also clamps conversions immediately when a player
+  enters conversions above tries or reduces tries below the current conversion
+  count. The other team's values are not changed.
+
 ## Prediction Presentation Architecture
 
 Future Rugby Rooster prediction presentation has two complete experiences:

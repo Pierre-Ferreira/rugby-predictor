@@ -64,6 +64,24 @@ describe('prediction submission validation', () => {
     ).toBe(2);
   });
 
+  it('preserves internal team-side values in sanitized prediction answers', () => {
+    const result = sanitizeSubmitPredictionInput(
+      {
+        fixtureId: 'fixture_123',
+        prediction: {
+          ...validPrediction(),
+          firstTry: 'team2',
+          halfTimeLeader: 'draw',
+        },
+      },
+      defaultRuleset,
+    );
+
+    expect(result.prediction.matchResult).toBe('team1');
+    expect(result.prediction.firstTry).toBe('team2');
+    expect(result.prediction.halfTimeLeader).toBe('draw');
+  });
+
   it('rejects server-owned field injection in the submission envelope', () => {
     expect(() =>
       sanitizeSubmitPredictionInput(
@@ -88,6 +106,28 @@ describe('prediction submission validation', () => {
           prediction: {
             ...validPrediction(),
             matchResult: 'team2',
+          },
+        },
+        defaultRuleset,
+      ),
+    ).toThrow(/Scoring input is invalid/);
+  });
+
+  it('rejects conversion counts above tries if a client bypasses the UI', () => {
+    expect(() =>
+      sanitizeSubmitPredictionInput(
+        {
+          fixtureId: 'fixture_123',
+          prediction: {
+            ...validPrediction(),
+            team2: {
+              conversions: 3,
+              dropGoals: 0,
+              penaltyKicks: 1,
+              redCards: 0,
+              tries: 1,
+              yellowCards: 0,
+            },
           },
         },
         defaultRuleset,

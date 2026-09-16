@@ -79,8 +79,9 @@ Current unit test files:
   normalization, public/admin pagination option validation, expected-revision
   validation, and South African time to UTC conversion.
 - `tests/unit/predictions.test.ts` - prediction submission input validation,
-  captured revision validation, server-owned field rejection, and delegation to
-  the shared scoring validation contract.
+  captured revision validation, server-owned field rejection, internal
+  team-side value preservation, bypassed invalid conversion rejection, and
+  delegation to the shared scoring validation contract.
 
 Commands:
 
@@ -173,8 +174,10 @@ The current browser suite covers:
   pagination clearing edit state and form values together, and edited fixtures
   leaving the visible page without falling through to draft creation.
 - Prediction entry return-path support, valid submit and saved-entry revisit,
-  edit before kickoff, persisted locked saved-entry display after dirty local
-  edits, and stale revision conflict value preservation.
+  player-facing fixture team names in prediction controls, conversion clamping
+  in local form state, derived predicted rugby match score/result review, edit
+  before kickoff, persisted locked saved-entry display after dirty local edits,
+  and stale revision conflict value preservation.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

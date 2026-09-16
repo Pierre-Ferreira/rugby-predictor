@@ -27,9 +27,12 @@ import {
   deriveTeamScore,
   enabledQuestions,
   isBuiltInEnabled,
+  ScoringValidationError,
   type FixturePrediction,
+  type MatchResult,
   type QuestionDefinition,
   type RulesetSnapshot,
+  type TeamSide,
   type TeamPrediction,
 } from '/imports/shared/scoring';
 import { callMeteorMethod } from '../auth/methodCall';
@@ -164,37 +167,82 @@ const messageFromError = (error: unknown): string => {
   return 'The prediction could not be saved.';
 };
 
-const parseWholeNumber = (value: string, label: string): number => {
+const parseFormWholeNumber = (value: string): number | null => {
   const trimmed = value.trim();
 
   if (!/^\d+$/.test(trimmed)) {
-    throw new Error(`${label} must be a whole number of 0 or more.`);
+    return null;
   }
 
   const parsed = Number(trimmed);
 
   if (!Number.isSafeInteger(parsed)) {
-    throw new Error(`${label} is too large.`);
+    return null;
   }
 
   return parsed;
 };
 
-const labelForSide = (
+const parseWholeNumber = (value: string, label: string): number => {
+  const parsed = parseFormWholeNumber(value);
+
+  if (parsed === null) {
+    if (/^\d+$/.test(value.trim())) {
+      throw new Error(`${label} is too large.`);
+    }
+
+    throw new Error(`${label} must be a whole number of 0 or more.`);
+  }
+
+  return parsed;
+};
+
+const clampWholeNumberToMaximum = (value: string, maximum: number): string => {
+  const parsed = parseFormWholeNumber(value);
+
+  if (parsed === null) {
+    return value;
+  }
+
+  return String(Math.min(parsed, maximum));
+};
+
+const maxAttributeForWholeNumber = (value: string): string | undefined => {
+  const parsed = parseFormWholeNumber(value);
+
+  return parsed === null ? undefined : String(parsed);
+};
+
+const teamDisplayName = (fixture: FixtureDocument, side: TeamSide): string =>
+  side === 'team1' ? fixture.team1DisplayName : fixture.team2DisplayName;
+
+const parseWholeNumberForTeam = (
+  value: string,
   fixture: FixtureDocument,
-  side: 'team1' | 'team2',
-): string =>
-  side === 'team1'
-    ? `Team 1: ${fixture.team1DisplayName}`
-    : `Team 2: ${fixture.team2DisplayName}`;
+  side: TeamSide,
+  label: string,
+): number =>
+  parseWholeNumber(value, `${teamDisplayName(fixture, side)} ${label}`);
+
+const scoreUnavailableReason = (error: unknown): string => {
+  if (error instanceof ScoringValidationError) {
+    return error.issues[0]?.message ?? 'Enter valid scoring totals.';
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Enter valid scoring totals.';
+};
 
 const matchResultLabel = (fixture: FixtureDocument, value: string): string => {
   if (value === 'team1') {
-    return labelForSide(fixture, 'team1');
+    return teamDisplayName(fixture, 'team1');
   }
 
   if (value === 'team2') {
-    return labelForSide(fixture, 'team2');
+    return teamDisplayName(fixture, 'team2');
   }
 
   if (value === 'draw') {
@@ -239,6 +287,7 @@ const isCustomQuestion = (
 const buildPredictionPayload = (
   form: PredictionFormState,
   ruleset: RulesetSnapshot,
+  fixture: FixtureDocument,
 ): FixturePrediction => {
   const teamPayload = (
     team: TeamPredictionForm,
@@ -301,8 +350,8 @@ const buildPredictionPayload = (
           ),
         }
       : {}),
-    team1: teamPayload(form.team1, 'Team 1'),
-    team2: teamPayload(form.team2, 'Team 2'),
+    team1: teamPayload(form.team1, teamDisplayName(fixture, 'team1')),
+    team2: teamPayload(form.team2, teamDisplayName(fixture, 'team2')),
   };
 };
 
@@ -563,15 +612,42 @@ const PredictionEntrySession = ({
   };
 
   const updateTeamField =
-    (side: 'team1' | 'team2', field: keyof TeamPredictionForm) =>
+    (side: TeamSide, field: keyof TeamPredictionForm) =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      setForm((current) => ({
-        ...current,
-        [side]: {
+      const value = event.target.value;
+
+      setForm((current) => {
+        const nextTeam = {
           ...current[side],
-          [field]: event.target.value,
-        },
-      }));
+          [field]: value,
+        };
+
+        if (field === 'tries') {
+          const tries = parseFormWholeNumber(value);
+          const conversions = parseFormWholeNumber(nextTeam.conversions);
+
+          if (tries !== null && conversions !== null && conversions > tries) {
+            nextTeam.conversions = clampWholeNumberToMaximum(
+              nextTeam.conversions,
+              tries,
+            );
+          }
+        }
+
+        if (field === 'conversions') {
+          const tries = parseFormWholeNumber(nextTeam.tries);
+          const conversions = parseFormWholeNumber(value);
+
+          if (tries !== null && conversions !== null && conversions > tries) {
+            nextTeam.conversions = clampWholeNumberToMaximum(value, tries);
+          }
+        }
+
+        return {
+          ...current,
+          [side]: nextTeam,
+        };
+      });
     };
 
   const updateField =
@@ -611,7 +687,7 @@ const PredictionEntrySession = ({
     setIsSubmitting(true);
 
     try {
-      const prediction = buildPredictionPayload(form, ruleset);
+      const prediction = buildPredictionPayload(form, ruleset, fixture);
       const result = await callMeteorMethod<PredictionMutationResult>(
         PREDICTION_METHODS.submit,
         {
@@ -815,7 +891,7 @@ interface PredictionFieldsProps {
     field: keyof Omit<PredictionFormState, 'customAnswers' | 'team1' | 'team2'>,
   ) => (event: ChangeEvent<HTMLSelectElement | HTMLInputElement>) => void;
   readonly updateTeamField: (
-    side: 'team1' | 'team2',
+    side: TeamSide,
     field: keyof TeamPredictionForm,
   ) => (event: ChangeEvent<HTMLInputElement>) => void;
 }
@@ -858,8 +934,8 @@ const PredictionFields = ({
             onChange={updateField('matchResult')}
             options={[
               ['', 'Select result'],
-              ['team1', 'Team 1'],
-              ['team2', 'Team 2'],
+              ['team1', teamDisplayName(fixture, 'team1')],
+              ['team2', teamDisplayName(fixture, 'team2')],
               ['draw', 'Draw'],
             ]}
             value={form.matchResult}
@@ -871,8 +947,8 @@ const PredictionFields = ({
             onChange={updateField('firstTry')}
             options={[
               ['', 'Select first try'],
-              ['team1', 'Team 1'],
-              ['team2', 'Team 2'],
+              ['team1', teamDisplayName(fixture, 'team1')],
+              ['team2', teamDisplayName(fixture, 'team2')],
               ['no-tries', 'No tries'],
             ]}
             value={form.firstTry}
@@ -897,8 +973,8 @@ const PredictionFields = ({
             onChange={updateField('halfTimeLeader')}
             options={[
               ['', 'Select leader'],
-              ['team1', 'Team 1'],
-              ['team2', 'Team 2'],
+              ['team1', teamDisplayName(fixture, 'team1')],
+              ['team2', teamDisplayName(fixture, 'team2')],
               ['draw', 'Draw'],
             ]}
             value={form.halfTimeLeader}
@@ -925,66 +1001,72 @@ const TeamFields = ({
   readonly fixture: FixtureDocument;
   readonly form: TeamPredictionForm;
   readonly ruleset: RulesetSnapshot;
-  readonly side: 'team1' | 'team2';
+  readonly side: TeamSide;
   readonly updateTeamField: PredictionFieldsProps['updateTeamField'];
-}) => (
-  <div className="rounded-md border border-rooster-line bg-rooster-paper p-4">
-    <h2 className="text-base font-black text-rooster-ink">
-      {labelForSide(fixture, side)}
-    </h2>
-    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-      <NumericField
-        inputLabel={`${labelForSide(fixture, side)} tries`}
-        label="Tries"
-        onChange={updateTeamField(side, 'tries')}
-        value={form.tries}
-      />
-      <NumericField
-        inputLabel={`${labelForSide(fixture, side)} conversions`}
-        label="Conversions"
-        onChange={updateTeamField(side, 'conversions')}
-        value={form.conversions}
-      />
-      <NumericField
-        inputLabel={`${labelForSide(fixture, side)} penalty kicks`}
-        label="Penalty kicks"
-        onChange={updateTeamField(side, 'penaltyKicks')}
-        value={form.penaltyKicks}
-      />
-      <NumericField
-        inputLabel={`${labelForSide(fixture, side)} drop goals`}
-        label="Drop goals"
-        onChange={updateTeamField(side, 'dropGoals')}
-        value={form.dropGoals}
-      />
-      {isBuiltInEnabled(ruleset, 'yellow-cards') ? (
+}) => {
+  const teamName = teamDisplayName(fixture, side);
+  const conversionMaximum = maxAttributeForWholeNumber(form.tries);
+
+  return (
+    <div className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+      <h2 className="text-base font-black text-rooster-ink">{teamName}</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
         <NumericField
-          inputLabel={`${labelForSide(fixture, side)} yellow cards`}
-          label="Yellow cards"
-          onChange={updateTeamField(side, 'yellowCards')}
-          value={form.yellowCards}
+          inputLabel={`${teamName} tries`}
+          label="Tries"
+          onChange={updateTeamField(side, 'tries')}
+          value={form.tries}
         />
-      ) : null}
-      {isBuiltInEnabled(ruleset, 'red-cards') ? (
         <NumericField
-          inputLabel={`${labelForSide(fixture, side)} red cards`}
-          label="Red cards"
-          onChange={updateTeamField(side, 'redCards')}
-          value={form.redCards}
+          inputLabel={`${teamName} conversions`}
+          label="Conversions"
+          max={conversionMaximum}
+          onChange={updateTeamField(side, 'conversions')}
+          value={form.conversions}
         />
-      ) : null}
+        <NumericField
+          inputLabel={`${teamName} penalty kicks`}
+          label="Penalty kicks"
+          onChange={updateTeamField(side, 'penaltyKicks')}
+          value={form.penaltyKicks}
+        />
+        <NumericField
+          inputLabel={`${teamName} drop goals`}
+          label="Drop goals"
+          onChange={updateTeamField(side, 'dropGoals')}
+          value={form.dropGoals}
+        />
+        {isBuiltInEnabled(ruleset, 'yellow-cards') ? (
+          <NumericField
+            inputLabel={`${teamName} yellow cards`}
+            label="Yellow cards"
+            onChange={updateTeamField(side, 'yellowCards')}
+            value={form.yellowCards}
+          />
+        ) : null}
+        {isBuiltInEnabled(ruleset, 'red-cards') ? (
+          <NumericField
+            inputLabel={`${teamName} red cards`}
+            label="Red cards"
+            onChange={updateTeamField(side, 'redCards')}
+            value={form.redCards}
+          />
+        ) : null}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const NumericField = ({
   inputLabel,
   label,
+  max,
   onChange,
   value,
 }: {
   readonly inputLabel?: string;
   readonly label: string;
+  readonly max?: string;
   readonly onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   readonly value: string;
 }) => {
@@ -998,6 +1080,7 @@ const NumericField = ({
         aria-label={inputLabel}
         id={id}
         inputMode="numeric"
+        max={max}
         min="0"
         onChange={onChange}
         pattern="[0-9]*"
@@ -1101,32 +1184,37 @@ const PredictionReview = ({
   readonly form: PredictionFormState;
   readonly ruleset: RulesetSnapshot;
 }) => {
-  const derived = deriveScoresFromForm(form);
+  const derived = deriveScoresFromForm(form, fixture);
 
   return (
     <section className="rounded-md border border-rooster-line bg-white p-5">
       <h2 className="text-lg font-black text-rooster-ink">Review</h2>
       <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <ReviewItem
-          label="Team 1 score"
+          detail={derived.team1.message}
+          label={teamDisplayName(fixture, 'team1')}
           value={
-            derived
-              ? `${fixture.team1DisplayName}: ${derived.team1Score}`
-              : 'Complete scoring fields'
+            derived.team1.score === null
+              ? 'Predicted score unavailable'
+              : `Predicted score: ${derived.team1.score}`
           }
         />
         <ReviewItem
-          label="Team 2 score"
+          detail={derived.team2.message}
+          label={teamDisplayName(fixture, 'team2')}
           value={
-            derived
-              ? `${fixture.team2DisplayName}: ${derived.team2Score}`
-              : 'Complete scoring fields'
+            derived.team2.score === null
+              ? 'Predicted score unavailable'
+              : `Predicted score: ${derived.team2.score}`
           }
         />
         <ReviewItem
+          detail={derived.resultMessage}
           label="Derived result"
           value={
-            derived ? matchResultLabel(fixture, derived.matchResult) : 'Pending'
+            derived.matchResult
+              ? matchResultLabel(fixture, derived.matchResult)
+              : 'Derived result unavailable'
           }
         />
         <ReviewItem
@@ -1157,58 +1245,109 @@ const PredictionReview = ({
 };
 
 const ReviewItem = ({
+  detail,
   label,
   value,
 }: {
+  readonly detail?: string | null;
   readonly label: string;
   readonly value: string;
 }) => (
-  <div className="rounded-md border border-rooster-line bg-rooster-paper p-3">
+  <div
+    className="rounded-md border border-rooster-line bg-rooster-paper p-3"
+    role="group"
+    aria-label={`Review ${label}`}
+  >
     <dt className="text-xs font-black uppercase text-rooster-muted">{label}</dt>
     <dd className="mt-1 text-sm font-black text-rooster-ink">{value}</dd>
+    {detail ? (
+      <p className="mt-1 text-xs font-semibold leading-5 text-rooster-muted">
+        {detail}
+      </p>
+    ) : null}
   </div>
 );
 
+interface TeamScoreReview {
+  readonly message: string | null;
+  readonly score: number | null;
+}
+
+interface ScoreReview {
+  readonly matchResult: MatchResult | null;
+  readonly resultMessage: string | null;
+  readonly team1: TeamScoreReview;
+  readonly team2: TeamScoreReview;
+}
+
 const deriveScoresFromForm = (
   form: PredictionFormState,
-): {
-  readonly matchResult: string;
-  readonly team1Score: number;
-  readonly team2Score: number;
-} | null => {
-  try {
-    const team1Score = deriveTeamScore({
-      conversions: parseWholeNumber(
-        form.team1.conversions,
-        'Team 1 conversions',
-      ),
-      dropGoals: parseWholeNumber(form.team1.dropGoals, 'Team 1 drop goals'),
-      penaltyKicks: parseWholeNumber(
-        form.team1.penaltyKicks,
-        'Team 1 penalty kicks',
-      ),
-      tries: parseWholeNumber(form.team1.tries, 'Team 1 tries'),
-    });
-    const team2Score = deriveTeamScore({
-      conversions: parseWholeNumber(
-        form.team2.conversions,
-        'Team 2 conversions',
-      ),
-      dropGoals: parseWholeNumber(form.team2.dropGoals, 'Team 2 drop goals'),
-      penaltyKicks: parseWholeNumber(
-        form.team2.penaltyKicks,
-        'Team 2 penalty kicks',
-      ),
-      tries: parseWholeNumber(form.team2.tries, 'Team 2 tries'),
-    });
+  fixture: FixtureDocument,
+): ScoreReview => {
+  const team1 = deriveTeamScoreFromForm(form.team1, fixture, 'team1');
+  const team2 = deriveTeamScoreFromForm(form.team2, fixture, 'team2');
 
+  if (team1.score === null || team2.score === null) {
     return {
-      matchResult: deriveMatchResult(team1Score, team2Score),
-      team1Score,
-      team2Score,
+      matchResult: null,
+      resultMessage: 'Enter valid scoring totals for both teams.',
+      team1,
+      team2,
     };
-  } catch {
-    return null;
+  }
+
+  try {
+    return {
+      matchResult: deriveMatchResult(team1.score, team2.score),
+      resultMessage: null,
+      team1,
+      team2,
+    };
+  } catch (error) {
+    return {
+      matchResult: null,
+      resultMessage: scoreUnavailableReason(error),
+      team1,
+      team2,
+    };
+  }
+};
+
+const deriveTeamScoreFromForm = (
+  form: TeamPredictionForm,
+  fixture: FixtureDocument,
+  side: TeamSide,
+): TeamScoreReview => {
+  try {
+    return {
+      message: null,
+      score: deriveTeamScore({
+        conversions: parseWholeNumberForTeam(
+          form.conversions,
+          fixture,
+          side,
+          'conversions',
+        ),
+        dropGoals: parseWholeNumberForTeam(
+          form.dropGoals,
+          fixture,
+          side,
+          'drop goals',
+        ),
+        penaltyKicks: parseWholeNumberForTeam(
+          form.penaltyKicks,
+          fixture,
+          side,
+          'penalty kicks',
+        ),
+        tries: parseWholeNumberForTeam(form.tries, fixture, side, 'tries'),
+      }),
+    };
+  } catch (error) {
+    return {
+      message: scoreUnavailableReason(error),
+      score: null,
+    };
   }
 };
 

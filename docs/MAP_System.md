@@ -35,6 +35,7 @@
 - `docs/AUDIT_005B_Fixture_Edit_Session.md` - CCPP-005B admin fixture edit-session identity, conflict, reload, and accidental-create correction evidence.
 - `docs/AUDIT_006_Prediction_Submission.md` - CCPP-006 prediction entry, submission, validation, ownership, locking, and verification evidence.
 - `docs/AUDIT_006A_Locked_Prediction_Display.md` - CCPP-006A locked saved-entry display correction, prediction presentation architecture clarification, and verification evidence.
+- `docs/AUDIT_006B_Prediction_UI_Refinement.md` - CCPP-006B prediction UI team-name terminology, derived predicted rugby score review, conversion-bound behavior, and verification evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -48,6 +49,7 @@
 - `docs/TEMP_005_Resume.md` - temporary CCPP-005 checkpoint before final static verification and EOMD packaging.
 - `docs/TEMP_006_Resume.md` - temporary CCPP-006 checkpoint before EOMD packaging.
 - `docs/TEMP_006A_Resume.md` - temporary CCPP-006A checkpoint for locked saved-entry display correction and documentation clarification.
+- `docs/TEMP_006B_Resume.md` - temporary CCPP-006B checkpoint for prediction UI correctness and terminology refinement.
 
 ## Application Entry Points
 
@@ -145,7 +147,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
-- `tests/unit/predictions.test.ts` - prediction submission validation unit tests.
+- `tests/unit/predictions.test.ts` - prediction submission validation, internal
+  team-side value, and bypassed invalid conversion unit tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
@@ -153,7 +156,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing, public/admin pagination controls, and admin fixture create/publish/cancel workflow.
-- `tests/e2e/predictions.spec.ts` - browser tests for prediction return path, submit/revisit, edit before kickoff, persisted locked read-only display after dirty local edits, and conflict value preservation.
+- `tests/e2e/predictions.spec.ts` - browser tests for prediction return path,
+  team-name presentation, conversion clamping, derived predicted rugby score
+  review, submit/revisit, edit before kickoff, persisted locked read-only
+  display after dirty local edits, and conflict value preservation.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories
