@@ -459,6 +459,38 @@ Not implemented:
   actual answers, cross-fixture score balancing, Kaplay custom screens,
   leaderboards, or match-result administration.
 
+## CCPP-008B Scope
+
+Milestone status: implemented for admin match-result and prediction-question
+settlement. Product details live in `docs/CORE_Match_Results.md`, platform
+details live in `docs/PLATFORM_Match_Results.md`, and verification evidence is
+recorded in `docs/AUDIT_008B_Match_Results_Settlement.md`.
+
+Implemented:
+
+- One authoritative result document per published, non-cancelled fixture.
+- Provisional result saves with Pending versus zero preservation.
+- Built-in observation capture for rugby scoring components, cards, and enabled
+  standard categorical questions.
+- Derived official rugby score and derived match result from component
+  observations.
+- Custom Number/Choice official settlement from frozen published ruleset
+  snapshots.
+- Explicit custom Void settlement with zero future deduction semantics.
+- Final confirmation validation, server-owned metadata, revision conflict
+  handling, and read-only final results.
+- Admin-only result publications and a dedicated
+  `/admin/fixtures/:fixtureId/results` route.
+- Focused scoring unit, Meteor integration, and Playwright result-admin
+  coverage.
+
+Not implemented:
+
+- Persisted Rugby Rooster player scores, leaderboards, rankings, winners,
+  score jobs, public live deductions, live rugby event capture, live match
+  lifecycle states, Kaplay, custom animations, or result correction/reopen
+  workflows.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

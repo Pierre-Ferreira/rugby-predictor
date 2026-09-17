@@ -14,6 +14,7 @@ import {
 import { ScoringValidationError, validationIssue } from './errors';
 import {
   STARTING_POINTS,
+  type BreakdownItemStatus,
   type BreakdownStatus,
   type CalculationMode,
   type CategoricalBreakdownItem,
@@ -23,7 +24,7 @@ import {
   type FixturePrediction,
   type FixtureScoreResult,
   type NumericBreakdownItem,
-  type ObservationStatus,
+  type CustomObservedValue,
   type ObservedValue,
   type QuestionDefinition,
   type QuestionScoreBreakdown,
@@ -36,6 +37,7 @@ import {
 import {
   assertValid,
   createRulesetSnapshot,
+  readCustomObservation,
   readObservation,
   validateObservations,
   validatePrediction,
@@ -45,7 +47,7 @@ import {
 
 interface ObservedNumeric {
   readonly value: number | null;
-  readonly status: ObservationStatus;
+  readonly status: BreakdownItemStatus;
 }
 
 export const scoreFixture = (input: unknown): FixtureScoreResult => {
@@ -340,8 +342,8 @@ const categoricalObservation = (
     const team1Score = observedTeamScore(observations, 'team1');
     const team2Score = observedTeamScore(observations, 'team2');
     const status = combineObservationStatuses([
-      team1Score.status,
-      team2Score.status,
+      team1Score.status as ObservedValue<string>['status'],
+      team2Score.status as ObservedValue<string>['status'],
     ]);
 
     if (
@@ -375,14 +377,14 @@ const scoreCustomNumeric = (
   observations: FixtureObservations,
 ): QuestionScoreBreakdown => {
   const predicted = prediction.customAnswers?.[question.id] as number;
-  const observed = readObservation<CustomAnswerValue>(
+  const observed = readCustomObservation<CustomAnswerValue>(
     observations.customAnswers?.[question.id],
   );
   const item = numericItem({
     prediction: predicted,
     observed:
-      observed.status === 'pending'
-        ? { value: null, status: 'pending' }
+      observed.status === 'pending' || observed.status === 'void'
+        ? { value: null, status: observed.status }
         : { value: observed.value as number, status: observed.status },
     rate: question.rate,
   });
@@ -396,14 +398,14 @@ const scoreCustomCategorical = (
   observations: FixtureObservations,
 ): QuestionScoreBreakdown => {
   const predicted = prediction.customAnswers?.[question.id] as string;
-  const observed = readObservation<CustomAnswerValue>(
+  const observed = readCustomObservation<CustomAnswerValue>(
     observations.customAnswers?.[question.id],
   );
   const item = categoricalItem({
     prediction: predicted,
     observed:
-      observed.status === 'pending'
-        ? { status: 'pending' }
+      observed.status === 'pending' || observed.status === 'void'
+        ? { status: observed.status }
         : { status: observed.status, value: observed.value as string },
     incorrectDeduction: question.incorrectDeduction,
   });
@@ -422,6 +424,18 @@ const numericItem = ({
   readonly observed: ObservedNumeric;
   readonly rate: number;
 }): NumericBreakdownItem => {
+  if (observed.status === 'void') {
+    return {
+      team,
+      prediction,
+      observed: null,
+      difference: null,
+      rate,
+      deduction: 0,
+      status: 'void',
+    };
+  }
+
   if (observed.status === 'pending' || observed.value === null) {
     return {
       team,
@@ -453,9 +467,19 @@ const categoricalItem = ({
   incorrectDeduction,
 }: {
   readonly prediction: string;
-  readonly observed: ObservedValue<string>;
+  readonly observed: CustomObservedValue<string> | ObservedValue<string>;
   readonly incorrectDeduction: number;
 }): CategoricalBreakdownItem => {
+  if (observed.status === 'void') {
+    return {
+      prediction,
+      observed: null,
+      incorrectDeduction,
+      deduction: 0,
+      status: 'void',
+    };
+  }
+
   if (observed.status === 'pending') {
     return {
       prediction,
@@ -508,6 +532,10 @@ const breakdownStatus = (
     return 'provisional';
   }
 
+  if (items.every((item) => item.status === 'void')) {
+    return 'void';
+  }
+
   return 'confirmed';
 };
 
@@ -541,7 +569,7 @@ const validateFinalReadiness = (
   }
 
   for (const question of breakdown) {
-    if (question.status !== 'confirmed') {
+    if (question.status !== 'confirmed' && question.status !== 'void') {
       issues.push({
         code: 'final_observation_not_confirmed',
         path: ['observations', question.questionId],

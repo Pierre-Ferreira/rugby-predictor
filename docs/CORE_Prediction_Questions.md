@@ -95,16 +95,22 @@ prompt, optional banter/context, counting definition, answer type, ranges,
 option IDs/labels, deductions, and order. Player routes and server validation
 use that frozen snapshot, not mutable draft configuration.
 
-## Future Settlement States
+## Settlement States
 
-Future result/settlement milestones should model custom question outcomes as:
+CCPP-008B models custom question official outcomes as:
 
 - Pending: no official answer is available.
 - Settled: an official answer is available and can score predictions.
 - Void: the question cannot be settled reliably and deducts nothing.
 
-CCPP-008A does not implement official answers, result entry, settlement, or
-voiding workflows.
+Official custom answers are entered only through admin match-result settlement
+and are validated against the fixture's frozen published ruleset snapshot.
+Choice settlements store the stable option ID. Number settlements may exceed
+the player's configured prediction range because observed reality is not
+bounded by the prediction UI range.
+
+Void is available only for custom questions. Built-in observations remain
+non-voidable and must be settled before final confirmation.
 
 ## Unresolved Balancing Policy
 

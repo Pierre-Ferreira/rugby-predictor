@@ -44,6 +44,14 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves admin fixture result routes', () => {
+    expect(resolveRoute('/admin/fixtures/abc_123/results')).toMatchObject({
+      id: 'adminFixtureResults',
+      layout: 'admin',
+      path: '/admin/fixtures/abc_123/results',
+    });
+  });
+
   it('resolves account and passwordless sign-in routes', () => {
     expect(resolveRoute('/sign-in')).toMatchObject({
       id: 'signIn',

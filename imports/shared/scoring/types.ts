@@ -44,11 +44,13 @@ export type CategoricalBuiltInQuestionId =
   (typeof categoricalBuiltInQuestionIds)[number];
 export type QuestionId = string;
 export type ObservationStatus = 'pending' | 'provisional' | 'confirmed';
+export type CustomObservationStatus = ObservationStatus | 'void';
 export type MatchObservationStatus = 'provisional' | 'confirmed';
 export type CalculationMode = 'if-ended-now' | 'final';
 export type CalculationStatus = 'provisional' | 'final';
 export type BreakdownStatus =
-  'pending' | 'partially-pending' | 'provisional' | 'confirmed';
+  'pending' | 'partially-pending' | 'provisional' | 'confirmed' | 'void';
+export type BreakdownItemStatus = ObservationStatus | 'void';
 export type CustomAnswerValue = number | string;
 
 export interface TeamScoringComponents {
@@ -80,6 +82,12 @@ export interface ObservedValue<T> {
   readonly value?: T;
 }
 
+export interface VoidedObservedValue {
+  readonly status: 'void';
+}
+
+export type CustomObservedValue<T> = ObservedValue<T> | VoidedObservedValue;
+
 export interface ObservedTeamScoringComponents {
   readonly tries?: ObservedValue<number>;
   readonly conversions?: ObservedValue<number>;
@@ -103,7 +111,7 @@ export interface FixtureObservations {
   readonly highestScoringHalf?: ObservedValue<HighestScoringHalf>;
   readonly halfTimeLeader?: ObservedValue<HalfTimeLeader>;
   readonly customAnswers?: Readonly<
-    Record<string, ObservedValue<CustomAnswerValue>>
+    Record<string, CustomObservedValue<CustomAnswerValue>>
   >;
 }
 
@@ -196,7 +204,7 @@ export interface NumericBreakdownItem {
   readonly difference: number | null;
   readonly rate: number;
   readonly deduction: number | null;
-  readonly status: ObservationStatus;
+  readonly status: BreakdownItemStatus;
 }
 
 export interface CategoricalBreakdownItem {
@@ -204,7 +212,7 @@ export interface CategoricalBreakdownItem {
   readonly observed: string | null;
   readonly incorrectDeduction: number;
   readonly deduction: number | null;
-  readonly status: ObservationStatus;
+  readonly status: BreakdownItemStatus;
 }
 
 export interface QuestionScoreBreakdown {

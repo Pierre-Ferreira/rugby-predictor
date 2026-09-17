@@ -5,6 +5,7 @@ import {
   type BuiltInQuestionId,
   type CategoricalBuiltInQuestionId,
   type CustomAnswerValue,
+  type CustomObservedValue,
   type FixtureObservations,
   type FixturePrediction,
   type FirstTryAnswer,
@@ -46,6 +47,12 @@ const matchResults = new Set(['team1', 'team2', 'draw']);
 const firstTryAnswers = new Set(['team1', 'team2', 'no-tries']);
 const highestScoringHalfAnswers = new Set(['first', 'second', 'equal']);
 const observationStatuses = new Set(['pending', 'provisional', 'confirmed']);
+const customObservationStatuses = new Set([
+  'pending',
+  'provisional',
+  'confirmed',
+  'void',
+]);
 const matchObservationStatuses = new Set(['provisional', 'confirmed']);
 
 const issue = validationIssue;
@@ -1308,6 +1315,84 @@ const validateObservationValue = (
   validateAnswer(value.value, [...path, 'value']);
 };
 
+const validateCustomObservationValue = (
+  value: unknown,
+  path: readonly (string | number)[],
+  issues: ValidationIssue[],
+  validateAnswer: (
+    answer: unknown,
+    answerPath: readonly (string | number)[],
+  ) => void,
+): void => {
+  if (!isRecord(value)) {
+    issues.push(
+      issue(
+        'missing_required_observation',
+        path,
+        `Observation '${pathToString(path)}' must be explicit.`,
+      ),
+    );
+    return;
+  }
+
+  validateKnownKeys(value, path, new Set(['status', 'value']), issues);
+
+  if (
+    typeof value.status !== 'string' ||
+    !customObservationStatuses.has(value.status)
+  ) {
+    issues.push(
+      issue(
+        'invalid_observation_status',
+        [...path, 'status'],
+        'Custom observation status must be pending, provisional, confirmed, or void.',
+      ),
+    );
+    return;
+  }
+
+  if (value.status === 'pending') {
+    if (hasOwn(value, 'value')) {
+      issues.push(
+        issue(
+          'pending_observation_has_value',
+          [...path, 'value'],
+          'Pending observations must not include a value.',
+        ),
+      );
+    }
+
+    return;
+  }
+
+  if (value.status === 'void') {
+    if (hasOwn(value, 'value')) {
+      issues.push(
+        issue(
+          'void_observation_has_value',
+          [...path, 'value'],
+          'Void custom observations must not include a value.',
+        ),
+      );
+    }
+
+    return;
+  }
+
+  if (!hasOwn(value, 'value')) {
+    issues.push(
+      issue(
+        'missing_observed_value',
+        [...path, 'value'],
+        'Provisional and confirmed observations require a value.',
+      ),
+    );
+    return;
+  }
+
+  validateAnswer(value.value, [...path, 'value']);
+};
+
 const readConfirmedOrProvisionalNumber = (
   value: unknown,
 ): number | undefined => {
@@ -1526,7 +1611,7 @@ const validateCustomObservations = (
       continue;
     }
 
-    validateObservationValue(
+    validateCustomObservationValue(
       answerRecord[question.id],
       ['observations', 'customAnswers', question.id],
       issues,
@@ -1583,6 +1668,12 @@ export const customCategoricalOptions = (
 export function readObservation<T>(
   value: ObservedValue<T> | undefined,
 ): ObservedValue<T> {
+  return value ?? { status: 'pending' };
+}
+
+export function readCustomObservation<T>(
+  value: CustomObservedValue<T> | undefined,
+): CustomObservedValue<T> {
   return value ?? { status: 'pending' };
 }
 

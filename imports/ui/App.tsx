@@ -9,6 +9,7 @@ import {
 import { AdminLayout } from './layouts/AdminLayout';
 import { PublicLayout } from './layouts/PublicLayout';
 import { AdminPage } from './pages/AdminPage';
+import { AdminFixtureResultsPage } from './pages/AdminFixtureResultsPage';
 import { AccountPage } from './pages/AccountPage';
 import { AuthEmailLinkPage } from './pages/AuthEmailLinkPage';
 import { GameDetailPage } from './pages/GameDetailPage';
@@ -25,6 +26,7 @@ const routePages: Record<RouteId, () => ReactNode> = {
   home: HomePage,
   games: GamesPage,
   admin: AdminPage,
+  adminFixtureResults: AdminFixtureResultsPage,
   authEmailLink: AuthEmailLinkPage,
   notFound: NotFoundPage,
   predictionEntry: PredictionEntryPage,

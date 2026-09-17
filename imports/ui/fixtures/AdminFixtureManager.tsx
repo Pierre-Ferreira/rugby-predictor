@@ -3,6 +3,7 @@ import { Meteor } from 'meteor/meteor';
 import { useTracker } from 'meteor/react-meteor-data';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
 import {
   ADMIN_FIXTURE_TIME_ZONE_LABEL,
   DEFAULT_ADMIN_FIXTURE_LIMIT,
@@ -13,8 +14,15 @@ import {
   type FixtureDocument,
   type FixtureMutationResult,
 } from '/imports/shared/fixtures';
-import { callMeteorMethod } from '../auth/methodCall';
 import {
+  MATCH_RESULT_PUBLICATIONS,
+  matchResultAdminState,
+  matchResultAdminStateLabel,
+} from '/imports/shared/matchResults';
+import { callMeteorMethod } from '../auth/methodCall';
+import { AppLink } from '../components/AppLink';
+import {
+  fixtureResultsPath,
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
@@ -137,21 +145,45 @@ export const AdminFixtureManager = () => {
     useState<QuestionConfigSession | null>(null);
   const pageSize = DEFAULT_ADMIN_FIXTURE_LIMIT;
 
-  const { fixtures, isReady } = useTracker(() => {
+  const { fixtures, isReady, resultStateByFixtureId } = useTracker(() => {
     const handle = Meteor.subscribe(FIXTURE_PUBLICATIONS.adminList, {
       ...(pagination.cursor ? { cursor: pagination.cursor } : {}),
       limit: pageSize,
     });
+    const fixtureRows = Fixtures.find(adminFixtureSelector(pagination.cursor), {
+      limit: pageSize + 1,
+      sort: {
+        scheduledKickoffAt: -1,
+        _id: 1,
+      },
+    }).fetch();
+    const visibleFixtureIds = fixtureRows
+      .slice(0, pageSize)
+      .map((fixture) => fixture._id);
+    const resultHandle =
+      visibleFixtureIds.length > 0
+        ? Meteor.subscribe(MATCH_RESULT_PUBLICATIONS.adminSummaries, {
+            fixtureIds: visibleFixtureIds,
+          })
+        : { ready: () => true };
+    const resultSummaries =
+      visibleFixtureIds.length > 0
+        ? MatchResults.find({
+            fixtureId: {
+              $in: visibleFixtureIds,
+            },
+          }).fetch()
+        : [];
 
     return {
-      fixtures: Fixtures.find(adminFixtureSelector(pagination.cursor), {
-        limit: pageSize + 1,
-        sort: {
-          scheduledKickoffAt: -1,
-          _id: 1,
-        },
-      }).fetch(),
-      isReady: handle.ready(),
+      fixtures: fixtureRows,
+      isReady: handle.ready() && resultHandle.ready(),
+      resultStateByFixtureId: new Map(
+        resultSummaries.map((result) => [
+          result.fixtureId,
+          matchResultAdminState(result),
+        ]),
+      ),
     };
   }, [pageSize, pagination.cursor]);
 
@@ -599,6 +631,12 @@ export const AdminFixtureManager = () => {
                         <p className="mt-1 text-sm font-bold text-rooster-muted">
                           {kickoffLabel(fixture)}
                         </p>
+                        <p className="mt-2 text-xs font-black uppercase text-rooster-muted">
+                          Result:{' '}
+                          {matchResultAdminStateLabel(
+                            resultStateByFixtureId.get(fixture._id) ?? 'none',
+                          )}
+                        </p>
                         {fixture.venueDisplayName ? (
                           <p className="mt-1 text-sm text-rooster-muted">
                             {fixture.venueDisplayName}
@@ -630,6 +668,22 @@ export const AdminFixtureManager = () => {
                         >
                           Prediction questions
                         </button>
+                        {fixture.visibility === 'published' ? (
+                          <AppLink
+                            className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-ink transition hover:bg-rooster-paper"
+                            to={fixtureResultsPath(fixture._id)}
+                          >
+                            Results
+                          </AppLink>
+                        ) : (
+                          <button
+                            className="focus-ring min-h-10 rounded-md border border-rooster-line px-3 text-sm font-bold text-rooster-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled
+                            type="button"
+                          >
+                            Results
+                          </button>
+                        )}
                         <button
                           className="focus-ring min-h-10 rounded-md bg-rooster-grass px-3 text-sm font-bold text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-50"
                           disabled={

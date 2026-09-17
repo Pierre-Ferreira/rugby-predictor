@@ -181,6 +181,11 @@ signed-in prediction route uses `predictions.fixtureContext` to publish one
 published fixture with the stored ruleset snapshot to a verified player so the
 prediction form can render the fixture's actual questions.
 
+CCPP-008B result administration also uses this stored `rulesetSnapshot` as the
+authority for required and allowed observations. Result writes never read the
+current default ruleset, mutable draft question configuration, or
+client-submitted question definitions.
+
 ## Indexes
 
 The fixture server creates indexes for the implemented queries:
@@ -241,3 +246,8 @@ Fixture test helpers are registered only when the existing private isolated test
 helper settings are enabled and the active MongoDB identity matches the current
 test environment. Fixture cleanup removes only data tagged with the current
 `RUGBY_ROOSTER_TEST_RUN_ID`.
+
+Match result persistence is documented separately in
+`docs/PLATFORM_Match_Results.md`. Fixtures remain the owner of published
+ruleset snapshots and cancellation/published eligibility; result documents are
+not embedded into fixture documents.

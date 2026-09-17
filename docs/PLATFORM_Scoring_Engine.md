@@ -136,6 +136,10 @@ Numeric team questions include one item per team with `prediction`, `observed`, 
 
 Pending observations use `deduction: null` and appear in `pendingQuestionIds`; they are not treated as zero deductions for correctness.
 
+CCPP-008B adds custom-only Void observations. A Void custom Number or Choice
+question has status `void`, no observed value, zero deduction, and does not
+appear in `pendingQuestionIds`. Built-in observations still reject `void`.
+
 Mixed pending and explicit-zero output excerpt for the tries question:
 
 ```json
@@ -186,7 +190,6 @@ Server-side milestones must still implement:
 - Binding submitted predictions to fixture snapshots.
 - Authorised fixture and prediction operations through Meteor methods and publications.
 - Match-event capture and event-to-observation normalization.
-- Confirmed final-result workflow.
 - Leaderboard and league aggregation semantics across possibly different rulesets.
 
 The engine is ready for those callers but does not enforce their persistence or authorization responsibilities.

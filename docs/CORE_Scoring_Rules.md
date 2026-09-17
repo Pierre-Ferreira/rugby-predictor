@@ -111,10 +111,16 @@ Observation statuses:
 - `pending` means no value is known yet and contributes no current deduction.
 - `provisional` means a supplied value can be scored now but remains provisional.
 - `confirmed` means a supplied value is confirmed.
+- `void` is allowed only for custom questions and means the question cannot be
+  reliably settled. It contains no observed value, deducts zero points, is not
+  Pending, and does not block final calculation.
 
 Pending is distinct from real zero, Draw, or No tries. A live try count of zero is usable when supplied as a provisional or confirmed value. An unresolved first-try outcome must be represented as pending.
 
 Final scoring requires confirmed match status and confirmed observations for every enabled question. Attempts to produce an official final score with pending or provisional observations are rejected.
+
+For custom questions, Void is also final-ready and deducts zero. Built-in
+observations cannot be Void.
 
 Actual team scores and match result are derived from supplied normalized scoring totals where complete. The engine does not accept contradictory parallel actual scores or match-result answers. If required scoring components are pending, dependent team-score and match-result questions remain pending.
 

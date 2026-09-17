@@ -54,8 +54,12 @@ authored on drafts.
 CCPP-008A integrates published custom Number and Choice questions into the
 Standard prediction sequence. Valid custom-question fixtures can publish, custom
 answers are captured in the same prediction entry, and server validation derives
-all custom semantics from the frozen fixture snapshot. Custom result capture,
-settlement, and scoring against official custom answers remain future work.
+all custom semantics from the frozen fixture snapshot.
+
+CCPP-008B adds admin match-result and prediction-question settlement in
+`docs/CORE_Match_Results.md`. It records official observations and custom
+settlements, including custom Void, but it still does not persist player Rugby
+Rooster scores or leaderboards.
 
 ## Player Flow
 

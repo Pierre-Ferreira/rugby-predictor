@@ -33,6 +33,10 @@ The full immutable scoring snapshot remains on the fixture. Prediction entries
 do not copy the full ruleset snapshot and do not store match results, calculated
 fixture scores, leaderboard scores, or result observations.
 
+CCPP-008B result administration stores official observations separately in
+`match_results`. Result confirmation does not mutate prediction entries,
+prediction revisions, or player score fields.
+
 When the fixture snapshot contains active custom questions, the stored
 `prediction` payload includes `customAnswers` keyed by stable custom question
 ID. Number answers are stored as numbers. Choice answers are stored as stable

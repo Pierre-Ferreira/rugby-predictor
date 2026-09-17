@@ -10,8 +10,12 @@
 - `docs/CORE_Fixtures.md` - CCPP-005 fixture user behavior, state transitions, timezone policy, public browsing, and deferred fixture features.
 - `docs/CORE_Predictions.md` - CCPP-006 prediction player flow, supported fields, persisted saved-entry locking behavior, conflict/reload behavior, account switching, and future prediction presentation architecture.
 - `docs/CORE_Prediction_Questions.md` - CCPP-008 prediction question groups,
-  custom question product rules, freeze-before-predictions principle, future
-  pending/void semantics, and unresolved balancing policy.
+  custom question product rules, freeze-before-predictions principle,
+  settlement/Void semantics, and unresolved balancing policy.
+- `docs/CORE_Match_Results.md` - CCPP-008B admin match-result lifecycle,
+  Pending versus zero, built-in and custom settlement semantics, custom Void,
+  final immutability, unresolved card/extra-time conventions, and out-of-scope
+  scoring/leaderboard work.
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
 - `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
@@ -19,6 +23,9 @@
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
 - `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
+- `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
+  relationship, observation normalization, methods/publications, authorization,
+  revision handling, final confirmation, and custom Void scoring preparation.
 - `docs/PLATFORM_Prediction_Sequence.md` - CCPP-007 standard prediction
   sequence/message architecture, active-step navigation, dynamic custom
   question steps, and Review edit destinations.
@@ -57,6 +64,9 @@
 - `docs/AUDIT_008A_Custom_Questions_Standard_Sequence.md` - CCPP-008A custom
   questions in the Standard prediction sequence, snapshot validation,
   publish-gate removal, and verification evidence.
+- `docs/AUDIT_008B_Match_Results_Settlement.md` - CCPP-008B match-result and
+  prediction-question settlement implementation, tests, unresolved questions,
+  and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -79,16 +89,22 @@
   prediction question configuration and packaging handoff.
 - `docs/TEMP_008A_Resume.md` - temporary CCPP-008A checkpoint for custom
   questions in the Standard prediction sequence and final packaging handoff.
+- `docs/TEMP_008B_Resume.md` - temporary CCPP-008B checkpoint for match-result
+  settlement and final packaging handoff.
 
 ## Application Entry Points
 
 - `client/main.html` - HTML shell and document title.
 - `client/main.tsx` - React startup and CSS import.
 - `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
-- `server/main.ts` - Meteor server startup plus auth, fixture, prediction, and PWA server-module imports.
+- `server/main.ts` - Meteor server startup plus auth, fixture, match result, prediction, and PWA server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
+- `imports/api/matchResults/collection.ts` - shared Meteor match result collection.
 - `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
 - `imports/server/fixtures/` - fixture methods, publications, indexes, ruleset snapshot attachment, and isolated fixture test helpers.
+- `imports/server/matchResults/` - result methods, admin publications,
+  unique fixture index, revision handling, final confirmation, and isolated
+  result test helper.
 - `imports/server/predictions/` - prediction submit method, private publications, indexes, and isolated prediction test helper.
 - `imports/server/pwa/server.ts` - manifest content-type hook for `/site.webmanifest`.
 - `public/site.webmanifest` - minimal PWA manifest that launches at `/games`.
@@ -104,6 +120,7 @@
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
 - `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
 - `/admin` - `imports/ui/pages/AdminPage.tsx` in the admin layout with server-authorised summary data.
+- `/admin/fixtures/:fixtureId/results` - `imports/ui/pages/AdminFixtureResultsPage.tsx` in the admin layout for result entry, final confirmation, and read-only result summary.
 - Unmatched paths - `imports/ui/pages/NotFoundPage.tsx` in the public layout.
 
 Route metadata and matching live in `imports/shared/routes.ts`. Client-side navigation is handled by `imports/ui/components/AppLink.tsx`.
@@ -135,6 +152,20 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/errors.ts` - structured scoring validation error.
 - `imports/shared/scoring/validation.ts` - ruleset, prediction, and observation validation.
 - `imports/shared/scoring/engine.ts` - fixture scoring function.
+
+## Match Result Entry Points
+
+- `imports/shared/matchResults/` - result method/publication names, persistence
+  types, lifecycle labels, revision constants, observation normalization, and
+  final completeness validation.
+- `imports/api/matchResults/collection.ts` - shared `match_results` Mongo collection.
+- `imports/server/matchResults/server.ts` - result save/confirm methods,
+  fixture eligibility checks, admin-only publications, denied client writes, and
+  indexes.
+- `imports/server/matchResults/testSupport.ts` - isolated result test reset helper.
+- `imports/ui/pages/AdminFixtureResultsPage.tsx` - admin result entry, derived
+  rugby score display, custom settlement/Void UI, final confirmation, read-only
+  final summary, and result conflict reload.
 
 ## Fixture Entry Points
 
@@ -202,10 +233,16 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   state-helper unit tests.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
-- `imports/server/app-tests.ts` - Meteor full-app test entry importing auth, fixture, and prediction integration suites.
+- `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
+  fixture, match result, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
 - `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
+- `imports/server/matchResults/matchResults.app-test.ts` - Meteor full-app
+  result integration tests for authorization, fixture eligibility, provisional
+  saves, Pending versus zero, duplicate first creation, stale revisions, field
+  injection, final confirmation, custom Void, read-only final results, and
+  admin-only publications.
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing,
@@ -218,6 +255,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   first-try constraints, submit/revisit, Review Edit and Return to Review, edit
   before kickoff, persisted locked read-only display after dirty local edits,
   custom Number/Choice questions, and conflict value preservation.
+- `tests/e2e/results.spec.ts` - browser tests for result admin provisional
+  save/revisit, blank-versus-zero restoration, derived rugby score, custom
+  Number settlement beyond prediction range, custom Choice Void, final read-only
+  summary, stale conflict preservation, and explicit latest-result reload.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 
 ## Important Directories
@@ -228,10 +269,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/` - shared route metadata.
 - `imports/server/auth/` - passwordless account and server authorisation implementation.
 - `imports/server/fixtures/` - fixture server methods, publications, indexes, and test helpers.
+- `imports/server/matchResults/` - match result server methods, publications,
+  indexes, and test helper.
 - `imports/server/predictions/` - prediction server method, publications, indexes, and test helper.
 - `imports/server/pwa/` - minimal PWA server hook for static manifest response metadata.
 - `imports/shared/auth/` - shared auth constants and validation helpers.
 - `imports/shared/fixtures/` - shared fixture names, types, validation, and timezone helpers.
+- `imports/shared/matchResults/` - shared result names, types, normalization,
+  lifecycle labels, revision constants, and final validation helpers.
 - `imports/shared/predictions/` - shared prediction names, types, validation, and storage-normalization helpers.
 - `imports/shared/predictionQuestions/` - shared prediction question
   configuration domain.

@@ -64,7 +64,10 @@ Current unit test files:
 
 - `tests/unit/routes.test.ts` - route resolution.
 - `tests/unit/playwright-target.test.ts` - local-only Playwright target guard.
-- `tests/unit/scoring-engine.test.ts` - CCPP-003/003A scoring rules, validation, public helper boundaries, snapshots, pending/provisional/final observations, custom questions, first-try observation consistency, malformed public requests, and worked examples.
+- `tests/unit/scoring-engine.test.ts` - CCPP-003/003A/008B scoring rules,
+  validation, public helper boundaries, snapshots, pending/provisional/final
+  observations, custom questions, custom Void observations, first-try
+  observation consistency, malformed public requests, and worked examples.
 - `tests/unit/auth-helpers.test.ts` - email identity normalization and safe auth return paths.
 - `tests/unit/auth-config.test.ts` - auth runtime settings validation,
   isolated-test helper contract checks, email delivery provider selection, and
@@ -203,6 +206,10 @@ The current browser suite covers:
   answer discard confirmation, discard without revision writes, persisted locked
   saved-entry display after dirty local edits, and stale revision conflict value
   preservation plus explicit latest-saved loading.
+- Result administration provisional save, blank-versus-zero restoration, derived
+  rugby score display, custom Number observed values beyond prediction range,
+  custom Choice Void, final confirmation read-only summary, and result conflict
+  preservation plus explicit latest-result reload.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only
@@ -295,9 +302,15 @@ The integration suite includes coverage for:
   clock, custom answer persistence/injection rejection, concurrent first
   submissions, stale revisions, server-owned field injection rejection, and
   locked saved-entry readability.
+- Result admin authorization, published/non-cancelled fixture eligibility,
+  partial provisional saves, Pending versus zero storage, duplicate first-result
+  creation conflict, stale result revisions, server-owned field injection
+  rejection, disabled/unknown observation rejection, custom Void final
+  confirmation, final read-only enforcement, and admin-only result
+  publications.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
-the existing auth, fixture, and prediction integration suites.
+the existing auth, fixture, prediction, and match result integration suites.
 
 Future Meteor/database integration tests must cover:
 

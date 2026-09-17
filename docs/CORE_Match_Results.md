@@ -1,0 +1,139 @@
+# Rugby Rooster Match Results
+
+CCPP-008B adds the authoritative admin workflow for recording what happened in
+a rugby match and settling prediction questions from the fixture's frozen
+ruleset snapshot.
+
+It does not persist Rugby Rooster player scores, leaderboard positions, winners,
+or live match events.
+
+## Result Lifecycle
+
+Admin-facing states:
+
+- `No result`: no result document exists for the fixture.
+- `Provisional`: one result document exists and observations may still be
+  Pending, Provisional, Settled, or custom Void.
+- `Final`: final confirmation succeeded. The result is read-only in this
+  milestone.
+
+Domain statuses:
+
+- `pending`: no official value is known.
+- `provisional`: a value is stored for admin review and future if-ended-now
+  calculation.
+- `confirmed`: a final settled official value.
+- `void`: custom questions only; the question cannot be reliably settled and
+  deducts no points.
+
+Final confirmation is deliberate and irreversible in CCPP-008B. There is no
+delete, reset, reopen, unconfirm, or correction workflow yet.
+
+## Pending Versus Zero
+
+Blank admin inputs are stored as Pending. An entered `0` is an observed zero.
+
+This distinction applies to:
+
+- tries;
+- conversions;
+- successful penalty kicks;
+- drop goals;
+- yellow cards;
+- red cards;
+- custom Number observations.
+
+## Built-In Observations
+
+For each team, admins capture:
+
+- tries;
+- conversions;
+- successful penalty kicks;
+- drop goals;
+- enabled yellow cards;
+- enabled red cards.
+
+Values must be safe non-negative integers. Conversions cannot exceed tries.
+
+The Rugby Rooster penalty-try convention is unchanged: a penalty try counts as
+one try and one conversion. Admins enter normalized totals that already include
+that convention.
+
+The actual rugby score and Match Result are derived from component
+observations. Admins do not type a separate final score or actual winner.
+
+Enabled standard categorical settlements are:
+
+- First Try: first team's actual name, second team's actual name, or
+  `No Tries Today!`;
+- Highest-Scoring Half: `First Half`, `Second Half`, or `Equal Points`;
+- Half-Time Leader: first team's actual name, second team's actual name, or
+  `Half-time Draw`.
+
+First Try is checked against observed try totals. If both teams have zero tries,
+`No Tries Today!` is the only final-consistent outcome.
+
+## Custom Settlement
+
+Active frozen custom Number questions show the prompt, optional banter,
+counting definition, player prediction range, deduction rate, official observed
+value, and settlement status. Observed reality may exceed the player prediction
+range.
+
+Active frozen custom Choice questions show the prompt, counting definition,
+frozen options, incorrect-answer deduction, official correct option, and
+settlement status. The official answer is the stable option ID, not the label.
+
+Custom questions may be explicitly Void. A Void custom question:
+
+- is not Pending;
+- stores no official value;
+- deducts zero points in future scoring;
+- does not block final confirmation;
+- remains visible for auditability.
+
+Built-in observations are not voidable.
+
+## Fixture Eligibility
+
+Result administration is available only for published, non-cancelled fixtures.
+
+Draft fixtures have no official result administration. Cancelled fixtures are
+read-only. If result data existed before cancellation, it remains visible and is
+not deleted.
+
+## Rule Authority
+
+The published fixture `rulesetSnapshot` defines which observations are required
+or allowed. Disabled questions do not require observations and reject injected
+observations.
+
+Current defaults, draft question configuration, and client-submitted question
+definitions are not used to settle results.
+
+## Extra Time And Cards
+
+The canonical CCPP-003 scoring rules leave extra-time treatment unresolved. The
+engine scores the supplied observation set. CCPP-008B does not define whether a
+future match-event reducer should include or exclude extra time.
+
+Detailed card-event normalization is also unresolved, including second-yellow
+dismissals and yellow-card upgrades. CCPP-008B stores only admin-entered yellow
+and red card totals.
+
+## Out Of Scope
+
+CCPP-008B intentionally does not implement:
+
+- persisted Rugby Rooster player scores;
+- leaderboards, rankings, or winners;
+- score jobs;
+- public live deductions;
+- live rugby event capture;
+- live match lifecycle states;
+- Kaplay prediction experience.
+
+Open product questions remain for balancing fixtures with different optional or
+custom deduction totals, future correction/reopen workflows, public/provisional
+if-ended-now presentation, and persisted scoring/leaderboard settlement.

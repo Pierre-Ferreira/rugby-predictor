@@ -1,6 +1,7 @@
 export type RouteId =
   | 'account'
   | 'admin'
+  | 'adminFixtureResults'
   | 'authEmailLink'
   | 'gameDetail'
   | 'predictionEntry'
@@ -66,6 +67,8 @@ export const notFoundRoute: AppRoute = {
 
 const gameDetailPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}$/;
 const predictionEntryPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}\/predict$/;
+const adminFixtureResultsPattern =
+  /^\/admin\/fixtures\/[a-zA-Z0-9_-]{1,128}\/results$/;
 
 export const publicNavigationRoutes = appRoutes.filter(
   (route) => route.id === 'home' || route.id === 'games',
@@ -73,6 +76,15 @@ export const publicNavigationRoutes = appRoutes.filter(
 
 export const resolveRoute = (pathname: string): AppRoute => {
   const normalizedPath = normalizePath(pathname);
+
+  if (adminFixtureResultsPattern.test(normalizedPath)) {
+    return {
+      id: 'adminFixtureResults',
+      label: 'Fixture Results',
+      layout: 'admin',
+      path: normalizedPath,
+    };
+  }
 
   if (predictionEntryPattern.test(normalizedPath)) {
     return {

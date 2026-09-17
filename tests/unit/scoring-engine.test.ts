@@ -621,6 +621,168 @@ describe('Rugby Rooster scoring engine', () => {
     expect(result.score).toBe(9_835);
   });
 
+  it('treats custom void observations as settled zero-deduction outcomes', () => {
+    const customRuleset = createRulesetSnapshot({
+      ...defaultRuleset,
+      version: 'custom-void',
+      questions: [
+        ...defaultRuleset.questions,
+        {
+          id: 'winning-margin',
+          label: 'Winning margin',
+          type: 'custom-numeric',
+          enabled: true,
+          countingDefinition: 'Final confirmed winning margin.',
+          max: 10,
+          min: 0,
+          order: 1,
+          prompt: 'Winning margin',
+          rate: 30,
+        },
+        {
+          id: 'weather',
+          label: 'Weather',
+          type: 'custom-categorical',
+          enabled: true,
+          countingDefinition: 'Official match weather at kickoff.',
+          incorrectDeduction: 75,
+          order: 2,
+          options: [
+            { id: 'dry', label: 'Dry' },
+            { id: 'wet', label: 'Wet' },
+          ],
+          prompt: 'Weather',
+        },
+      ],
+    });
+    const prediction: FixturePrediction = {
+      ...basePrediction,
+      customAnswers: { 'winning-margin': 5, weather: 'wet' },
+    };
+    const observations: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      customAnswers: {
+        'winning-margin': { status: 'void' },
+        weather: { status: 'void' },
+      },
+    };
+
+    const validation = validateObservations(observations, customRuleset);
+    const result = score(prediction, observations, customRuleset, 'final');
+    const numericVoid = question(result.breakdown, 'winning-margin');
+    const choiceVoid = question(result.breakdown, 'weather');
+
+    expect(validation.valid).toBe(true);
+    expect(numericVoid.status).toBe('void');
+    expect(numericVoid.deduction).toBe(0);
+    expect(numericVoid.items[0]).toMatchObject({
+      deduction: 0,
+      observed: null,
+      status: 'void',
+    });
+    expect(choiceVoid.status).toBe('void');
+    expect(choiceVoid.deduction).toBe(0);
+    expect(choiceVoid.items[0]).toMatchObject({
+      deduction: 0,
+      observed: null,
+      status: 'void',
+    });
+    expect(result.pendingQuestionIds).not.toContain('winning-margin');
+    expect(result.pendingQuestionIds).not.toContain('weather');
+    expect(result.totalDeductions).toBe(0);
+    expect(result.calculationStatus).toBe('final');
+  });
+
+  it('validates custom void shape and rejects void built-in observations', () => {
+    const customRuleset = createRulesetSnapshot({
+      ...defaultRuleset,
+      version: 'custom-void-validation',
+      questions: [
+        ...defaultRuleset.questions,
+        {
+          id: 'winning-margin',
+          label: 'Winning margin',
+          type: 'custom-numeric',
+          enabled: true,
+          countingDefinition: 'Final confirmed winning margin.',
+          max: 10,
+          min: 0,
+          order: 1,
+          prompt: 'Winning margin',
+          rate: 30,
+        },
+        {
+          id: 'weather',
+          label: 'Weather',
+          type: 'custom-categorical',
+          enabled: true,
+          countingDefinition: 'Official match weather at kickoff.',
+          incorrectDeduction: 75,
+          order: 2,
+          options: [
+            { id: 'dry', label: 'Dry' },
+            { id: 'wet', label: 'Wet' },
+          ],
+          prompt: 'Weather',
+        },
+      ],
+    });
+    const validBeyondPredictionRange: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      customAnswers: {
+        'winning-margin': observed(11),
+        weather: observed('dry'),
+      },
+    };
+    const validZeroAndPending: FixtureObservations = {
+      ...observationsFromPrediction(basePrediction),
+      customAnswers: {
+        'winning-margin': observed(0, 'provisional'),
+        weather: pending(),
+      },
+    };
+    const customVoidWithValue = {
+      ...observationsFromPrediction(basePrediction),
+      customAnswers: {
+        'winning-margin': { status: 'void', value: 0 },
+        weather: { status: 'void' },
+      },
+    };
+    const builtInNumericVoid = {
+      ...observationsFromPrediction(basePrediction),
+      team1: {
+        ...observationsFromPrediction(basePrediction).team1,
+        tries: { status: 'void' },
+      },
+    } as unknown as FixtureObservations;
+    const builtInCategoricalVoid = {
+      ...observationsFromPrediction(basePrediction),
+      firstTry: { status: 'void' },
+    } as unknown as FixtureObservations;
+
+    expect(
+      validateObservations(validBeyondPredictionRange, customRuleset).valid,
+    ).toBe(true);
+    expect(validateObservations(validZeroAndPending, customRuleset).valid).toBe(
+      true,
+    );
+    expect(
+      validateObservations(customVoidWithValue, customRuleset).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('void_observation_has_value');
+    expect(
+      validateObservations(builtInNumericVoid, defaultRuleset).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('invalid_observation_status');
+    expect(
+      validateObservations(builtInCategoricalVoid, defaultRuleset).issues.map(
+        (issue) => issue.code,
+      ),
+    ).toContain('invalid_observation_status');
+  });
+
   it('rejects invalid rulesets and missing or unexpected answers', () => {
     const invalidRuleset = {
       ...defaultRuleset,
