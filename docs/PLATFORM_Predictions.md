@@ -168,9 +168,20 @@ account change or sign-out.
 
 The edit session stores the fixture ID, current user ID, and captured entry
 revision. Reactive entry updates can show a changed-entry notice, but they do
-not replace unsaved values or the captured revision. The `Reload saved entry`
-button is the explicit path that replaces local values and captures the latest
-revision.
+not replace unsaved values or the captured revision. The normal Review action is
+labelled `Discard changes`, is disabled while local form state matches the
+currently loaded persisted entry, and asks for confirmation before replacing
+dirty local values. The conflict and changed-entry recovery action is labelled
+`Load latest saved prediction`; it is the explicit path that replaces local
+values and captures the latest revision.
+
+Dirty-state comparison is intentionally small and form-local. It compares match
+result, scoring values, card values, standard categorical predictions, and
+custom Number/Choice answers through `predictionFormsEqual(...)`. It does not
+compare transient presentation state such as the current sequence location,
+selected message variants, feedback, or notices. Discarding or loading latest
+saved data only replaces client state and the captured revision; it does not
+call the prediction submission method and does not create a new stored revision.
 
 The page refreshes time-sensitive UI every 15 seconds so an open page reflects
 kickoff passing. Server checks remain authoritative.

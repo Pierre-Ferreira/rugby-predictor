@@ -199,8 +199,10 @@ The current browser suite covers:
   known result/score inconsistency remains, first-try constraints, ruleset-aware
   Review hiding for disabled card/optional questions, valid submit and
   saved-entry Review revisit, Review Edit and Return to Review, edit before
-  kickoff, persisted locked saved-entry display after dirty local edits, and
-  stale revision conflict value preservation.
+  kickoff, clean-state disabled `Discard changes`, dirty built-in and custom
+  answer discard confirmation, discard without revision writes, persisted locked
+  saved-entry display after dirty local edits, and stale revision conflict value
+  preservation plus explicit latest-saved loading.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

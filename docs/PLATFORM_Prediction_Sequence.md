@@ -92,13 +92,20 @@ counting definition.
 ## Standard State Rules
 
 The standard experience keeps one `PredictionFormState` for the whole sequence.
-Intro, numbered steps, Review, Edit-from-Review, submit/revise, reload, and
-conflict handling all read or update that same state.
+Intro, numbered steps, Review, Edit-from-Review, submit/revise, discard, and
+conflict recovery all read or update that same state.
 
 Custom answers live in the same form state under `customAnswers`, keyed by
 stable custom question ID. Number custom answers are kept as strings while
 editing and normalized to numbers only when building the submission payload.
 Choice custom answers store the stable option ID selected by the player.
+
+The Review discard control compares the current form with the latest persisted
+entry projected into the same `PredictionFormState`. Clean forms keep
+`Discard changes` disabled. Dirty forms require confirmation before restoring
+the persisted entry, including custom Number/Choice answers. Stale-save conflict
+recovery uses `Load latest saved prediction` wording and replaces local form
+state only after the player explicitly chooses it.
 
 Predicted rugby match scores are derived with shared scoring helpers. The view
 does not maintain a separately editable score and does not duplicate the score

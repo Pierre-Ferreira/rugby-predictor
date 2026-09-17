@@ -325,6 +325,9 @@ const reviewSection = (page: Page, label: string) =>
 const saveRevisedPredictionButton = (page: Page) =>
   page.getByRole('button', { name: 'Save revised prediction' });
 
+const discardChangesButton = (page: Page) =>
+  page.getByRole('button', { name: 'Discard changes' });
+
 const continueButton = (page: Page) =>
   page.getByRole('button', { name: 'Continue' });
 
@@ -407,6 +410,59 @@ const fillValidSequentialPrediction = async (
   await continueButton(page).click();
 
   await chooseRadio(page, teams.team1);
+  await page.getByRole('button', { name: 'Review predictions' }).click();
+};
+
+const fillValidCustomSequentialPrediction = async (
+  page: Page,
+  teams: {
+    readonly team1: string;
+    readonly team2: string;
+  },
+  custom: {
+    readonly numberPrompt: string;
+    readonly numberValue: string;
+    readonly choiceLabel: string;
+  },
+) => {
+  await startPrediction(page);
+  await chooseRadio(page, teams.team1);
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'tries').fill('2');
+  await teamNumberInput(page, teams.team2, 'tries').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'conversions').fill('2');
+  await teamNumberInput(page, teams.team2, 'conversions').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'penalty kicks').fill('1');
+  await teamNumberInput(page, teams.team2, 'penalty kicks').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'drop goals').fill('0');
+  await teamNumberInput(page, teams.team2, 'drop goals').fill('0');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'yellow cards').fill('1');
+  await teamNumberInput(page, teams.team1, 'red cards').fill('0');
+  await teamNumberInput(page, teams.team2, 'yellow cards').fill('0');
+  await teamNumberInput(page, teams.team2, 'red cards').fill('0');
+  await continueButton(page).click();
+
+  await chooseRadio(page, 'Second Half');
+  await continueButton(page).click();
+
+  await chooseRadio(page, teams.team1);
+  await continueButton(page).click();
+
+  await page
+    .getByRole('spinbutton', { name: `${custom.numberPrompt} answer` })
+    .fill(custom.numberValue);
+  await continueButton(page).click();
+
+  await chooseRadio(page, custom.choiceLabel);
   await page.getByRole('button', { name: 'Review predictions' }).click();
 };
 
@@ -907,6 +963,10 @@ test.describe('prediction entry and submission', () => {
 
     await expect(page.getByRole('status')).toContainText('Prediction saved.');
     await expect(saveRevisedPredictionButton(page)).toBeVisible();
+    await expect(discardChangesButton(page)).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: /Reload saved entry/i }),
+    ).toHaveCount(0);
     await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText(team1);
     await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText('17');
     await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText('10');
@@ -921,6 +981,82 @@ test.describe('prediction entry and submission', () => {
       .click();
     await expectStep(page, 2);
     await expect(teamNumberInput(page, team1, 'tries')).toHaveValue('2');
+  });
+
+  test('discards dirty saved prediction edits only after confirmation', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Boks');
+    const team2 = uniqueLabel('Wallabies');
+    const fixtureId = (
+      await createPublishedFixture(page, {
+        competitionDisplayName: 'Discard Cup',
+        scheduledKickoffAt: farFutureKickoff(),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+      })
+    ).fixtureId;
+
+    await loginAsPlayer(page, 'discard-built-in');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await fillValidSequentialPrediction(page, { team1, team2 });
+    await submitForm(page, 'Submit prediction');
+    await expect(saveRevisedPredictionButton(page)).toBeVisible({
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    });
+    await expect(discardChangesButton(page)).toBeDisabled();
+
+    await reviewSection(page, 'SCORING DETAIL')
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    await teamNumberInput(page, team2, 'tries').fill('2');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+    await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText('15');
+    await expect(discardChangesButton(page)).toBeEnabled();
+
+    await discardChangesButton(page).click();
+    const discardDialog = page.getByRole('alertdialog', {
+      name: 'Discard changes?',
+    });
+    await expect(discardDialog).toContainText(
+      'Discard your unsaved changes and restore the last saved prediction?',
+    );
+
+    await discardDialog.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(discardDialog).toHaveCount(0);
+    await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText('15');
+
+    await discardChangesButton(page).click();
+    await page
+      .getByRole('alertdialog', { name: 'Discard changes?' })
+      .getByRole('button', { name: 'Discard changes' })
+      .click();
+
+    await expect(page.getByRole('status')).toContainText(
+      'Latest saved prediction loaded. Unsaved values were replaced.',
+    );
+    await expect(reviewSection(page, 'PREDICTED SCORE')).toContainText('10');
+    await expect(reviewSection(page, 'PREDICTED SCORE')).not.toContainText(
+      '15',
+    );
+    await expect(discardChangesButton(page)).toBeDisabled();
+
+    const noWriteResult = await callMeteor<{
+      readonly revision: number;
+      readonly status: string;
+    }>(page, PREDICTION_METHODS.submit, {
+      expectedRevision: 1,
+      fixtureId,
+      prediction: {
+        ...validPrediction(),
+        highestScoringHalf: 'first',
+      },
+    });
+
+    expect(noWriteResult).toMatchObject({
+      revision: 2,
+      status: 'updated',
+    });
   });
 
   test('answers custom Number and Choice questions in the standard sequence', async ({
@@ -1087,6 +1223,78 @@ test.describe('prediction entry and submission', () => {
     );
   });
 
+  test('discards unsaved custom Number and Choice answer edits', async ({
+    browser,
+    page,
+  }) => {
+    const team1 = uniqueLabel('Springboks');
+    const team2 = uniqueLabel('All Blacks');
+    const fixtureDetails = {
+      competitionDisplayName: 'Custom Discard Cup',
+      scheduledKickoffAt: farFutureKickoff(),
+      team1DisplayName: team1,
+      team2DisplayName: team2,
+    };
+    const { fixtureId } = await createPublishedCustomFixture(
+      browser,
+      page,
+      fixtureDetails,
+    );
+    const numberPrompt =
+      'How many scrum penalties will the All Blacks concede?';
+
+    await loginAsPlayer(page, 'custom-discard');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await fillValidCustomSequentialPrediction(
+      page,
+      { team1, team2 },
+      {
+        choiceLabel: 'Forwards',
+        numberPrompt,
+        numberValue: '4',
+      },
+    );
+    await submitForm(page, 'Submit prediction');
+    await expect(page.getByRole('status')).toContainText('Prediction saved.');
+
+    await reviewSection(page, 'CUSTOM QUESTIONS')
+      .getByRole('button', { name: 'Edit custom question' })
+      .first()
+      .click();
+    await page
+      .getByRole('spinbutton', { name: `${numberPrompt} answer` })
+      .fill('6');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+
+    await reviewSection(page, 'CUSTOM QUESTIONS')
+      .getByRole('button', { name: 'Edit custom question' })
+      .nth(1)
+      .click();
+    await chooseRadio(page, 'Backs');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText('6');
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText(
+      'Backs',
+    );
+
+    await discardChangesButton(page).click();
+    await page
+      .getByRole('alertdialog', { name: 'Discard changes?' })
+      .getByRole('button', { name: 'Discard changes' })
+      .click();
+
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText('4');
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText(
+      'Forwards',
+    );
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).not.toContainText(
+      '6',
+    );
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).not.toContainText(
+      'Backs',
+    );
+  });
+
   test('edits a saved prediction before kickoff while preserving other answers', async ({
     page,
   }) => {
@@ -1106,7 +1314,7 @@ test.describe('prediction entry and submission', () => {
     await fillValidSequentialPrediction(page, { team1, team2 });
     await submitForm(page, 'Submit prediction');
     await expect(
-      page.getByText('This revision started from saved entry revision 1.'),
+      page.getByText("You're editing your saved prediction."),
     ).toBeVisible({
       timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
     });
@@ -1123,7 +1331,7 @@ test.describe('prediction entry and submission', () => {
 
     await expect(page.getByRole('status')).toContainText('Prediction updated.');
     await expect(
-      page.getByText('This revision started from saved entry revision 2.'),
+      page.getByText("You're editing your saved prediction."),
     ).toBeVisible({
       timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
     });
@@ -1138,6 +1346,8 @@ test.describe('prediction entry and submission', () => {
     browser,
     page,
   }) => {
+    test.setTimeout(90_000);
+
     const team1 = uniqueLabel('Cardiff');
     const team2 = uniqueLabel('Dragons');
     const fixtureDetails = {
@@ -1153,7 +1363,9 @@ test.describe('prediction entry and submission', () => {
     await gotoLocal(page, predictionPath(fixtureId));
     await fillValidSequentialPrediction(page, { team1, team2 });
     await submitForm(page, 'Submit prediction');
-    await expect(page.getByRole('status')).toContainText('Prediction saved.');
+    await expect(saveRevisedPredictionButton(page)).toBeVisible({
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    });
     await gotoLocal(page, predictionPath(fixtureId));
     await expect(saveRevisedPredictionButton(page)).toBeVisible({
       timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
@@ -1208,13 +1420,9 @@ test.describe('prediction entry and submission', () => {
     await gotoLocal(page, predictionPath(fixtureId));
     await fillValidSequentialPrediction(page, { team1, team2 });
     await submitForm(page, 'Submit prediction');
-
-    await reviewSection(page, 'OTHER PREDICTIONS')
-      .getByRole('button', { name: 'Edit highest-scoring half' })
-      .click();
-    await chooseRadio(page, 'First Half');
-    await continueButton(page).click();
-    await page.getByRole('button', { name: 'Review predictions' }).click();
+    await expect(saveRevisedPredictionButton(page)).toBeVisible({
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    });
 
     await callMeteor(page, PREDICTION_METHODS.submit, {
       expectedRevision: 1,
@@ -1225,6 +1433,16 @@ test.describe('prediction entry and submission', () => {
       },
     });
 
+    await reviewSection(page, 'OTHER PREDICTIONS')
+      .getByRole('button', { name: 'Edit highest-scoring half' })
+      .click();
+    await chooseRadio(page, 'First Half');
+    await continueButton(page).click();
+    await page.getByRole('button', { name: 'Review predictions' }).click();
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'First half',
+    );
+
     await submitForm(page, 'Save revised prediction');
 
     await expect(page.getByRole('alert')).toContainText(
@@ -1234,7 +1452,53 @@ test.describe('prediction entry and submission', () => {
       'First half',
     );
     await expect(
-      page.getByText('This form still uses revision 1'),
+      page.getByRole('alert').getByRole('button', {
+        name: 'Load latest saved prediction',
+      }),
     ).toBeVisible();
+    await expect(page.getByRole('alertdialog')).toHaveCount(0);
+
+    await page
+      .getByRole('alert')
+      .getByRole('button', { name: 'Load latest saved prediction' })
+      .click();
+    await expect(page.getByRole('status')).toContainText(
+      'Latest saved prediction loaded. Unsaved values were replaced.',
+    );
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'Second half',
+    );
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'Half-time Draw',
+    );
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).not.toContainText(
+      'First half',
+    );
+
+    await reviewSection(page, 'OTHER PREDICTIONS')
+      .getByRole('button', { name: 'Edit highest-scoring half' })
+      .click();
+    await chooseRadio(page, 'First Half');
+    await continueButton(page).click();
+    await page.getByRole('button', { name: 'Review predictions' }).click();
+    await submitForm(page, 'Save revised prediction');
+    await expect(page.getByRole('alert')).toHaveCount(0);
+
+    const revisionProbe = await callMeteor<{
+      readonly revision: number;
+      readonly status: string;
+    }>(page, PREDICTION_METHODS.submit, {
+      expectedRevision: 3,
+      fixtureId,
+      prediction: {
+        ...validPrediction(),
+        halfTimeLeader: 'draw',
+      },
+    });
+
+    expect(revisionProbe).toMatchObject({
+      revision: 4,
+      status: 'updated',
+    });
   });
 });

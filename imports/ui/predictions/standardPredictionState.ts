@@ -123,6 +123,44 @@ export const formFromPrediction = (
   },
 });
 
+const teamPredictionFormsEqual = (
+  left: TeamPredictionForm,
+  right: TeamPredictionForm,
+): boolean =>
+  left.conversions === right.conversions &&
+  left.dropGoals === right.dropGoals &&
+  left.penaltyKicks === right.penaltyKicks &&
+  left.redCards === right.redCards &&
+  left.tries === right.tries &&
+  left.yellowCards === right.yellowCards;
+
+const customAnswersEqual = (
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean => {
+  const keys = new Set([...Object.keys(left), ...Object.keys(right)]);
+
+  for (const key of keys) {
+    if ((left[key] ?? '') !== (right[key] ?? '')) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+export const predictionFormsEqual = (
+  left: PredictionFormState,
+  right: PredictionFormState,
+): boolean =>
+  left.firstTry === right.firstTry &&
+  left.halfTimeLeader === right.halfTimeLeader &&
+  left.highestScoringHalf === right.highestScoringHalf &&
+  left.matchResult === right.matchResult &&
+  teamPredictionFormsEqual(left.team1, right.team1) &&
+  teamPredictionFormsEqual(left.team2, right.team2) &&
+  customAnswersEqual(left.customAnswers, right.customAnswers);
+
 export const parseFormWholeNumber = (value: string): number | null => {
   const trimmed = value.trim();
 

@@ -28,12 +28,15 @@ import {
   defaultRuleset,
   STARTING_POINTS,
   type BuiltInQuestionId,
+  type FixturePrediction,
   type RulesetSnapshot,
 } from '../../imports/shared/scoring';
 import {
   emptyFormForRuleset,
   firstTryConstraintForForm,
+  formFromPrediction,
   halfTimeLeaderLabel,
+  predictionFormsEqual,
   resultConsistencyIssue,
   setTeamPredictionField,
   matchResultLabel,
@@ -426,5 +429,73 @@ describe('standard prediction state helpers', () => {
   it('labels half-time draws without changing Match Result draw copy', () => {
     expect(halfTimeLeaderLabel(fixtureNames, 'draw')).toBe('Half-time Draw');
     expect(matchResultLabel(fixtureNames, 'draw')).toBe('Draw');
+  });
+
+  it('detects dirty built-in and custom answer edits', () => {
+    const ruleset = buildConfiguredRulesetSnapshot(customQuestionConfig());
+    const prediction: FixturePrediction = {
+      customAnswers: {
+        'player-band': 'forwards',
+        'scrum-pressure': 4,
+      },
+      firstTry: 'team1',
+      halfTimeLeader: 'team1',
+      highestScoringHalf: 'second',
+      matchResult: 'team1',
+      team1: {
+        conversions: 2,
+        dropGoals: 0,
+        penaltyKicks: 1,
+        redCards: 0,
+        tries: 2,
+        yellowCards: 1,
+      },
+      team2: {
+        conversions: 1,
+        dropGoals: 0,
+        penaltyKicks: 1,
+        redCards: 0,
+        tries: 1,
+        yellowCards: 0,
+      },
+    };
+    const savedForm = formFromPrediction(prediction, ruleset);
+
+    expect(
+      predictionFormsEqual(savedForm, formFromPrediction(prediction, ruleset)),
+    ).toBe(true);
+    expect(
+      predictionFormsEqual(savedForm, {
+        ...savedForm,
+        matchResult: 'team2',
+      }),
+    ).toBe(false);
+    expect(
+      predictionFormsEqual(savedForm, {
+        ...savedForm,
+        team1: {
+          ...savedForm.team1,
+          tries: '3',
+        },
+      }),
+    ).toBe(false);
+    expect(
+      predictionFormsEqual(savedForm, {
+        ...savedForm,
+        customAnswers: {
+          ...savedForm.customAnswers,
+          'scrum-pressure': '5',
+        },
+      }),
+    ).toBe(false);
+    expect(
+      predictionFormsEqual(savedForm, {
+        ...savedForm,
+        customAnswers: {
+          ...savedForm.customAnswers,
+          'player-band': 'backs',
+        },
+      }),
+    ).toBe(false);
   });
 });

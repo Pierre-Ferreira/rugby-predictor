@@ -80,6 +80,7 @@ import {
   maxAttributeForWholeNumber,
   normalizeInitialPredictionForm,
   parseFormWholeNumber,
+  predictionFormsEqual,
   resultConsistencyIssue,
   setTeamPredictionField,
   teamDisplayName,
@@ -395,6 +396,7 @@ const PredictionEntrySession = ({
     string | null
   >(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
 
   const savedEntryChanged =
     currentEntry &&
@@ -403,16 +405,21 @@ const PredictionEntrySession = ({
   const consistencyIssue = isBuiltInEnabled(ruleset, 'match-result')
     ? resultConsistencyIssue(form, fixture)
     : null;
+  const persistedForm = useMemo(
+    () =>
+      normalizeInitialPredictionForm(
+        currentEntry
+          ? formFromPrediction(currentEntry.prediction, ruleset)
+          : emptyFormForRuleset(ruleset),
+        ruleset,
+      ),
+    [currentEntry, ruleset],
+  );
+  const hasUnsavedChanges = !predictionFormsEqual(form, persistedForm);
+  const isPredictionConflict = feedback?.code === 'prediction-conflict';
 
   const reloadFromSavedEntry = () => {
-    const nextForm = normalizeInitialPredictionForm(
-      currentEntry
-        ? formFromPrediction(currentEntry.prediction, ruleset)
-        : emptyFormForRuleset(ruleset),
-      ruleset,
-    );
-
-    setForm(nextForm);
+    setForm(persistedForm);
     setEditSession({
       expectedRevision: currentEntry?.revision ?? null,
       fixtureId,
@@ -420,16 +427,31 @@ const PredictionEntrySession = ({
     });
     setLocation(currentEntry ? { kind: 'review' } : { kind: 'intro' });
     setIsEditingFromReview(false);
+    setIsDiscardConfirmOpen(false);
     setFeedback({
       kind: 'success',
       message: currentEntry
-        ? 'Saved prediction loaded. Unsaved values were replaced.'
+        ? 'Latest saved prediction loaded. Unsaved values were replaced.'
         : 'Blank prediction form loaded. Unsaved values were replaced.',
     });
     setConversionAdjustmentNotice(null);
   };
 
+  const requestDiscardChanges = () => {
+    if (isPredictionConflict) {
+      reloadFromSavedEntry();
+      return;
+    }
+
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    setIsDiscardConfirmOpen(true);
+  };
+
   const goToFirstStep = () => {
+    setIsDiscardConfirmOpen(false);
     setIsEditingFromReview(false);
     setLocation(
       firstStepId
@@ -441,6 +463,8 @@ const PredictionEntrySession = ({
   };
 
   const goToLocation = (nextLocation: PredictionSequenceLocation) => {
+    setIsDiscardConfirmOpen(false);
+
     if (nextLocation.kind !== 'step') {
       setIsEditingFromReview(false);
     }
@@ -449,11 +473,13 @@ const PredictionEntrySession = ({
   };
 
   const goToStep = (stepId: PredictionStepId) => {
+    setIsDiscardConfirmOpen(false);
     setIsEditingFromReview((current) => current || location.kind === 'review');
     setLocation({ kind: 'step', stepId });
   };
 
   const updateChoice = (field: ChoiceFieldName, value: string) => {
+    setIsDiscardConfirmOpen(false);
     setForm((current) => {
       const next = {
         ...current,
@@ -467,6 +493,7 @@ const PredictionEntrySession = ({
   };
 
   const updateCustomAnswer = (questionId: string, value: string) => {
+    setIsDiscardConfirmOpen(false);
     setForm((current) => ({
       ...current,
       customAnswers: {
@@ -481,6 +508,7 @@ const PredictionEntrySession = ({
     field: keyof TeamPredictionForm,
     value: string,
   ) => {
+    setIsDiscardConfirmOpen(false);
     setForm((current) => {
       const result = setTeamPredictionField(current, side, field, value);
 
@@ -538,6 +566,7 @@ const PredictionEntrySession = ({
         userId,
       });
       setLocation({ kind: 'review' });
+      setIsDiscardConfirmOpen(false);
       setFeedback({
         kind: 'success',
         message:
@@ -567,7 +596,6 @@ const PredictionEntrySession = ({
       />
 
       <PredictionFeedback
-        editSession={editSession}
         feedback={feedback}
         onReload={reloadFromSavedEntry}
         savedEntryChanged={Boolean(savedEntryChanged)}
@@ -621,10 +649,15 @@ const PredictionEntrySession = ({
               editSession={editSession}
               fixture={fixture}
               form={form}
+              hasUnsavedChanges={hasUnsavedChanges}
+              isDiscardConfirmOpen={isDiscardConfirmOpen && hasUnsavedChanges}
+              isPredictionConflict={isPredictionConflict}
               isSubmitting={isSubmitting}
+              onCancelDiscard={() => setIsDiscardConfirmOpen(false)}
+              onConfirmDiscard={reloadFromSavedEntry}
               onEditStep={goToStep}
               onLocationChange={goToLocation}
-              onReload={reloadFromSavedEntry}
+              onRequestDiscard={requestDiscardChanges}
               ruleset={ruleset}
             />
           ) : null}
@@ -674,12 +707,10 @@ const FixtureHeader = ({
 );
 
 const PredictionFeedback = ({
-  editSession,
   feedback,
   onReload,
   savedEntryChanged,
 }: {
-  readonly editSession: PredictionEditSession;
   readonly feedback: {
     readonly code?: string;
     readonly kind: 'error' | 'success';
@@ -703,15 +734,15 @@ const PredictionFeedback = ({
         {feedback.code === 'prediction-conflict' ? (
           <div className="mt-3">
             <p>
-              This form still uses revision{' '}
-              {editSession.expectedRevision ?? 'new'}.
+              Your unsaved changes are still on screen. Load the latest saved
+              prediction to replace them.
             </p>
             <button
               className="focus-ring mt-3 min-h-10 rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
               type="button"
               onClick={onReload}
             >
-              Reload saved entry
+              Load latest saved prediction
             </button>
           </div>
         ) : null}
@@ -723,16 +754,15 @@ const PredictionFeedback = ({
         className="rounded-md border border-rooster-line bg-white p-4 text-sm text-rooster-muted"
         role="status"
       >
-        Your saved prediction changed in another session. This form still uses
-        revision {editSession.expectedRevision}; reload saved entry to replace
-        your unsaved values.
+        Your saved prediction changed in another session. Your unsaved values
+        are still on screen.
         <div className="mt-3">
           <button
             className="focus-ring min-h-10 rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
             type="button"
             onClick={onReload}
           >
-            Reload saved entry
+            Load latest saved prediction
           </button>
         </div>
       </div>
@@ -1620,10 +1650,15 @@ const PredictionReviewScreen = ({
   editSession,
   fixture,
   form,
+  hasUnsavedChanges,
+  isDiscardConfirmOpen,
+  isPredictionConflict,
   isSubmitting,
+  onCancelDiscard,
+  onConfirmDiscard,
   onEditStep,
   onLocationChange,
-  onReload,
+  onRequestDiscard,
   ruleset,
 }: {
   readonly activeSteps: readonly PredictionSequenceStepDefinition[];
@@ -1631,13 +1666,23 @@ const PredictionReviewScreen = ({
   readonly editSession: PredictionEditSession;
   readonly fixture: FixtureDocument;
   readonly form: PredictionFormState;
+  readonly hasUnsavedChanges: boolean;
+  readonly isDiscardConfirmOpen: boolean;
+  readonly isPredictionConflict: boolean;
   readonly isSubmitting: boolean;
+  readonly onCancelDiscard: () => void;
+  readonly onConfirmDiscard: () => void;
   readonly onEditStep: (stepId: PredictionStepId) => void;
   readonly onLocationChange: (location: PredictionSequenceLocation) => void;
-  readonly onReload: () => void;
+  readonly onRequestDiscard: () => void;
   readonly ruleset: RulesetSnapshot;
 }) => {
   const finalStep = activeSteps[activeSteps.length - 1];
+  const discardHeadingId = useId();
+  const discardDescriptionId = useId();
+  const discardActionLabel = isPredictionConflict
+    ? 'Load latest saved prediction'
+    : 'Discard changes';
 
   return (
     <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
@@ -1674,13 +1719,51 @@ const PredictionReviewScreen = ({
         <p className="text-sm leading-6 text-rooster-muted">
           {editSession.expectedRevision === null
             ? 'This will create your prediction for the fixture.'
-            : `This revision started from saved entry revision ${editSession.expectedRevision}.`}
+            : "You're editing your saved prediction."}
         </p>
         {consistencyIssue ? (
           <p className="mt-2 text-sm font-bold text-rooster-red">
             Submission is disabled until your chosen result matches your
             predicted rugby scores.
           </p>
+        ) : null}
+        {isDiscardConfirmOpen && !isPredictionConflict ? (
+          <div
+            aria-describedby={discardDescriptionId}
+            aria-labelledby={discardHeadingId}
+            className="mt-4 rounded-md border border-rooster-red/30 bg-white p-4"
+            role="alertdialog"
+          >
+            <p
+              className="text-sm font-black uppercase text-rooster-red"
+              id={discardHeadingId}
+            >
+              Discard changes?
+            </p>
+            <p
+              className="mt-2 text-sm leading-6 text-rooster-ink"
+              id={discardDescriptionId}
+            >
+              Discard your unsaved changes and restore the last saved
+              prediction?
+            </p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <button
+                className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                type="button"
+                onClick={onCancelDiscard}
+              >
+                Keep editing
+              </button>
+              <button
+                className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+                type="button"
+                onClick={onConfirmDiscard}
+              >
+                Discard changes
+              </button>
+            </div>
+          </div>
         ) : null}
         <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
@@ -1699,11 +1782,13 @@ const PredictionReviewScreen = ({
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
-              disabled={isSubmitting}
+              disabled={
+                isSubmitting || (!isPredictionConflict && !hasUnsavedChanges)
+              }
               type="button"
-              onClick={onReload}
+              onClick={onRequestDiscard}
             >
-              Reload saved entry
+              {discardActionLabel}
             </button>
             <button
               className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"

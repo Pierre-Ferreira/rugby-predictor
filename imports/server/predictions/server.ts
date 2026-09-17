@@ -108,13 +108,13 @@ const isDuplicateKeyError = (error: unknown): boolean =>
 const conflictError = (): Meteor.Error =>
   new Meteor.Error(
     'prediction-conflict',
-    'This prediction changed before your update could be saved. Reload the saved entry if you want to replace your form values.',
+    'This prediction changed before your update could be saved. Load the latest saved prediction if you want to replace your form values.',
   );
 
 const existingEntryConflictError = (): Meteor.Error =>
   new Meteor.Error(
     'prediction-conflict',
-    'A saved prediction already exists for this fixture. Reload it before revising.',
+    'A saved prediction already exists for this fixture. Load it before revising.',
   );
 
 const notFoundError = (): Meteor.Error =>

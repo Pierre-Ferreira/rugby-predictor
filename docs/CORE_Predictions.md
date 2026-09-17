@@ -182,7 +182,16 @@ owner after kickoff or cancellation.
 The form captures the saved entry revision when editing starts. Reactive updates
 do not replace the captured revision or unsaved answers. If a stale revision is
 submitted, the server returns a conflict and the browser offers an explicit
-reload that intentionally replaces unsaved values with the saved entry.
+`Load latest saved prediction` action that intentionally replaces unsaved values
+with the saved entry.
+
+In the normal editable Review state, the explicit replacement action is labelled
+`Discard changes`. It is disabled while the form matches the currently loaded
+persisted prediction. When built-in answers or custom Number/Choice answers have
+unsaved local edits, the action asks the player to confirm before restoring the
+latest persisted prediction. Keeping editing preserves local values and performs
+no server write; confirming discard also performs no server write and does not
+create a prediction revision.
 
 When the fixture becomes read-only while a player has unsaved local changes, the
 editable form is removed and the "Saved prediction" display shows the current
