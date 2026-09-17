@@ -87,6 +87,19 @@ further provisional saves and final confirmation attempts.
 Normalization is server-authoritative and uses the fixture's frozen
 `rulesetSnapshot`.
 
+Before lifecycle normalization, the method validates the raw observation
+envelope:
+
+- only enabled top-level observation keys are accepted;
+- team, standard categorical, custom Number, and custom Choice observation
+  objects may contain only `status` and `value`;
+- incoming non-void observation statuses must be `pending`, `provisional`, or
+  `confirmed`;
+- built-in observations reject `void`;
+- custom observations may use `void` only for known active custom questions and
+  only without `value`;
+- unknown nested fields are rejected instead of being stripped.
+
 On provisional save:
 
 - active missing fields become Pending;
@@ -107,6 +120,9 @@ On final confirmation:
 The shared scoring observation validator remains the value validation boundary
 for safe non-negative integers, categorical values, conversions <= tries, First
 Try consistency, valid custom option IDs, and unknown custom question rejection.
+The raw boundary does not persist client-requested lifecycle statuses verbatim;
+the save method still persists Provisional and the confirm method still persists
+Confirmed for legitimate non-pending, non-void observations.
 
 ## Final Confirmation
 
@@ -165,6 +181,11 @@ local values and captures the latest revision.
 
 The existing fixture admin list shows only `No result`, `Provisional`, or
 `Final` and links published fixtures to the Results page.
+
+Read-only result summaries use the stored lifecycle state for their heading:
+confirmed results render `Confirmed result summary`, while a provisional result
+that remains visible after fixture cancellation renders `Provisional result
+summary`.
 
 ## Scoring Engine Preparation
 

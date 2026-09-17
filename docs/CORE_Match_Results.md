@@ -95,13 +95,22 @@ Custom questions may be explicitly Void. A Void custom question:
 
 Built-in observations are not voidable.
 
+Incoming admin observation objects are checked before Rugby Rooster applies the
+server-owned provisional/final lifecycle status. Built-in observations accept
+only `pending`, `provisional`, or `confirmed` as incoming non-void statuses and
+only the supported `status` and `value` fields. Unknown statuses, built-in
+`void`, and unknown nested observation fields are rejected instead of being
+silently normalized into a valid result.
+
 ## Fixture Eligibility
 
 Result administration is available only for published, non-cancelled fixtures.
 
 Draft fixtures have no official result administration. Cancelled fixtures are
 read-only. If result data existed before cancellation, it remains visible and is
-not deleted.
+not deleted. A cancelled fixture with a provisional result remains labelled
+Provisional in the read-only result summary; it is not automatically promoted to
+Final.
 
 ## Rule Authority
 

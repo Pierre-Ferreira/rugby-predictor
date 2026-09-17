@@ -505,6 +505,179 @@ describe('match result administration', function () {
     );
   });
 
+  it('rejects malformed raw observation statuses and nested fields before save', async () => {
+    const admin = await createVerifiedAdmin();
+    const customFixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+    const builtInCases: readonly unknown[] = [
+      completeObservations({
+        team1: {
+          ...completeObservations().team1,
+          tries: { status: 'garbage', value: 3 } as never,
+        },
+      }),
+      completeObservations({
+        team1: {
+          ...completeObservations().team1,
+          tries: { status: 'void', value: 3 } as never,
+        },
+      }),
+      completeObservations({
+        team1: {
+          ...completeObservations().team1,
+          tries: {
+            injectedThing: 'x',
+            status: 'provisional',
+            value: 3,
+          } as never,
+        },
+      }),
+      completeObservations({
+        firstTry: {
+          injectedThing: 'x',
+          status: 'provisional',
+          value: 'team1',
+        } as never,
+      }),
+    ];
+    const customCases: readonly unknown[] = [
+      completeObservations({
+        customAnswers: {
+          'player-band': { status: 'provisional', value: 'backs' },
+          'scrum-pressure': { status: 'garbage', value: 3 },
+        } as never,
+      }),
+      completeObservations({
+        customAnswers: {
+          'player-band': { status: 'void' },
+          'scrum-pressure': { status: 'void', value: 3 },
+        } as never,
+      }),
+      completeObservations({
+        customAnswers: {
+          'player-band': { status: 'provisional', value: 'backs' },
+          'scrum-pressure': {
+            injectedThing: 'x',
+            status: 'provisional',
+            value: 3,
+          },
+        } as never,
+      }),
+      completeObservations({
+        customAnswers: {
+          'player-band': {
+            injectedThing: 'x',
+            status: 'provisional',
+            value: 'backs',
+          },
+          'scrum-pressure': { status: 'provisional', value: 3 },
+        } as never,
+      }),
+    ];
+
+    for (const observations of builtInCases) {
+      const fixtureId = await insertFixtureDocument();
+
+      await assert.rejects(
+        () =>
+          saveProvisional(admin.invocation, {
+            expectedRevision: 0,
+            fixtureId,
+            observations,
+          }),
+        /unsupported observation status|unsupported fields|must not include a value/i,
+      );
+      assert.equal(await MatchResults.find({ fixtureId }).countAsync(), 0);
+    }
+
+    for (const observations of customCases) {
+      await assert.rejects(
+        () =>
+          saveProvisional(admin.invocation, {
+            expectedRevision: 0,
+            fixtureId: customFixtureId,
+            observations,
+          }),
+        /unsupported observation status|unsupported fields|must not include a value/i,
+      );
+    }
+
+    assert.equal(
+      await MatchResults.find({ fixtureId: customFixtureId }).countAsync(),
+      0,
+    );
+  });
+
+  it('keeps provisional and final lifecycle normalization server-owned', async () => {
+    const admin = await createVerifiedAdmin();
+    const fixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+    const provisional = await saveProvisional(admin.invocation, {
+      expectedRevision: 0,
+      fixtureId,
+      observations: completeObservations({
+        customAnswers: {
+          'player-band': { status: 'confirmed', value: 'backs' },
+          'scrum-pressure': { status: 'confirmed', value: 11 },
+        },
+        team1: {
+          ...completeObservations().team1,
+          tries: { status: 'confirmed', value: 3 },
+        },
+        team2: {
+          ...completeObservations().team2,
+          yellowCards: { status: 'pending' },
+        },
+      }),
+    });
+    const savedProvisional = await MatchResults.findOneAsync({ fixtureId });
+
+    assert.equal(savedProvisional?.observations.matchStatus, 'provisional');
+    assert.equal(
+      savedProvisional?.observations.team1.tries?.status,
+      'provisional',
+    );
+    assert.equal(
+      savedProvisional?.observations.customAnswers?.['scrum-pressure']?.status,
+      'provisional',
+    );
+    assert.equal(
+      savedProvisional?.observations.customAnswers?.['player-band']?.status,
+      'provisional',
+    );
+    assert.equal(
+      savedProvisional?.observations.team2.yellowCards?.status,
+      'pending',
+    );
+
+    const final = await confirmFinal(admin.invocation, {
+      expectedRevision: provisional.revision,
+      fixtureId,
+      observations: completeObservations({
+        customAnswers: {
+          'player-band': { status: 'void' },
+          'scrum-pressure': { status: 'provisional', value: 11 },
+        },
+      }),
+    });
+    const savedFinal = await MatchResults.findOneAsync({ fixtureId });
+
+    assert.equal(final.status, 'confirmed');
+    assert.equal(savedFinal?.observations.matchStatus, 'confirmed');
+    assert.equal(savedFinal?.observations.team1.tries?.status, 'confirmed');
+    assert.equal(
+      savedFinal?.observations.customAnswers?.['scrum-pressure']?.status,
+      'confirmed',
+    );
+    assert.equal(
+      savedFinal?.observations.customAnswers?.['player-band']?.status,
+      'void',
+    );
+    assert.ok(savedFinal?.confirmedAt);
+  });
+
   it('confirms final results, preserves custom void, and makes the result read-only', async () => {
     const admin = await createVerifiedAdmin();
     const fixtureId = await insertFixtureDocument({

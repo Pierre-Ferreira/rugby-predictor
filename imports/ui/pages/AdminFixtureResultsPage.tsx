@@ -1163,12 +1163,16 @@ const ReadOnlyResultSummary = ({
         : matchResult === 'draw'
           ? 'Draw'
           : matchResult;
+  const summaryHeading =
+    result.observations.matchStatus === 'confirmed'
+      ? 'Confirmed result summary'
+      : 'Provisional result summary';
 
   return (
     <section className="grid gap-5">
       <div className="rounded-md border border-rooster-line p-4">
         <h2 className="text-lg font-black text-rooster-ink">
-          Confirmed result summary
+          {summaryHeading}
         </h2>
         {result.confirmedAt ? (
           <p className="mt-2 text-sm font-bold text-rooster-muted">

@@ -38,6 +38,15 @@ const topLevelObservationKeys = new Set([
 ]);
 
 const customQuestionTypes = new Set(['custom-numeric', 'custom-categorical']);
+const rawMatchStatuses = new Set(['provisional', 'confirmed']);
+const rawObservationStatuses = new Set(['pending', 'provisional', 'confirmed']);
+const rawCustomObservationStatuses = new Set([
+  'pending',
+  'provisional',
+  'confirmed',
+  'void',
+]);
+const rawObservationValueKeys = new Set(['status', 'value']);
 
 export class MatchResultValidationError extends Error {
   readonly code: string;
@@ -70,6 +79,52 @@ const assertAllowedKeys = (
     resultError(
       'unknown-result-field',
       `${label} contains unsupported fields: ${unknownKeys.join(', ')}.`,
+    );
+  }
+};
+
+const validateRawMatchStatus = (value: unknown): void => {
+  if (value === undefined) {
+    return;
+  }
+
+  if (typeof value !== 'string' || !rawMatchStatuses.has(value)) {
+    resultError(
+      'invalid-result-observations',
+      'Raw match status must be provisional or confirmed.',
+    );
+  }
+};
+
+const validateRawObservedValue = (
+  value: unknown,
+  allowedStatuses: ReadonlySet<string>,
+  label: string,
+): void => {
+  if (!isRecord(value)) {
+    resultError(
+      'invalid-result-observations',
+      `${label} must be an observation object.`,
+    );
+  }
+  const record = value as Record<string, unknown>;
+
+  assertAllowedKeys(record, rawObservationValueKeys, label);
+
+  if (
+    typeof record.status !== 'string' ||
+    !allowedStatuses.has(record.status)
+  ) {
+    resultError(
+      'invalid-result-observations',
+      `${label} contains an unsupported observation status.`,
+    );
+  }
+
+  if (record.status === 'void' && hasOwn(record, 'value')) {
+    resultError(
+      'invalid-result-observations',
+      'Void custom observations must not include a value.',
     );
   }
 };
@@ -274,6 +329,8 @@ const validateRawObservationKeys = (
     }
   }
 
+  validateRawMatchStatus(record.matchStatus);
+
   const enabledTeamFields = enabledTeamObservationFields(ruleset);
 
   for (const side of teamSides) {
@@ -295,6 +352,26 @@ const validateRawObservationKeys = (
       enabledTeamFields,
       `${side} observations`,
     );
+
+    for (const field of enabledTeamFields) {
+      if (hasOwn(team as Record<string, unknown>, field)) {
+        validateRawObservedValue(
+          (team as Record<string, unknown>)[field],
+          rawObservationStatuses,
+          `${side} ${field} observation`,
+        );
+      }
+    }
+  }
+
+  for (const field of categoricalFields) {
+    if (hasOwn(record, field)) {
+      validateRawObservedValue(
+        record[field],
+        rawObservationStatuses,
+        `${field} observation`,
+      );
+    }
   }
 
   const customAnswers = record.customAnswers;
@@ -319,6 +396,16 @@ const validateRawObservationKeys = (
     customQuestionIds,
     'Custom observations',
   );
+
+  for (const questionId of customQuestionIds) {
+    if (hasOwn(customAnswers as Record<string, unknown>, questionId)) {
+      validateRawObservedValue(
+        (customAnswers as Record<string, unknown>)[questionId],
+        rawCustomObservationStatuses,
+        `Custom observation '${questionId}'`,
+      );
+    }
+  }
 
   return record;
 };

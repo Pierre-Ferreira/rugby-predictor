@@ -98,6 +98,10 @@ Current unit test files:
   limit, order normalization, stable ID preservation, unknown-field rejection,
   permanent core protection, positive custom deduction rules, optional standard
   ruleset projection, and custom snapshot projection.
+- `tests/unit/match-results.test.ts` - CCPP-008B1 raw match-result observation
+  envelope validation, malformed incoming statuses, built-in Void rejection,
+  custom Void shape, unknown nested observation fields, and server-owned
+  provisional/final lifecycle normalization.
 
 Commands:
 
@@ -210,6 +214,9 @@ The current browser suite covers:
   rugby score display, custom Number observed values beyond prediction range,
   custom Choice Void, final confirmation read-only summary, and result conflict
   preservation plus explicit latest-result reload.
+- Cancelled fixture with existing provisional result remaining accessible to an
+  authorised admin as a read-only provisional summary without confirmed-result
+  wording or mutation controls.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

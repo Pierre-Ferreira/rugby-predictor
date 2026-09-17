@@ -142,20 +142,38 @@ const loginWithTestToken = async (page: Page, email: string) => {
     readonly userId: string;
   }>(page, TEST_AUTH_METHODS.loginTokenForEmail, email);
 
-  await page.evaluate(
-    (token) =>
-      new Promise<void>((resolve, reject) => {
-        window.Meteor.loginWithToken(token, (error) => {
-          if (error) {
-            reject(error);
-            return;
-          }
+  let lastError: unknown = null;
 
-          resolve();
-        });
-      }),
-    session.token,
-  );
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await page.evaluate(
+        (token) =>
+          new Promise<void>((resolve, reject) => {
+            window.Meteor.loginWithToken(token, (error) => {
+              if (error) {
+                reject(error);
+                return;
+              }
+
+              resolve();
+            });
+          }),
+        session.token,
+      );
+      await page.waitForFunction(() => window.Meteor.userId() !== null);
+      return;
+    } catch (error) {
+      lastError = error;
+
+      if (!isTransientLocalNavigationError(error)) {
+        throw error;
+      }
+
+      await waitForMeteorClient(page);
+    }
+  }
+
+  throw lastError;
 };
 
 const loginAsResultAdmin = async (page: Page, label: string) => {
@@ -171,7 +189,7 @@ const loginAsResultAdmin = async (page: Page, label: string) => {
 const farFutureKickoff = () =>
   new Date(Date.UTC(2098, 8, 17, 12, 0, 0)).toISOString();
 
-const createPublishedCustomFixture = async (
+const createPublishedCustomFixtureWithRevision = async (
   page: Page,
   details: {
     readonly competitionDisplayName: string;
@@ -232,8 +250,22 @@ const createPublishedCustomFixture = async (
     fixtureId: created.fixtureId,
   });
 
-  return created.fixtureId;
+  return {
+    fixtureId: created.fixtureId,
+    publishedRevision: saved.revision + 1,
+  };
 };
+
+const createPublishedCustomFixture = async (
+  page: Page,
+  details: {
+    readonly competitionDisplayName: string;
+    readonly scheduledKickoffAt: string;
+    readonly team1DisplayName: string;
+    readonly team2DisplayName: string;
+    readonly venueDisplayName?: string;
+  },
+) => (await createPublishedCustomFixtureWithRevision(page, details)).fixtureId;
 
 const resultPath = (fixtureId: string) =>
   `/admin/fixtures/${fixtureId}/results`;
@@ -377,8 +409,8 @@ test.describe('result administration', () => {
 
     await fillCompleteResult(page, { team1, team2 });
 
-    await expect(page.getByText('29')).toBeVisible();
-    await expect(page.getByText('21')).toBeVisible();
+    await expect(page.getByText('29', { exact: true })).toBeVisible();
+    await expect(page.getByText('21', { exact: true })).toBeVisible();
     await expect(page.getByText(team1).first()).toBeVisible();
 
     page.once('dialog', (dialog) => void dialog.accept());
@@ -439,5 +471,65 @@ test.describe('result administration', () => {
 
     await page.getByRole('button', { name: 'Reload latest result' }).click();
     await expect(numberInput(page, `${team1} tries`)).toHaveValue('2');
+  });
+
+  test('shows a cancelled provisional result as read-only without confirmed wording', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Cancelled Springboks');
+    const team2 = uniqueLabel('Cancelled All Blacks');
+    await loginAsResultAdmin(page, 'cancelled-provisional');
+    const { fixtureId, publishedRevision } =
+      await createPublishedCustomFixtureWithRevision(page, {
+        competitionDisplayName: 'Cancelled Result Cup',
+        scheduledKickoffAt: farFutureKickoff(),
+        team1DisplayName: team1,
+        team2DisplayName: team2,
+      });
+
+    await callMeteor(page, MATCH_RESULT_METHODS.saveProvisional, {
+      expectedRevision: 0,
+      fixtureId,
+      observations: completeObservationPayload(),
+    });
+    await callMeteor(page, FIXTURE_METHODS.cancel, {
+      expectedRevision: publishedRevision,
+      fixtureId,
+    });
+    await gotoLocal(page, resultPath(fixtureId));
+
+    await expect(
+      page.getByRole('heading', { level: 1, name: `${team1} vs ${team2}` }),
+    ).toBeVisible({ timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS });
+    await expect(
+      page.getByText(
+        'This fixture is cancelled. Existing result history is read-only.',
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Result state').locator('xpath=..'),
+    ).toContainText('Provisional', {
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Provisional result summary' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Confirmed result summary' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Save provisional result' }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Confirm final result' }),
+    ).toHaveCount(0);
+    await expect(page.getByRole('spinbutton')).toHaveCount(0);
+    await expect(page.getByRole('combobox')).toHaveCount(0);
+    await expect(page.getByText('29', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('21', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('11', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('Void. This question will deduct no points.'),
+    ).toBeVisible();
   });
 });
