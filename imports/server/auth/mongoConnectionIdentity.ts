@@ -98,8 +98,7 @@ const readTopologyDescription = (
   }
 
   const topology = isRecord(client.topology) ? client.topology : null;
-  const topologyState =
-    topology && isRecord(topology.s) ? topology.s : null;
+  const topologyState = topology && isRecord(topology.s) ? topology.s : null;
 
   return topology && isRecord(topology.description)
     ? topology.description
@@ -256,8 +255,9 @@ export const getActiveMongoConnectionTopologyDiagnostic =
     }
 
     const endpoints =
-      state.serverMetadata?.map((server) => server.endpoint).filter(isEndpoint) ??
-      [];
+      state.serverMetadata
+        ?.map((server) => server.endpoint)
+        .filter(isEndpoint) ?? [];
 
     return {
       databaseName: readDatabaseName(state.db),

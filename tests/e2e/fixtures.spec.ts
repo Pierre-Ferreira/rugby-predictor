@@ -434,7 +434,11 @@ test.describe('fixture management and browsing', () => {
       page.getByRole('heading', { level: 1, name: upcomingFixtureName }),
     ).toBeVisible();
     await expect(page.getByText('Cape Town Stadium')).toBeVisible();
-    await expect(page.getByText('Predictions are not open yet.')).toBeVisible();
+    await expect(
+      page.getByText(
+        'Predictions are open until scheduled kickoff for signed-in players.',
+      ),
+    ).toBeVisible();
   });
 
   test('lets platform admins create, publish, and cancel a fixture through the admin workflow', async ({
