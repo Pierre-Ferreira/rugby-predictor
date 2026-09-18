@@ -1,0 +1,376 @@
+{
+  "animations": {
+    "pushRun": {
+      "fps": 14,
+      "frames": [4, 5, 6, 7],
+      "loop": true
+    },
+    "run": {
+      "fps": 13,
+      "frames": [0, 1, 2, 3],
+      "loop": true
+    }
+  },
+  "atlas": {
+    "height": 552,
+    "image": "/assets/rooster/match-result/rooster-shove-atlas.png",
+    "padding": 4,
+    "spriteName": "rooster-shove",
+    "width": 1136
+  },
+  "frame": {
+    "height": 268,
+    "width": 276
+  },
+  "frames": [
+    {
+      "alphaBounds": {
+        "height": 396,
+        "width": 378,
+        "x": 10,
+        "y": 10
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 4,
+        "y": 4
+      },
+      "index": 0,
+      "name": "rooster-run-1",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-run-1.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 233,
+          "width": 223,
+          "x": 23,
+          "y": 23
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 1,
+      "sourceRect": {
+        "height": 416,
+        "width": 398,
+        "x": 16,
+        "y": 57
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 402,
+        "width": 378,
+        "x": 10,
+        "y": 8
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 288,
+        "y": 4
+      },
+      "index": 1,
+      "name": "rooster-run-2",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-run-2.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 235,
+          "width": 222,
+          "x": 23,
+          "y": 20
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 2,
+      "sourceRect": {
+        "height": 420,
+        "width": 397,
+        "x": 456,
+        "y": 47
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 395,
+        "width": 344,
+        "x": 10,
+        "y": 10
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 572,
+        "y": 4
+      },
+      "index": 2,
+      "name": "rooster-run-3",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-run-3.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 232,
+          "width": 204,
+          "x": 32,
+          "y": 23
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 3,
+      "sourceRect": {
+        "height": 414,
+        "width": 364,
+        "x": 857,
+        "y": 55
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 402,
+        "width": 395,
+        "x": 10,
+        "y": 10
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 856,
+        "y": 4
+      },
+      "index": 3,
+      "name": "rooster-run-4",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-run-4.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 236,
+          "width": 232,
+          "x": 18,
+          "y": 19
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 4,
+      "sourceRect": {
+        "height": 421,
+        "width": 415,
+        "x": 1238,
+        "y": 47
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 367,
+        "width": 445,
+        "x": 7,
+        "y": 10
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 4,
+        "y": 280
+      },
+      "index": 4,
+      "name": "rooster-push-1",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-push-1.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 217,
+          "width": 259,
+          "x": 5,
+          "y": 39
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 5,
+      "sourceRect": {
+        "height": 387,
+        "width": 462,
+        "x": 1,
+        "y": 515
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 363,
+        "width": 383,
+        "x": 10,
+        "y": 10
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 288,
+        "y": 280
+      },
+      "index": 5,
+      "name": "rooster-push-2",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-push-2.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 214,
+          "width": 226,
+          "x": 21,
+          "y": 41
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 6,
+      "sourceRect": {
+        "height": 383,
+        "width": 403,
+        "x": 462,
+        "y": 515
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 372,
+        "width": 382,
+        "x": 10,
+        "y": 9
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 572,
+        "y": 280
+      },
+      "index": 6,
+      "name": "rooster-push-3",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-push-3.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 218,
+          "width": 220,
+          "x": 21,
+          "y": 37
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 7,
+      "sourceRect": {
+        "height": 390,
+        "width": 392,
+        "x": 860,
+        "y": 509
+      }
+    },
+    {
+      "alphaBounds": {
+        "height": 373,
+        "width": 405,
+        "x": 0,
+        "y": 9
+      },
+      "atlasRect": {
+        "height": 268,
+        "width": 276,
+        "x": 856,
+        "y": 280
+      },
+      "index": 7,
+      "name": "rooster-push-4",
+      "outputPath": "public/assets/rooster/match-result/frames/rooster-push-4.png",
+      "registration": {
+        "bodyCenterX": 134,
+        "groundY": 250,
+        "renderedRect": {
+          "height": 220,
+          "width": 231,
+          "x": 21,
+          "y": 36
+        },
+        "scale": 0.56
+      },
+      "sourceCell": 8,
+      "sourceRect": {
+        "height": 392,
+        "width": 412,
+        "x": 1260,
+        "y": 509
+      }
+    }
+  ],
+  "inspection": {
+    "alphaThresholdPercent": 1,
+    "notes": [
+      "The runtime sheet is RGBA and the labelled reference sheet is RGB reference-only art.",
+      "Several source cells have alpha touching a cell edge; full source cells are preserved to avoid pre-cropping character parts.",
+      "The supplied art contains visible red/green matte halos around dark outlines on contrasting backgrounds.",
+      "No black pixels were erased because the rooster uses dark outlines and dark-blue tail feathers."
+    ]
+  },
+  "kaplayAtlas": {
+    "rooster-shove": {
+      "anims": {
+        "pushRun": {
+          "frames": [4, 5, 6, 7],
+          "loop": true,
+          "speed": 14
+        },
+        "run": {
+          "frames": [0, 1, 2, 3],
+          "loop": true,
+          "speed": 13
+        }
+      },
+      "height": 552,
+      "sliceX": 4,
+      "sliceY": 2,
+      "width": 1136,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "preparation": {
+    "atlasColumns": 4,
+    "atlasRows": 2,
+    "command": "node scripts/prepare-rooster-shove-assets.mjs",
+    "frameHeight": 268,
+    "framePadding": 4,
+    "frameWidth": 276,
+    "sourceCellStrategy": "Measured component bounds expanded by small padding; fixed source scale with stable ground/body registration; pad atlas entries.",
+    "sourceToRuntimeScale": 0.56,
+    "tool": "ImageMagick convert/identify"
+  },
+  "source": {
+    "referenceSheet": {
+      "channels": "srgb",
+      "height": 941,
+      "path": "assets/source/rooster/rooster_animation_loops_reference_sheet.png",
+      "sha256": "a852bf6c11aa1ccb64f9cc03bc4b84636965f593fc74b35525a670d341656b5c",
+      "width": 1672
+    },
+    "runtimeSheet": {
+      "channels": "srgba",
+      "height": 941,
+      "path": "assets/source/rooster/cartoon_rooster_running_sprite_sheet.png",
+      "sha256": "128746e73ce4f7a6580ae871faba15915616a7c4eef852a3063eb663ea0bf383",
+      "width": 1672
+    }
+  },
+  "version": 1,
+  "visualAnchors": {
+    "contactPoint": {
+      "x": 240,
+      "y": 108
+    },
+    "frameAnchor": {
+      "x": 116,
+      "y": 236
+    }
+  }
+}

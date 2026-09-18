@@ -604,6 +604,115 @@ describe('prediction presentation host lifecycle', () => {
     );
   });
 
+  it('keeps one ready runtime across Match Result selection updates until the attempt ends', async () => {
+    const host = await renderHost(rendererState());
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'first runtime request',
+    );
+
+    const firstRequest = host.controller.requests[0];
+    const firstHandle = createRuntimeHandle();
+
+    await act(async () => {
+      firstRequest.deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    expect(firstHandle.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'choices',
+        selectionEffectId: 0,
+      }),
+    );
+
+    await act(async () => {
+      firstRequest.input.onSelect('team2');
+      await Promise.resolve();
+    });
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledWith(
+      'matchResult',
+      'team2',
+    );
+    expect(host.controller.requests).toHaveLength(1);
+    expect(firstHandle.dispose).not.toHaveBeenCalled();
+
+    await host.rerender(rendererState({ matchResult: 'team2' }));
+    expect(host.controller.requests).toHaveLength(1);
+    expect(firstHandle.dispose).not.toHaveBeenCalled();
+    expect(firstHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'All Blacks',
+        selectionEffectId: 1,
+      }),
+    );
+
+    const selectedUpdateCount = firstHandle.update.mock.calls.length;
+
+    await host.rerender(rendererState({ matchResult: 'team2' }));
+    expect(host.controller.requests).toHaveLength(1);
+    expect(firstHandle.dispose).not.toHaveBeenCalled();
+    expect(firstHandle.update).toHaveBeenCalledTimes(selectedUpdateCount + 1);
+    expect(firstHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'All Blacks',
+        selectionEffectId: 1,
+      }),
+    );
+
+    await clickButton(host.container, 'Change my selection');
+    expect(host.controller.requests).toHaveLength(1);
+    expect(firstHandle.dispose).not.toHaveBeenCalled();
+    expect(firstHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'choices',
+        selectionEffectId: 1,
+      }),
+    );
+
+    await act(async () => {
+      firstRequest.input.onSelect('draw');
+      await Promise.resolve();
+    });
+    await host.rerender(rendererState({ matchResult: 'draw' }));
+    expect(host.controller.requests).toHaveLength(1);
+    expect(firstHandle.dispose).not.toHaveBeenCalled();
+    expect(firstHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'Draw',
+        selectionEffectId: 2,
+      }),
+    );
+
+    await clickButton(host.container, 'Off');
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.container.textContent).toContain('Standard draw 7 revision 3');
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'new runtime request after ending the first attempt',
+    );
+
+    const secondHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(secondHandle);
+      await Promise.resolve();
+    });
+
+    expect(secondHandle.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'Draw',
+      }),
+    );
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores late initialization and stale callbacks after switching Off', async () => {
     const host = await renderHost();
 

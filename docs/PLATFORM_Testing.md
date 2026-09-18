@@ -286,6 +286,13 @@ The current browser suite covers:
   development mode or Animations On. CCPP-009B3 records the
   isolated-script-delivery evidence and current pass/fail history for that
   focused file.
+- CCPP-009C adds `tests/unit/match-result-motion.test.ts` for prepared atlas
+  metadata, visual anchors, layout projection, shove phase timing, exit
+  projection, and effect cancellation. It also adds a focused host regression
+  proving selection/focus/rerender updates flow through runtime snapshot updates
+  without recreating the ready runtime until the attempt actually ends.
+  Browser paths distinguish canvas pointer input, keyboard accessibility input,
+  and visible Standard radio input.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

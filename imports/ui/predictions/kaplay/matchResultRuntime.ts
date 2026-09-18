@@ -1,15 +1,30 @@
-import type { KAPLAYCtx, KAPLAYOpt, KEventController, Vec2 } from 'kaplay';
+import type {
+  Asset,
+  KAPLAYCtx,
+  KAPLAYOpt,
+  KEventController,
+  Vec2,
+} from 'kaplay';
+
+import {
+  choiceAtPoint,
+  createShoveEffect,
+  advanceShoveEffect,
+  MATCH_RESULT_SCENE_HEIGHT,
+  MATCH_RESULT_SCENE_WIDTH,
+  projectMatchResultLayout,
+  projectShoveMotion,
+  ROOSTER_SHOVE_ATLAS_DATA,
+  ROOSTER_SHOVE_ATLAS_URL,
+  ROOSTER_SHOVE_SPRITE_NAME,
+  type MatchResultChoiceValue,
+  type ShoveEffect,
+  type ShoveProjection,
+  type MotionRect,
+} from './matchResultMotion';
 
 export const KAPLAY_INITIALIZATION_TIMEOUT_MS = 10_000;
-
-const gameWidth = 920;
-const gameHeight = 560;
-const choiceWidth = 740;
-const choiceHeight = 82;
-const choiceGap = 20;
-const choiceStartY = 250;
-
-export type MatchResultChoiceValue = 'draw' | 'team1' | 'team2';
+export type { MatchResultChoiceValue } from './matchResultMotion';
 
 export interface MatchResultRuntimeChoice {
   readonly label: string;
@@ -19,10 +34,13 @@ export interface MatchResultRuntimeChoice {
 
 export interface MatchResultRuntimeSnapshot {
   readonly canSelect: boolean;
+  readonly choicePresentation: 'choices' | 'selected';
   readonly deduction: string | null;
+  readonly focusedValue: MatchResultChoiceValue | null;
   readonly helperText: string | null;
   readonly pickedLabel: string | null;
   readonly question: string;
+  readonly selectionEffectId: number;
   readonly sessionKey: string;
   readonly supportingText: readonly string[];
   readonly choices: readonly MatchResultRuntimeChoice[];
@@ -54,8 +72,10 @@ export type KaplayMatchResultRuntimeFactory = (
 
 export interface KaplayPreviewTestControls {
   readonly delayInitializationMs?: number;
+  readonly failRequiredSpriteLoad?: boolean;
   readonly failInitialization?: boolean;
   readonly failOnNextPointer?: boolean;
+  readonly motionTimeScale?: number;
 }
 
 declare global {
@@ -112,28 +132,37 @@ export const createDefaultKaplayMatchResultRuntime = async (
 
   return createKaplayMatchResultRuntime({
     ...input,
+    failRequiredSpriteLoad: controls.failRequiredSpriteLoad === true,
     failOnNextPointer: controls.failOnNextPointer === true,
     kaplay: module.default,
+    motionTimeScale:
+      typeof controls.motionTimeScale === 'number'
+        ? controls.motionTimeScale
+        : 1,
   });
 };
 
 export const createKaplayMatchResultRuntime = async ({
   canvas,
   failOnNextPointer = false,
+  failRequiredSpriteLoad = false,
   initialSnapshot,
   isSelectionAllowed,
   kaplay,
+  motionTimeScale = 1,
   onFailure,
   onSelect,
 }: KaplayMatchResultRuntimeInput & {
   readonly failOnNextPointer?: boolean;
+  readonly failRequiredSpriteLoad?: boolean;
   readonly kaplay: KaplayFunction;
+  readonly motionTimeScale?: number;
 }): Promise<KaplayMatchResultRuntimeHandle> => {
   let snapshot = initialSnapshot;
   let disposed = false;
   let failed = false;
-  let pulseValue = 0;
-  let lastSelectedValue = selectedChoiceValue(snapshot);
+  let activeEffect: ShoveEffect | null = null;
+  let lastSelectionEffectId = snapshot.selectionEffectId;
   let pointerShouldFail = failOnNextPointer;
   const eventControllers: KEventController[] = [];
   const abortController = new AbortController();
@@ -145,14 +174,14 @@ export const createKaplayMatchResultRuntime = async ({
     focus: false,
     font: 'sans-serif',
     global: false,
-    height: gameHeight,
+    height: MATCH_RESULT_SCENE_HEIGHT,
     letterbox: true,
     loadingScreen: false,
     maxFPS: 45,
     pixelDensity: conservativePixelDensity(),
     stretch: true,
     touchToMouse: false,
-    width: gameWidth,
+    width: MATCH_RESULT_SCENE_WIDTH,
   } satisfies KAPLAYOpt);
 
   const dispose = () => {
@@ -208,7 +237,11 @@ export const createKaplayMatchResultRuntime = async ({
           }
 
           const pointer = pointerPositionInGame(canvas, event);
-          const choice = choiceAtPoint(k, snapshot, pointer);
+          const layout = projectMatchResultLayout(
+            snapshot,
+            canvas.getBoundingClientRect().width,
+          );
+          const choice = choiceAtPoint(layout, pointer);
 
           if (choice) {
             onSelect(choice.value);
@@ -255,18 +288,22 @@ export const createKaplayMatchResultRuntime = async ({
       throw setupError;
     }
 
+    await loadRequiredRoosterAtlas(k, failRequiredSpriteLoad);
+
     eventControllers.push(
       k.onUpdate(() => {
-        if (pulseValue > 0) {
-          pulseValue = Math.max(0, pulseValue - k.dt() * 3.5);
-        }
+        activeEffect = advanceShoveEffect(
+          activeEffect,
+          k.dt() * Math.max(0, motionTimeScale),
+          snapshot,
+        );
       }),
     );
 
     eventControllers.push(
       k.onDraw(() => {
         try {
-          drawScene(k, snapshot, pulseValue);
+          drawScene(k, snapshot, activeEffect, canvas);
         } catch (error) {
           fail(errorFromUnknown(error, 'Kaplay preview drawing failed.'));
         }
@@ -286,14 +323,22 @@ export const createKaplayMatchResultRuntime = async ({
           return;
         }
 
-        const nextSelectedValue = selectedChoiceValue(nextSnapshot);
-
-        if (nextSelectedValue !== lastSelectedValue) {
-          pulseValue = 1;
-          lastSelectedValue = nextSelectedValue;
+        if (nextSnapshot.choicePresentation === 'choices') {
+          activeEffect = null;
         }
 
         snapshot = nextSnapshot;
+
+        if (nextSnapshot.selectionEffectId !== lastSelectionEffectId) {
+          lastSelectionEffectId = nextSnapshot.selectionEffectId;
+
+          const selectedValue = selectedChoiceValue(nextSnapshot);
+
+          activeEffect =
+            selectedValue && nextSnapshot.choicePresentation === 'selected'
+              ? createShoveEffect(nextSnapshot.selectionEffectId, selectedValue)
+              : null;
+        }
       },
     };
   } catch (error) {
@@ -310,6 +355,38 @@ const selectedChoiceValue = (
 ): MatchResultChoiceValue | null =>
   snapshot.choices.find((choice) => choice.selected)?.value ?? null;
 
+const loadRequiredRoosterAtlas = async (
+  k: KAPLAYCtx,
+  failRequiredSpriteLoad: boolean,
+): Promise<void> => {
+  const assetUrl = failRequiredSpriteLoad
+    ? '/assets/rooster/match-result/missing-required-rooster-atlas.png'
+    : ROOSTER_SHOVE_ATLAS_URL;
+  const asset = k.loadSpriteAtlas(assetUrl, ROOSTER_SHOVE_ATLAS_DATA);
+
+  await waitForKaplayAsset(asset);
+};
+
+const waitForKaplayAsset = <TValue>(asset: Asset<TValue>): Promise<TValue> =>
+  new Promise((resolve, reject) => {
+    if (asset.loaded && asset.data) {
+      resolve(asset.data);
+      return;
+    }
+
+    if (asset.error) {
+      reject(asset.error);
+      return;
+    }
+
+    asset.onLoad((data) => {
+      resolve(data);
+    });
+    asset.onError((error) => {
+      reject(error);
+    });
+  });
+
 const pointerPositionInGame = (
   canvas: HTMLCanvasElement,
   event: PointerEvent,
@@ -317,147 +394,183 @@ const pointerPositionInGame = (
   const rect = canvas.getBoundingClientRect();
 
   return {
-    x: ((event.clientX - rect.left) / rect.width) * gameWidth,
-    y: ((event.clientY - rect.top) / rect.height) * gameHeight,
+    x: ((event.clientX - rect.left) / rect.width) * MATCH_RESULT_SCENE_WIDTH,
+    y: ((event.clientY - rect.top) / rect.height) * MATCH_RESULT_SCENE_HEIGHT,
   };
-};
-
-const choiceRect = (index: number) => ({
-  height: choiceHeight,
-  width: choiceWidth,
-  x: (gameWidth - choiceWidth) / 2,
-  y: choiceStartY + index * (choiceHeight + choiceGap),
-});
-
-const choiceAtPoint = (
-  k: KAPLAYCtx,
-  snapshot: MatchResultRuntimeSnapshot,
-  point: { readonly x: number; readonly y: number },
-): MatchResultRuntimeChoice | null => {
-  for (const [index, choice] of snapshot.choices.entries()) {
-    const rect = choiceRect(index);
-
-    if (
-      k.testRectPoint(
-        new k.Rect(k.vec2(rect.x, rect.y), rect.width, rect.height),
-        k.vec2(point.x, point.y),
-      )
-    ) {
-      return choice;
-    }
-  }
-
-  return null;
 };
 
 const drawScene = (
   k: KAPLAYCtx,
   snapshot: MatchResultRuntimeSnapshot,
-  pulseValue: number,
+  activeEffect: ShoveEffect | null,
+  canvas: HTMLCanvasElement,
 ) => {
+  const layout = projectMatchResultLayout(
+    snapshot,
+    canvas.getBoundingClientRect().width,
+  );
+  const shoveProjection = activeEffect
+    ? projectShoveMotion(activeEffect, layout)
+    : null;
+
   k.drawRect({
-    color: k.rgb(246, 244, 237),
-    height: gameHeight,
+    color: k.rgb(247, 244, 234),
+    height: MATCH_RESULT_SCENE_HEIGHT,
     pos: k.vec2(0, 0),
-    width: gameWidth,
-  });
-  drawTextBlock(k, {
-    color: k.rgb(204, 49, 42),
-    size: 18,
-    text: 'Animation preview: Match Result only',
-    x: 90,
-    y: 42,
-  });
-  drawTextBlock(k, {
-    color: k.rgb(22, 31, 38),
-    size: 34,
-    text: snapshot.question,
-    width: 740,
-    x: 90,
-    y: 76,
+    width: MATCH_RESULT_SCENE_WIDTH,
   });
 
-  if (snapshot.helperText) {
-    drawTextBlock(k, {
-      color: k.rgb(22, 31, 38),
-      size: 19,
-      text: snapshot.helperText,
-      width: 760,
-      x: 90,
-      y: 132,
+  drawStageBackdrop(k, layout.stage);
+
+  for (const projectedChoice of layout.choices) {
+    if (projectedChoice.isRejected && !shoveProjection) {
+      continue;
+    }
+
+    const offsetX = projectedChoice.isRejected
+      ? (shoveProjection?.rejectedOffsetX ?? 0)
+      : 0;
+
+    drawChoiceCard(k, {
+      focused: snapshot.focusedValue === projectedChoice.choice.value,
+      pickedLabel:
+        projectedChoice.isSelected && snapshot.pickedLabel
+          ? 'You picked'
+          : null,
+      rect: {
+        ...projectedChoice.rect,
+        x: projectedChoice.rect.x + offsetX,
+      },
+      selected: projectedChoice.isSelected,
+      text: projectedChoice.choice.label,
+      tone: projectedChoice.isRejected ? 'rejected' : 'primary',
     });
   }
 
-  if (snapshot.deduction) {
-    drawTextBlock(k, {
-      color: k.rgb(85, 96, 105),
-      size: 16,
-      text: snapshot.deduction,
-      width: 760,
-      x: 90,
-      y: 184,
-    });
-  }
-
-  snapshot.choices.forEach((choice, index) => {
-    drawChoice(k, choice, index, pulseValue);
-  });
-
-  if (snapshot.pickedLabel) {
-    drawTextBlock(k, {
-      color: k.rgb(22, 31, 38),
-      size: 20,
-      text: `You picked ${snapshot.pickedLabel}`,
-      width: 740,
-      x: 90,
-      y: 510,
-    });
+  if (shoveProjection) {
+    drawRooster(k, shoveProjection);
   }
 };
 
-const drawChoice = (
+const drawStageBackdrop = (k: KAPLAYCtx, rect: MotionRect) => {
+  k.drawRect({
+    color: k.rgb(252, 248, 235),
+    height: rect.height,
+    pos: k.vec2(rect.x, rect.y),
+    width: rect.width,
+  });
+  k.drawRect({
+    color: k.rgb(231, 237, 214),
+    height: 112,
+    pos: k.vec2(0, MATCH_RESULT_SCENE_HEIGHT - 112),
+    width: MATCH_RESULT_SCENE_WIDTH,
+  });
+  k.drawRect({
+    color: k.rgb(196, 214, 171),
+    height: 5,
+    pos: k.vec2(0, MATCH_RESULT_SCENE_HEIGHT - 114),
+    width: MATCH_RESULT_SCENE_WIDTH,
+  });
+  k.drawLine({
+    color: k.rgb(212, 204, 184),
+    p1: k.vec2(62, 416),
+    p2: k.vec2(654, 398),
+    width: 3,
+  });
+};
+
+const drawChoiceCard = (
   k: KAPLAYCtx,
-  choice: MatchResultRuntimeChoice,
-  index: number,
-  pulseValue: number,
+  {
+    focused,
+    pickedLabel,
+    rect,
+    selected,
+    text,
+    tone,
+  }: {
+    readonly focused: boolean;
+    readonly pickedLabel: string | null;
+    readonly rect: MotionRect;
+    readonly selected: boolean;
+    readonly text: string;
+    readonly tone: 'primary' | 'rejected';
+  },
 ) => {
-  const rect = choiceRect(index);
-  const selectedScale = choice.selected ? 1 + pulseValue * 0.025 : 1;
-  const scaledWidth = rect.width * selectedScale;
-  const scaledHeight = rect.height * selectedScale;
-  const x = rect.x - (scaledWidth - rect.width) / 2;
-  const y = rect.y - (scaledHeight - rect.height) / 2;
+  const fill = selected
+    ? k.rgb(204, 49, 42)
+    : tone === 'rejected'
+      ? k.rgb(255, 252, 242)
+      : k.rgb(255, 255, 255);
+  const outline = selected
+    ? k.rgb(204, 49, 42)
+    : focused
+      ? k.rgb(249, 196, 64)
+      : k.rgb(207, 198, 174);
+  const textColor = selected ? k.rgb(255, 255, 255) : k.rgb(22, 31, 38);
 
   k.drawRect({
-    color: choice.selected ? k.rgb(204, 49, 42) : k.rgb(255, 255, 255),
-    height: scaledHeight,
+    color: fill,
+    height: rect.height,
     outline: {
-      color: choice.selected ? k.rgb(204, 49, 42) : k.rgb(217, 216, 207),
-      width: 3,
+      color: outline,
+      width: focused ? 5 : 3,
     },
-    pos: k.vec2(x, y),
+    pos: k.vec2(rect.x, rect.y),
     radius: 8,
-    width: scaledWidth,
-  });
-  drawTextBlock(k, {
-    color: choice.selected ? k.rgb(255, 255, 255) : k.rgb(22, 31, 38),
-    size: 26,
-    text: choice.label,
-    width: scaledWidth - 84,
-    x: x + 42,
-    y: y + 24,
+    width: rect.width,
   });
 
-  if (choice.selected) {
+  if (pickedLabel) {
+    drawTextBlock(k, {
+      color: k.rgb(255, 230, 180),
+      size: 18,
+      text: pickedLabel,
+      width: rect.width - 44,
+      x: rect.x + 28,
+      y: rect.y + 18,
+    });
+  }
+
+  drawTextBlock(k, {
+    color: textColor,
+    size: selected ? labelSize(text, 30, 22) : labelSize(text, 25, 18),
+    text,
+    width: rect.width - 56,
+    x: rect.x + 28,
+    y: rect.y + (pickedLabel ? 48 : rect.height / 2 - 14),
+  });
+
+  if (selected) {
     k.drawRect({
       color: k.rgb(249, 196, 64),
-      height: 12,
-      pos: k.vec2(x + scaledWidth - 58, y + scaledHeight / 2 - 6),
+      height: 14,
+      pos: k.vec2(rect.x + rect.width - 58, rect.y + rect.height / 2 - 7),
       radius: 6,
       width: 30,
     });
   }
 };
+
+const drawRooster = (k: KAPLAYCtx, projection: ShoveProjection) => {
+  const centerX = projection.roosterRect.x + projection.roosterRect.width / 2;
+  const centerY = projection.roosterRect.y + projection.roosterRect.height / 2;
+  const width = projection.roosterRect.width * projection.roosterScaleX;
+  const height = projection.roosterRect.height * projection.roosterScaleY;
+
+  k.drawSprite({
+    anchor: 'center',
+    frame: projection.roosterFrame,
+    height,
+    opacity: projection.roosterOpacity,
+    pos: k.vec2(centerX, centerY),
+    sprite: ROOSTER_SHOVE_SPRITE_NAME,
+    width,
+  });
+};
+
+const labelSize = (text: string, normalSize: number, smallSize: number) =>
+  text.length > 30 ? smallSize : normalSize;
 
 const drawTextBlock = (
   k: KAPLAYCtx,

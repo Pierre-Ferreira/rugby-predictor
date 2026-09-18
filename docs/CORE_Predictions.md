@@ -296,15 +296,24 @@ the supported scene; test-only controls remain separately opted in. This
 milestone does not implement the full animated flow, Rooster artwork, shove
 animation, or animated Review/submission.
 
+CCPP-009C adds the first prepared Rooster visual foundation to the development
+Match Result Kaplay preview. It preserves supplied source artwork, generates a
+small runtime atlas/manifest, adds framework-independent shove motion helpers,
+and renders the selected answer separately while a Rooster shoves rejected
+choices through the canvas presentation. This remains a single-screen
+development/test preview; it is not a production rollout, full animated
+prediction flow, Review/submission animation, or final visual acceptance.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
 - Match results and final scoring persistence.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
-- Kaplay animation design beyond the 009B Match Result preview, mascot
-  behavior, full-flow capability detection, production rollout, and player
-  animation controls beyond the development/test On/Off preview.
+- Kaplay animation design beyond the 009C Match Result visual foundation,
+  mascot behavior for other steps, full-flow capability detection, production
+  rollout, and player animation controls beyond the development/test On/Off
+  preview.
 - Custom-question scoring or settlement, official-answer workflows, and future
   balancing across fixtures with different optional/custom question sets.
 - Detailed card-event normalization, including second-yellow dismissals and card

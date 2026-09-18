@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { matchResultLabel, teamDisplayName } from '../standardPredictionState';
 import { supportsKaplayPredictionStep } from '../presentationMode';
@@ -35,14 +29,28 @@ const sessionKeyForState = (state: PredictionSessionRendererState): string =>
 
 const snapshotFromState = (
   state: PredictionSessionRendererState,
+  {
+    choicesVisible,
+    focusedValue,
+    selectionEffectId,
+  }: {
+    readonly choicesVisible: boolean;
+    readonly focusedValue: MatchResultChoiceValue | null;
+    readonly selectionEffectId: number;
+  },
 ): MatchResultRuntimeSnapshot => {
   const message = state.currentStep?.message;
   const selectedLabel = state.form.matchResult
     ? matchResultLabel(state.fixture, state.form.matchResult)
     : null;
+  const selectedValue = isMatchResultChoiceValue(state.form.matchResult)
+    ? state.form.matchResult
+    : null;
 
   return {
-    canSelect: supportsKaplayPredictionStep(state),
+    canSelect: choicesVisible && supportsKaplayPredictionStep(state),
+    choicePresentation:
+      selectedValue && !choicesVisible ? 'selected' : 'choices',
     choices: [
       {
         label: teamDisplayName(state.fixture, 'team1'),
@@ -61,9 +69,11 @@ const snapshotFromState = (
       },
     ],
     deduction: message?.deduction ?? null,
+    focusedValue,
     helperText: message?.body ?? null,
     pickedLabel: selectedLabel,
     question: message?.heading ?? 'Who do you think will win?',
+    selectionEffectId,
     sessionKey: sessionKeyForState(state),
     supportingText: message?.supportingText ?? [],
   };
@@ -76,12 +86,55 @@ export const KaplayMatchResultPreview = ({
   testControlsEnabled = false,
 }: KaplayMatchResultPreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const radioRefs = useRef<
+    Partial<Record<MatchResultChoiceValue, HTMLInputElement | null>>
+  >({});
+  const actionsRef = useRef(actions);
   const stateRef = useRef(state);
+  const sessionKey = sessionKeyForState(state);
+  const selectedValue = isMatchResultChoiceValue(state.form.matchResult)
+    ? state.form.matchResult
+    : null;
+  const [choicesVisible, setChoicesVisible] = useState(() => !selectedValue);
+  const [focusedValue, setFocusedValue] =
+    useState<MatchResultChoiceValue | null>(null);
+  const [selectionEffectId, setSelectionEffectId] = useState(0);
+  const choicesAreVisible = !selectedValue || choicesVisible;
+  const snapshot = useMemo(
+    () =>
+      snapshotFromState(state, {
+        choicesVisible: choicesAreVisible,
+        focusedValue,
+        selectionEffectId,
+      }),
+    [choicesAreVisible, focusedValue, selectionEffectId, state],
+  );
+  const runtimeSnapshotRef = useRef(snapshot);
+  const previousSessionKeyRef = useRef(sessionKey);
+
+  useEffect(() => {
+    if (previousSessionKeyRef.current === sessionKey) {
+      return;
+    }
+
+    previousSessionKeyRef.current = sessionKey;
+    setChoicesVisible(!selectedValue);
+    setFocusedValue(null);
+    setSelectionEffectId(0);
+  }, [selectedValue, sessionKey]);
+
+  useEffect(() => {
+    actionsRef.current = actions;
+  }, [actions]);
 
   useEffect(() => {
     stateRef.current = state;
-    attempt.updateSnapshot(snapshotFromState(state));
-  }, [attempt, state]);
+  }, [state]);
+
+  useEffect(() => {
+    runtimeSnapshotRef.current = snapshot;
+    attempt.updateSnapshot(snapshot);
+  }, [attempt, snapshot]);
 
   const selectChoice = useCallback(
     (value: MatchResultChoiceValue) => {
@@ -91,9 +144,16 @@ export const KaplayMatchResultPreview = ({
         return;
       }
 
-      actions.selectBuiltInChoice('matchResult', value);
+      if (latestState.form.matchResult === value) {
+        setChoicesVisible(false);
+        return;
+      }
+
+      actionsRef.current.selectBuiltInChoice('matchResult', value);
+      setChoicesVisible(false);
+      setSelectionEffectId((current) => current + 1);
     },
-    [actions, attempt],
+    [attempt],
   );
 
   useEffect(() => {
@@ -104,7 +164,7 @@ export const KaplayMatchResultPreview = ({
     }
 
     let isRuntimeMountActive = true;
-    const initialSnapshot = snapshotFromState(stateRef.current);
+    const initialSnapshot = runtimeSnapshotRef.current;
 
     attempt.updateSnapshot(initialSnapshot);
     const stopRuntime = attempt.startRuntime({
@@ -141,26 +201,26 @@ export const KaplayMatchResultPreview = ({
     };
   }, [attempt, selectChoice, testControlsEnabled]);
 
-  const snapshot = useMemo(() => snapshotFromState(state), [state]);
   const questionId = 'kaplay-match-result-question';
   const helperId = 'kaplay-match-result-helper';
-  const selectedValue = state.form.matchResult;
+  const visibleChoices = choicesAreVisible
+    ? snapshot.choices
+    : snapshot.choices.filter((choice) => choice.selected);
+  const showChangeSelection = Boolean(selectedValue && !choicesAreVisible);
+  const showPickedStatus = Boolean(snapshot.pickedLabel && !choicesAreVisible);
 
-  const onChoiceKeyDown = (
-    event: KeyboardEvent<HTMLButtonElement>,
-    value: MatchResultChoiceValue,
-  ) => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
-    }
-
-    event.preventDefault();
-    selectChoice(value);
+  const restoreChoices = () => {
+    setChoicesVisible(true);
+    window.setTimeout(() => {
+      if (selectedValue) {
+        radioRefs.current[selectedValue]?.focus();
+      }
+    }, 0);
   };
 
   return (
     <section
-      className="grid gap-5 rounded-md border border-rooster-line bg-white p-5 sm:p-6"
+      className="grid gap-5 rounded-md border border-rooster-line bg-white p-5 shadow-sm sm:p-6"
       data-testid="kaplay-match-result-stage"
     >
       <PredictionProgress
@@ -191,57 +251,67 @@ export const KaplayMatchResultPreview = ({
             {snapshot.deduction}
           </p>
         ) : null}
-        <p className="mt-3 text-sm font-semibold leading-6 text-rooster-muted">
-          Animation preview: Match Result only. Other prediction steps use the
-          standard experience.
-        </p>
       </div>
 
       <div className="overflow-hidden rounded-md border border-rooster-line bg-rooster-paper">
         <canvas
           aria-describedby={snapshot.helperText ? helperId : undefined}
           aria-labelledby={questionId}
-          className="block aspect-[23/14] w-full touch-manipulation"
+          className="block aspect-[18/13] w-full touch-manipulation"
           data-testid="kaplay-match-result-canvas"
           ref={canvasRef}
         />
       </div>
 
-      <fieldset aria-labelledby={questionId}>
-        <legend className="sr-only">Match Result animation choices</legend>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {snapshot.choices.map((choice) => {
-            const selected = selectedValue === choice.value;
+      <fieldset
+        aria-labelledby={questionId}
+        className="sr-only"
+        data-testid="kaplay-match-result-choice-bridge"
+      >
+        <legend>Match Result animation choices</legend>
+        {visibleChoices.map((choice) => {
+          const selected = selectedValue === choice.value;
 
-            return (
-              <button
+          return (
+            <label key={choice.value}>
+              <input
                 aria-checked={selected}
-                className={[
-                  'focus-ring min-h-14 rounded-md border px-4 text-left text-sm font-black transition',
-                  selected
-                    ? 'border-rooster-red bg-rooster-red text-white'
-                    : 'border-rooster-line bg-white text-rooster-ink hover:bg-rooster-paper',
-                ].join(' ')}
-                key={choice.value}
-                role="radio"
-                type="button"
-                onClick={() => selectChoice(choice.value)}
-                onKeyDown={(event) => onChoiceKeyDown(event, choice.value)}
-              >
-                {choice.label}
-              </button>
-            );
-          })}
-        </div>
-        {snapshot.pickedLabel ? (
-          <p
-            className="mt-3 text-sm font-black text-rooster-ink"
-            data-testid="kaplay-match-result-picked"
-          >
-            You picked {snapshot.pickedLabel}
-          </p>
-        ) : null}
+                checked={selected}
+                name="kaplay-match-result-choice"
+                ref={(input) => {
+                  radioRefs.current[choice.value] = input;
+                }}
+                type="radio"
+                value={choice.value}
+                onBlur={() => setFocusedValue(null)}
+                onChange={() => selectChoice(choice.value)}
+                onFocus={() => setFocusedValue(choice.value)}
+              />
+              {choice.label}
+            </label>
+          );
+        })}
       </fieldset>
+      {showPickedStatus ? (
+        <p
+          className="sr-only"
+          data-testid="kaplay-match-result-picked"
+          role="status"
+        >
+          You picked {snapshot.pickedLabel}
+        </p>
+      ) : null}
+      {showChangeSelection ? (
+        <div className="flex justify-start">
+          <button
+            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            type="button"
+            onClick={restoreChoices}
+          >
+            Change my selection
+          </button>
+        </div>
+      ) : null}
 
       <KaplayStepNavigation
         canGoBack={state.navigation.canGoBack}

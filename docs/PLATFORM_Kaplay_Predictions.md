@@ -5,12 +5,13 @@
 CCPP-009B adds a bounded development/test preview of the Kaplay prediction
 runtime. CCPP-009B4 makes the already-built Match Result surface available
 automatically in ordinary local development. The preview covers one real screen
-only: the Match Result step.
+only: the Match Result step. CCPP-009C adds the first prepared Rooster shove
+visual foundation to that same screen.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
-not implement rooster artwork, the shove animation, all prediction scenes,
-animated Review/submission, or production activation.
+not implement all prediction scenes, animated Review/submission, or production
+activation.
 
 ## Dependency
 
@@ -55,6 +56,11 @@ bundler.
 - `imports/ui/predictions/kaplay/matchResultRuntime.ts` dynamically imports
   Kaplay and owns context setup, canvas drawing, input hit testing, error
   hooks, visibility pause, and teardown.
+- `imports/ui/predictions/kaplay/matchResultMotion.ts` owns the 009C
+  framework-independent Match Result layout, hit testing, rooster shove timing,
+  rejected-choice offset projection, and generated atlas constants.
+- `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json` is the
+  generated source-side copy of the prepared Rooster atlas manifest.
 
 There is no barrel export that imports Kaplay eagerly.
 
@@ -331,10 +337,19 @@ deliberately triggered a renderer failure. The dirty saved-session failure test
 must first reach a real ready runtime and interact with the canvas before
 checking Standard recovery and persisted-revision preservation.
 
+CCPP-009C extends the browser spec for the visual foundation: visual selection
+paths use canvas pointer input, keyboard coverage uses focus and Space on the
+semantic DOM bridge, and Standard-only paths use visible radio controls. The
+009C continuation browser launch on 2026-09-18 exited before Playwright
+executed test cases, so the final 009C audit records that browser verification
+limitation separately from prior preserved browser evidence.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
-- No rooster sprite, shove animation, or production artwork is included.
+- Rooster artwork and a first-pass Match Result shove are included only for the
+  009C visual foundation. The final integrated browser recording evidence is
+  incomplete and must not be treated as full visual acceptance.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

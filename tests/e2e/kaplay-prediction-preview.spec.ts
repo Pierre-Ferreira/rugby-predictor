@@ -229,13 +229,25 @@ const markStage = (
 
 const evidenceScreenshotPath = (name: string) => {
   if (!evidenceDir) {
-    return `test-results/ccpp009b/${name}`;
+    return `test-results/ccpp009c/${name}`;
   }
 
   const screenshotDir = join(evidenceDir, 'browser-screenshots');
   mkdirSync(screenshotDir, { recursive: true });
 
   return join(screenshotDir, name);
+};
+
+const evidenceArtifactPath = (name: string) => {
+  if (!evidenceDir) {
+    mkdirSync('test-results/ccpp009c', { recursive: true });
+    return `test-results/ccpp009c/${name}`;
+  }
+
+  const artifactDir = join(evidenceDir, 'browser-artifacts');
+  mkdirSync(artifactDir, { recursive: true });
+
+  return join(artifactDir, name);
 };
 
 const uniqueEmail = (label: string) =>
@@ -501,8 +513,11 @@ const startPrediction = async (page: Page) => {
 const continueButton = (page: Page) =>
   page.getByRole('button', { exact: true, name: 'Continue' });
 
-const chooseRadio = async (page: Page, name: string) => {
-  await page.getByRole('radio', { exact: true, name }).check();
+const chooseVisibleRadio = async (page: Page, name: string) => {
+  const radio = page.getByRole('radio', { exact: true, name });
+
+  await expect(radio).toBeVisible();
+  await radio.check();
 };
 
 const teamNumberInput = (page: Page, teamName: string, fieldName: string) =>
@@ -555,19 +570,127 @@ const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
     throw new Error('Kaplay canvas is not visible.');
   }
 
-  const gameHeight = 560;
-  const choiceStartY = 250;
-  const choiceHeight = 82;
-  const choiceGap = 20;
+  const nextGameHeight = 520;
+  const isCompact = box.width < 560;
+  const choiceStartY = isCompact ? 82 : 88;
+  const choiceHeight = isCompact ? 74 : 78;
+  const choiceGap = isCompact ? 13 : 15;
   const choiceCenterY =
     choiceStartY + choiceHeight / 2 + choiceIndex * (choiceHeight + choiceGap);
 
   await canvas.click({
     position: {
       x: box.width / 2,
-      y: (choiceCenterY / gameHeight) * box.height,
+      y: (choiceCenterY / nextGameHeight) * box.height,
     },
   });
+};
+
+const startCanvasRecording = async (page: Page) => {
+  await page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(
+      '[data-testid="kaplay-match-result-canvas"]',
+    );
+
+    if (!canvas) {
+      throw new Error('Kaplay canvas is not available for recording.');
+    }
+
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8')
+      ? 'video/webm;codecs=vp8'
+      : 'video/webm';
+    const stream = canvas.captureStream(60);
+    const chunks: Blob[] = [];
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const finished = new Promise<{
+      readonly base64: string;
+      readonly mimeType: string;
+    }>((resolve, reject) => {
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunks.push(event.data);
+        }
+      };
+      recorder.onerror = () => {
+        reject(new Error('Kaplay canvas recording failed.'));
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: mimeType });
+        const reader = new FileReader();
+
+        reader.onerror = () => reject(new Error('Recording read failed.'));
+        reader.onloadend = () => {
+          const result = String(reader.result ?? '');
+          const base64 = result.includes(',') ? result.split(',')[1] : '';
+
+          resolve({ base64, mimeType });
+        };
+        reader.readAsDataURL(blob);
+      };
+    });
+
+    (
+      window as unknown as {
+        __RUGBY_ROOSTER_CANVAS_RECORDING__?: {
+          readonly finished: Promise<{
+            readonly base64: string;
+            readonly mimeType: string;
+          }>;
+          readonly recorder: MediaRecorder;
+          readonly stream: MediaStream;
+        };
+      }
+    ).__RUGBY_ROOSTER_CANVAS_RECORDING__ = {
+      finished,
+      recorder,
+      stream,
+    };
+
+    recorder.start();
+  });
+};
+
+const stopCanvasRecording = async (page: Page, name: string) => {
+  const result = await page.evaluate(
+    () =>
+      new Promise<{
+        readonly base64: string;
+        readonly mimeType: string;
+      }>((resolve, reject) => {
+        const holder = (
+          window as unknown as {
+            __RUGBY_ROOSTER_CANVAS_RECORDING__?: {
+              readonly finished: Promise<{
+                readonly base64: string;
+                readonly mimeType: string;
+              }>;
+              readonly recorder: MediaRecorder;
+              readonly stream: MediaStream;
+            };
+          }
+        ).__RUGBY_ROOSTER_CANVAS_RECORDING__;
+
+        if (!holder) {
+          reject(new Error('No Kaplay canvas recording is active.'));
+          return;
+        }
+
+        holder.finished.then(resolve, reject);
+        holder.recorder.stop();
+        holder.stream.getTracks().forEach((track) => track.stop());
+        delete (
+          window as unknown as {
+            __RUGBY_ROOSTER_CANVAS_RECORDING__?: unknown;
+          }
+        ).__RUGBY_ROOSTER_CANVAS_RECORDING__;
+      }),
+  );
+
+  expect(result.mimeType).toContain('video/webm');
+  writeFileSync(
+    evidenceArtifactPath(name),
+    Buffer.from(result.base64, 'base64'),
+  );
 };
 
 const createEditablePredictionFixture = async (
@@ -652,7 +775,14 @@ const fillValidCustomSequentialPrediction = async (
   },
 ) => {
   await startPrediction(page);
-  await chooseRadio(page, teams.team1);
+  await waitForKaplayReady(page);
+  await clickCanvasChoice(page, 0);
+  await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+    `You picked ${teams.team1}`,
+  );
+  await expect(
+    page.getByRole('radio', { exact: true, name: teams.team1 }),
+  ).toHaveAttribute('aria-checked', 'true');
   await continueButton(page).click();
 
   await teamNumberInput(page, teams.team1, 'tries').fill('2');
@@ -677,10 +807,10 @@ const fillValidCustomSequentialPrediction = async (
   await teamNumberInput(page, teams.team2, 'red cards').fill('0');
   await continueButton(page).click();
 
-  await chooseRadio(page, 'Second Half');
+  await chooseVisibleRadio(page, 'Second Half');
   await continueButton(page).click();
 
-  await chooseRadio(page, teams.team1);
+  await chooseVisibleRadio(page, teams.team1);
   await continueButton(page).click();
 
   await page
@@ -688,7 +818,7 @@ const fillValidCustomSequentialPrediction = async (
     .fill(custom.numberValue);
   await continueButton(page).click();
 
-  await chooseRadio(page, custom.choiceLabel);
+  await chooseVisibleRadio(page, custom.choiceLabel);
   await page.getByRole('button', { name: 'Review predictions' }).click();
 };
 
@@ -773,7 +903,10 @@ test.describe('Kaplay prediction preview', () => {
     });
 
     markStage(page, 'default-access:canvas-choice-click');
+    await startCanvasRecording(page);
     await clickCanvasChoice(page, 1);
+    await page.waitForTimeout(950);
+    await stopCanvasRecording(page, 'match-result-shove-normal-speed.webm');
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
     );
@@ -813,6 +946,67 @@ test.describe('Kaplay prediction preview', () => {
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
     );
+  });
+
+  test('handles Draw, Change my selection and Continue during an active shove', async ({
+    page,
+  }) => {
+    const { team1 } = await createPredictionAtMatchResult(
+      page,
+      'kaplay-three-choice',
+    );
+
+    await waitForKaplayReady(page);
+    markStage(page, 'three-choice:draw-click');
+    await clickCanvasChoice(page, 2);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked Draw',
+    );
+    await expect(
+      page.getByRole('radio', { exact: true, name: 'Draw' }),
+    ).toHaveAttribute('aria-checked', 'true');
+
+    markStage(page, 'three-choice:change-selection');
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await page.getByRole('radio', { name: team1, exact: true }).focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team1}`,
+    );
+    await expect(
+      page.getByRole('radio', { exact: true, name: team1 }),
+    ).toHaveAttribute('aria-checked', 'true');
+
+    markStage(page, 'three-choice:continue-during-shove');
+    await continueButton(page).click();
+    await expect(page.getByText('Step 2 of 9')).toBeVisible();
+  });
+
+  test('captures a slowed browser review of the same shove motion', async ({
+    page,
+  }) => {
+    await createPredictionAtMatchResult(page, 'kaplay-slow-review');
+    await page.evaluate(() => {
+      window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {
+        motionTimeScale: 0.25,
+      };
+    });
+    await animationsButton(page, 'Off').click();
+    await animationsButton(page, 'On').click();
+    await waitForKaplayReady(page);
+
+    markStage(page, 'slow-review:recording-start');
+    await startCanvasRecording(page);
+    await clickCanvasChoice(page, 0);
+    await page.waitForTimeout(3_200);
+    await stopCanvasRecording(page, 'match-result-shove-slow-review.webm');
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked',
+    );
+
+    await page.evaluate(() => {
+      window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {};
+    });
   });
 
   test('uses Standard when reduced motion blocks automatic activation', async ({
@@ -901,11 +1095,25 @@ test.describe('Kaplay prediction preview', () => {
 
     await page.evaluate(() => {
       window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {
+        failRequiredSpriteLoad: true,
+      };
+    });
+    markStage(page, 'controlled-failure:required-sprite-load-failure');
+    await animationsButton(page, 'On').click();
+    await expect(
+      page.getByText(
+        "Animations couldn't continue. Your answers have been kept.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
+
+    await page.evaluate(() => {
+      window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {
         failOnNextPointer: true,
       };
     });
     markStage(page, 'controlled-failure:pointer-failure-armed');
-    await animationsButton(page, 'On').click();
+    await page.getByRole('button', { name: 'Retry animations' }).click();
     await retryIfAnimationFailureIsVisible(page);
     await waitForKaplayReady(page);
     markStage(page, 'controlled-failure:canvas-choice-click');
@@ -992,7 +1200,7 @@ test.describe('Kaplay prediction preview', () => {
       .getByRole('button', { name: 'Edit highest-scoring half' })
       .click();
     await expectStep(page, 7, 10);
-    await chooseRadio(page, 'First Half');
+    await chooseVisibleRadio(page, 'First Half');
     await page.getByRole('button', { name: 'Return to Review' }).click();
 
     await reviewSection(page, 'CUSTOM QUESTIONS')
@@ -1010,7 +1218,7 @@ test.describe('Kaplay prediction preview', () => {
       .nth(1)
       .click();
     await expectStep(page, 10, 10);
-    await chooseRadio(page, 'Backs');
+    await chooseVisibleRadio(page, 'Backs');
     await page.getByRole('button', { name: 'Return to Review' }).click();
 
     await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(

@@ -278,7 +278,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/predictions/reducedMotion.ts` - CCPP-009B reduced-motion media
   query helper.
 - `imports/ui/predictions/kaplay/` - CCPP-009B/009B1 lazy Kaplay Match Result
-  preview component, host attempt controller contract, and runtime adapter.
+  preview component, host attempt controller contract, runtime adapter, and
+  CCPP-009C rooster shove motion/manifest helpers.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
   route host, shared session host, Standard renderer, Kaplay presentation host,
   Intro, numbered steps, Review/Edit UI, and read-only locked-entry UI that
