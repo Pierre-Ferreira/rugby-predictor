@@ -491,6 +491,45 @@ Not implemented:
   lifecycle states, Kaplay, custom animations, or result correction/reopen
   workflows.
 
+## CCPP-009A Scope
+
+Milestone status: implemented for the shared prediction session and renderer
+contract. Platform details live in `docs/PLATFORM_Prediction_Session.md`, and
+verification evidence is recorded in
+`docs/AUDIT_009A_Shared_Prediction_Session.md`.
+
+Implemented:
+
+- Editable prediction session owner above the replaceable presentation subtree.
+- Renderer-facing state and semantic actions for Standard React and future
+  renderers.
+- Standard React prediction presentation connected to the shared session
+  without visible redesign.
+- Session-owned answer state, current location, Review edit context, stable
+  message variants, captured expected revision, dirty/discard state,
+  conflict/submission feedback, and submission guard.
+- Focused unit/controller coverage and focused Standard browser regression
+  coverage.
+- Lightweight current repository Rooster asset inventory.
+
+Not implemented:
+
+- Kaplay runtime, canvas or game scene, renderer switching, animation assets,
+  sprite atlases, runtime fallback, reduced-motion/animation preferences,
+  visual redesign, browser draft persistence, scoring changes, result changes,
+  leaderboards, or service-worker caching.
+
+## CCPP-009 Future Boundaries
+
+These boundaries preserve the staged Kaplay plan. They are not implemented by
+CCPP-009A.
+
+- 009B - Kaplay runtime, mode switching, and fallback.
+- 009C - visual foundation and Rooster shove.
+- 009D - complete built-in/custom question screens.
+- 009E - Review/submission/edit parity.
+- 009F - integrated verification and default activation.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

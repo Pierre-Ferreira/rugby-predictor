@@ -93,6 +93,11 @@ Current unit test files:
   Half-Time Leader wording/display labels, team-name interpolation, first-try
   constraints, conversion clamping, custom step ordering/progress, custom Review
   edit destinations, and score/result consistency helpers.
+- `tests/unit/prediction-session.test.ts` - CCPP-009A shared prediction session
+  contract tests for answer updates, Back/Continue preservation, custom answer
+  stable IDs, blank custom Number handling, navigation guards, message variant
+  stability, renderer-consumer replacement, reactive revision preservation,
+  duplicate submit state, and stale response isolation.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,
@@ -209,7 +214,8 @@ The current browser suite covers:
   kickoff, clean-state disabled `Discard changes`, dirty built-in and custom
   answer discard confirmation, discard without revision writes, persisted locked
   saved-entry display after dirty local edits, and stale revision conflict value
-  preservation plus explicit latest-saved loading.
+  preservation plus explicit latest-saved loading. CCPP-009A keeps those
+  Standard scenarios focused on the shared session contract after extraction.
 - Result administration provisional save, blank-versus-zero restoration, derived
   rugby score display, custom Number observed values beyond prediction range,
   custom Choice Void, final confirmation read-only summary, and result conflict

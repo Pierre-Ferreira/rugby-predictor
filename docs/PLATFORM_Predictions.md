@@ -157,6 +157,7 @@ Route:
 Source paths:
 
 - `imports/ui/pages/PredictionEntryPage.tsx`
+- `imports/ui/predictions/predictionSession.ts`
 - `imports/ui/predictions/standardPredictionState.ts`
 - `imports/shared/predictions/sequence.ts`
 - `imports/shared/predictions/messages.ts`
@@ -167,17 +168,22 @@ Source paths:
 - `imports/shared/auth/redirects.ts`
 
 The page subscribes to the public fixture detail and, when authenticated, to the
-private fixture context plus current user's entry. Form state is reset on
-account change or sign-out.
+private fixture context plus current user's entry. Route loading,
+authentication, fixture availability, readiness checks, and locked persisted
+display stay in `PredictionEntryPage.tsx`.
 
-The edit session stores the fixture ID, current user ID, and captured entry
-revision. Reactive entry updates can show a changed-entry notice, but they do
-not replace unsaved values or the captured revision. The normal Review action is
-labelled `Discard changes`, is disabled while local form state matches the
-currently loaded persisted entry, and asks for confirmation before replacing
-dirty local values. The conflict and changed-entry recovery action is labelled
-`Load latest saved prediction`; it is the explicit path that replaces local
-values and captures the latest revision.
+The editable session lives in `usePredictionSession(...)`. Account/fixture
+identity determines the session lifetime. The session stores the fixture ID,
+current user ID, captured entry revision, selected message variants, current
+Intro/step/Review location, Review edit context, one mutable
+`PredictionFormState`, feedback, conflict state, discard confirmation state,
+and submission state. Reactive entry updates can show a changed-entry notice,
+but they do not replace unsaved values or the captured revision. The normal
+Review action is labelled `Discard changes`, is disabled while local form state
+matches the currently loaded persisted entry, and asks for confirmation before
+replacing dirty local values. The conflict and changed-entry recovery action is
+labelled `Load latest saved prediction`; it is the explicit path that replaces
+local values and captures the latest revision.
 
 Dirty-state comparison is intentionally small and form-local. It compares match
 result, scoring values, card values, standard categorical predictions, and
@@ -262,6 +268,16 @@ Each custom row resolves the saved answer through the frozen question
 definition and can Edit back to that specific custom step while the fixture is
 open.
 
+CCPP-009A adds `imports/ui/predictions/predictionSession.ts` as the
+renderer-facing session contract. Standard React consumes
+`PredictionSessionRendererState` and `PredictionSessionActions`; it no longer
+owns submission, revision capture, message selection, discard/reload, or
+navigation guard logic inside the page. The contract exposes semantic actions
+such as start, select built-in choice, change team numeric field, change custom
+answer by stable question ID, Back, Continue, edit step, return to Review,
+submit/revise, discard confirmation, and load latest saved prediction. Commands
+do not require React event objects or DOM access.
+
 ## Prediction Presentation Architecture
 
 Future Rugby Rooster prediction presentation has two complete experiences:
@@ -299,6 +315,13 @@ pausing.
 CCPP-007 implements the shared standard sequence/message architecture that a
 future Kaplay experience should consume, but still does not implement Kaplay or
 animation behavior.
+
+CCPP-009A implements the first code boundary for that architecture: one shared
+editable session above the presentation subtree. Replacing or remounting the
+renderer preserves answers, current location, Review/edit context, message
+variants, captured expected revision, dirty/conflict state, and submission
+state because those values are owned outside the renderer. Kaplay remains
+unimplemented.
 
 ## Test Support
 

@@ -23,6 +23,10 @@
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
 - `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
+- `docs/PLATFORM_Prediction_Session.md` - CCPP-009A shared prediction
+  session ownership, lifecycle, renderer-facing state/actions, Standard
+  adapter, future Kaplay adapter boundary, revision/submission/discard handling,
+  and renderer-local state.
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
   revision handling, final confirmation, and custom Void scoring preparation.
@@ -34,6 +38,8 @@
   snapshot, and custom publication architecture.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
+- `docs/MAP_Rooster_Assets.md` - CCPP-009A current repository Rooster/app icon
+  asset inventory and missing runtime animation asset requirements.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
 - `docs/AUDIT_002_Testing_Infrastructure.md` - CCPP-002 completion evidence.
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
@@ -67,6 +73,9 @@
 - `docs/AUDIT_008B_Match_Results_Settlement.md` - CCPP-008B match-result and
   prediction-question settlement implementation, tests, unresolved questions,
   and review archive evidence.
+- `docs/AUDIT_009A_Shared_Prediction_Session.md` - CCPP-009A shared
+  prediction session and renderer contract implementation, tests, asset
+  inventory, limitations, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -91,6 +100,8 @@
   questions in the Standard prediction sequence and final packaging handoff.
 - `docs/TEMP_008B_Resume.md` - temporary CCPP-008B checkpoint for match-result
   settlement and final packaging handoff.
+- `docs/TEMP_009A_Resume.md` - temporary CCPP-009A checkpoint for shared
+  prediction session extraction, Standard wiring, tests, docs, and packaging.
 
 ## Application Entry Points
 
@@ -197,11 +208,15 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
 - `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
 - `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
+- `imports/ui/predictions/predictionSession.ts` - CCPP-009A editable
+  prediction session owner, renderer-facing state/actions, navigation guards,
+  message variant ownership, revision capture, discard/conflict handling, and
+  submission guard.
 - `imports/ui/predictions/standardPredictionState.ts` - CCPP-007 standard
   prediction form state helpers, score derivation adapters, result consistency,
   and first-try constraints.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
-  entry, Intro, numbered steps, Review/Edit, revision conflict, reload, and
+  route host, Standard renderer, Intro, numbered steps, Review/Edit UI, and
   read-only locked-entry UI that presents persisted entry data.
 
 ## Verification Entry Points
@@ -231,6 +246,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A/008A standard
   sequence, custom step ordering, message catalog, ruleset-aware copy, and
   state-helper unit tests.
+- `tests/unit/prediction-session.test.ts` - CCPP-009A shared prediction session
+  state/action contract, renderer-consumer replacement, revision preservation,
+  duplicate submit state, and stale response isolation tests.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,

@@ -1,10 +1,8 @@
 import {
   type ChangeEvent,
-  type FormEvent,
   type ReactNode,
   useEffect,
   useId,
-  useMemo,
   useState,
 } from 'react';
 import { Meteor } from 'meteor/meteor';
@@ -24,26 +22,12 @@ import {
   customNumberDeductionText,
   editStepIdForCustomQuestion,
   editStepIdForReviewSection,
-  firstPredictionStepId,
-  isBuiltInPredictionStep,
-  isFinalPredictionStep,
-  isCustomPredictionStep,
-  isScoreKnownAtStep,
-  nextPredictionLocation,
   predictionIntroMessage,
-  predictionStepPosition,
-  previousPredictionLocation,
-  resolvePredictionStepMessage,
-  selectPredictionMessageVariants,
-  type PredictionMessageVariantSelection,
   type PredictionReviewSectionId,
-  type PredictionSequenceLocation,
   type PredictionSequenceStepDefinition,
   type PredictionStepId,
-  PREDICTION_METHODS,
-  PREDICTION_PUBLICATIONS,
   type PredictionEntryDocument,
-  type PredictionMutationResult,
+  PREDICTION_PUBLICATIONS,
 } from '/imports/shared/predictions';
 import {
   isBuiltInEnabled,
@@ -52,7 +36,6 @@ import {
   type RulesetSnapshot,
   type TeamSide,
 } from '/imports/shared/scoring';
-import { callMeteorMethod } from '../auth/methodCall';
 import { useAuthState } from '../auth/useAuthState';
 import { SignInRequiredState } from '../components/AuthStates';
 import { AppLink } from '../components/AppLink';
@@ -63,14 +46,10 @@ import {
   kickoffLabel,
 } from '../fixtures/fixtureUi';
 import {
-  buildPredictionPayload,
   customAnswerDisplayValue,
-  customQuestionById,
-  customStepValidationMessage,
   deriveScoresFromForm,
   deriveTeamScoreFromForm,
   emptyFormForRuleset,
-  enforceFirstTryConsistency,
   firstTryConstraintForForm,
   firstTryLabel,
   halfTimeLeaderLabel,
@@ -80,20 +59,18 @@ import {
   maxAttributeForWholeNumber,
   normalizeInitialPredictionForm,
   parseFormWholeNumber,
-  predictionFormsEqual,
-  resultConsistencyIssue,
-  setTeamPredictionField,
   teamDisplayName,
   type ActiveCustomQuestion,
   type PredictionFormState,
   type TeamPredictionForm,
 } from '../predictions/standardPredictionState';
-
-interface PredictionEditSession {
-  readonly expectedRevision: number | null;
-  readonly fixtureId: string;
-  readonly userId: string;
-}
+import {
+  usePredictionSession,
+  type PredictionChoiceFieldName,
+  type PredictionEditSession,
+  type PredictionSessionActions,
+  type PredictionSessionRendererState,
+} from '../predictions/predictionSession';
 
 type PredictionStepRenderer = (props: PredictionStepContentProps) => ReactNode;
 
@@ -101,7 +78,10 @@ interface PredictionStepContentProps {
   readonly conversionAdjustmentNotice: string | null;
   readonly fixture: FixtureDocument;
   readonly form: PredictionFormState;
-  readonly onChoiceChange: (field: ChoiceFieldName, value: string) => void;
+  readonly onChoiceChange: (
+    field: PredictionChoiceFieldName,
+    value: string,
+  ) => void;
   readonly onCustomAnswerChange: (questionId: string, value: string) => void;
   readonly onEditStep: (stepId: PredictionStepId) => void;
   readonly onTeamFieldChange: (
@@ -112,32 +92,10 @@ interface PredictionStepContentProps {
   readonly ruleset: RulesetSnapshot;
 }
 
-type ChoiceFieldName =
-  'firstTry' | 'halfTimeLeader' | 'highestScoringHalf' | 'matchResult';
-
 const refreshIntervalMs = 15_000;
 
 const fixtureIdFromLocation = (): string =>
   window.location.pathname.split('/').filter(Boolean)[1] ?? '';
-
-const messageFromError = (error: unknown): string => {
-  if (error && typeof error === 'object') {
-    const record = error as {
-      readonly message?: unknown;
-      readonly reason?: unknown;
-    };
-
-    if (typeof record.reason === 'string') {
-      return record.reason;
-    }
-
-    if (typeof record.message === 'string') {
-      return record.message;
-    }
-  }
-
-  return 'The prediction could not be saved.';
-};
 
 const PredictionShell = ({ children }: { readonly children: ReactNode }) => (
   <main className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-8 sm:px-6 lg:py-10">
@@ -370,223 +328,16 @@ const PredictionEntrySession = ({
   readonly ruleset: RulesetSnapshot;
   readonly userId: string;
 }) => {
-  const activeSteps = useMemo(() => activePredictionSteps(ruleset), [ruleset]);
-  const firstStepId = firstPredictionStepId(activeSteps);
-  const [form, setForm] = useState(initialForm);
-  const [location, setLocation] = useState<PredictionSequenceLocation>(() =>
-    initialExpectedRevision === null ? { kind: 'intro' } : { kind: 'review' },
-  );
-  const [messageSelection] = useState<PredictionMessageVariantSelection>(() =>
-    selectPredictionMessageVariants(
-      activeSteps.filter(isBuiltInPredictionStep).map((step) => step.messageId),
-    ),
-  );
-  const [isEditingFromReview, setIsEditingFromReview] = useState(false);
-  const [editSession, setEditSession] = useState<PredictionEditSession>({
-    expectedRevision: initialExpectedRevision,
+  const session = usePredictionSession({
+    currentEntry,
+    fixture,
     fixtureId,
+    initialExpectedRevision,
+    initialForm,
+    isReadOnly,
+    ruleset,
     userId,
   });
-  const [feedback, setFeedback] = useState<{
-    readonly code?: string;
-    readonly kind: 'error' | 'success';
-    readonly message: string;
-  } | null>(null);
-  const [conversionAdjustmentNotice, setConversionAdjustmentNotice] = useState<
-    string | null
-  >(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
-
-  const savedEntryChanged =
-    currentEntry &&
-    editSession.expectedRevision !== null &&
-    currentEntry.revision !== editSession.expectedRevision;
-  const consistencyIssue = isBuiltInEnabled(ruleset, 'match-result')
-    ? resultConsistencyIssue(form, fixture)
-    : null;
-  const persistedForm = useMemo(
-    () =>
-      normalizeInitialPredictionForm(
-        currentEntry
-          ? formFromPrediction(currentEntry.prediction, ruleset)
-          : emptyFormForRuleset(ruleset),
-        ruleset,
-      ),
-    [currentEntry, ruleset],
-  );
-  const hasUnsavedChanges = !predictionFormsEqual(form, persistedForm);
-  const isPredictionConflict = feedback?.code === 'prediction-conflict';
-
-  const reloadFromSavedEntry = () => {
-    setForm(persistedForm);
-    setEditSession({
-      expectedRevision: currentEntry?.revision ?? null,
-      fixtureId,
-      userId,
-    });
-    setLocation(currentEntry ? { kind: 'review' } : { kind: 'intro' });
-    setIsEditingFromReview(false);
-    setIsDiscardConfirmOpen(false);
-    setFeedback({
-      kind: 'success',
-      message: currentEntry
-        ? 'Latest saved prediction loaded. Unsaved values were replaced.'
-        : 'Blank prediction form loaded. Unsaved values were replaced.',
-    });
-    setConversionAdjustmentNotice(null);
-  };
-
-  const requestDiscardChanges = () => {
-    if (isPredictionConflict) {
-      reloadFromSavedEntry();
-      return;
-    }
-
-    if (!hasUnsavedChanges) {
-      return;
-    }
-
-    setIsDiscardConfirmOpen(true);
-  };
-
-  const goToFirstStep = () => {
-    setIsDiscardConfirmOpen(false);
-    setIsEditingFromReview(false);
-    setLocation(
-      firstStepId
-        ? { kind: 'step', stepId: firstStepId }
-        : {
-            kind: 'review',
-          },
-    );
-  };
-
-  const goToLocation = (nextLocation: PredictionSequenceLocation) => {
-    setIsDiscardConfirmOpen(false);
-
-    if (nextLocation.kind !== 'step') {
-      setIsEditingFromReview(false);
-    }
-
-    setLocation(nextLocation);
-  };
-
-  const goToStep = (stepId: PredictionStepId) => {
-    setIsDiscardConfirmOpen(false);
-    setIsEditingFromReview((current) => current || location.kind === 'review');
-    setLocation({ kind: 'step', stepId });
-  };
-
-  const updateChoice = (field: ChoiceFieldName, value: string) => {
-    setIsDiscardConfirmOpen(false);
-    setForm((current) => {
-      const next = {
-        ...current,
-        [field]: value,
-      };
-
-      return field === 'firstTry'
-        ? enforceFirstTryConsistency(next).form
-        : next;
-    });
-  };
-
-  const updateCustomAnswer = (questionId: string, value: string) => {
-    setIsDiscardConfirmOpen(false);
-    setForm((current) => ({
-      ...current,
-      customAnswers: {
-        ...current.customAnswers,
-        [questionId]: value,
-      },
-    }));
-  };
-
-  const updateTeamField = (
-    side: TeamSide,
-    field: keyof TeamPredictionForm,
-    value: string,
-  ) => {
-    setIsDiscardConfirmOpen(false);
-    setForm((current) => {
-      const result = setTeamPredictionField(current, side, field, value);
-
-      setConversionAdjustmentNotice(
-        result.conversionsAdjusted
-          ? 'Conversions adjusted to match your predicted tries.'
-          : null,
-      );
-
-      return result.form;
-    });
-  };
-
-  const shouldShowConsistencyWarning =
-    consistencyIssue !== null &&
-    (location.kind === 'review' ||
-      (location.kind === 'step' &&
-        isScoreKnownAtStep(activeSteps, location.stepId)));
-
-  const submitPrediction = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (isReadOnly || location.kind !== 'review') {
-      return;
-    }
-
-    if (consistencyIssue) {
-      setFeedback({
-        kind: 'error',
-        message:
-          "Your scores don't match your chosen winner. Adjust the result or scoring predictions before submitting.",
-      });
-      return;
-    }
-
-    setFeedback(null);
-    setIsSubmitting(true);
-
-    try {
-      const prediction = buildPredictionPayload(form, ruleset, fixture);
-      const result = await callMeteorMethod<PredictionMutationResult>(
-        PREDICTION_METHODS.submit,
-        {
-          ...(editSession.expectedRevision === null
-            ? {}
-            : { expectedRevision: editSession.expectedRevision }),
-          fixtureId,
-          prediction,
-        },
-      );
-
-      setEditSession({
-        expectedRevision: result.revision,
-        fixtureId,
-        userId,
-      });
-      setLocation({ kind: 'review' });
-      setIsDiscardConfirmOpen(false);
-      setFeedback({
-        kind: 'success',
-        message:
-          result.status === 'created'
-            ? 'Prediction saved.'
-            : 'Prediction updated.',
-      });
-    } catch (error) {
-      setFeedback({
-        code:
-          error && typeof error === 'object'
-            ? String((error as { readonly error?: unknown }).error ?? '')
-            : undefined,
-        kind: 'error',
-        message: messageFromError(error),
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   return (
     <PredictionShell>
@@ -596,9 +347,9 @@ const PredictionEntrySession = ({
       />
 
       <PredictionFeedback
-        feedback={feedback}
-        onReload={reloadFromSavedEntry}
-        savedEntryChanged={Boolean(savedEntryChanged)}
+        feedback={session.state.feedback}
+        onReload={session.actions.loadLatestSavedPrediction}
+        savedEntryChanged={session.state.savedEntryChanged}
       />
 
       {readOnlyReason ? (
@@ -609,63 +360,59 @@ const PredictionEntrySession = ({
           ruleset={ruleset}
         />
       ) : (
-        <form
-          className="grid gap-5"
-          onSubmit={(event) => void submitPrediction(event)}
-        >
-          {location.kind === 'intro' ? (
-            <PredictionIntro onStart={goToFirstStep} />
-          ) : null}
-
-          {location.kind === 'step' ? (
-            <PredictionStepView
-              activeSteps={activeSteps}
-              consistencyIssue={
-                shouldShowConsistencyWarning ? consistencyIssue : null
-              }
-              conversionAdjustmentNotice={conversionAdjustmentNotice}
-              fixture={fixture}
-              form={form}
-              messageSelection={messageSelection}
-              onChoiceChange={updateChoice}
-              onCustomAnswerChange={updateCustomAnswer}
-              onEditStep={goToStep}
-              onLocationChange={goToLocation}
-              onReturnToReview={() => {
-                setIsEditingFromReview(false);
-                setLocation({ kind: 'review' });
-              }}
-              onTeamFieldChange={updateTeamField}
-              returnToReviewAvailable={isEditingFromReview}
-              ruleset={ruleset}
-              stepId={location.stepId}
-            />
-          ) : null}
-
-          {location.kind === 'review' ? (
-            <PredictionReviewScreen
-              activeSteps={activeSteps}
-              consistencyIssue={consistencyIssue}
-              editSession={editSession}
-              fixture={fixture}
-              form={form}
-              hasUnsavedChanges={hasUnsavedChanges}
-              isDiscardConfirmOpen={isDiscardConfirmOpen && hasUnsavedChanges}
-              isPredictionConflict={isPredictionConflict}
-              isSubmitting={isSubmitting}
-              onCancelDiscard={() => setIsDiscardConfirmOpen(false)}
-              onConfirmDiscard={reloadFromSavedEntry}
-              onEditStep={goToStep}
-              onLocationChange={goToLocation}
-              onRequestDiscard={requestDiscardChanges}
-              ruleset={ruleset}
-            />
-          ) : null}
-        </form>
+        <StandardPredictionRenderer
+          actions={session.actions}
+          state={session.state}
+        />
       )}
     </PredictionShell>
   );
 };
+
+const StandardPredictionRenderer = ({
+  actions,
+  state,
+}: {
+  readonly actions: PredictionSessionActions;
+  readonly state: PredictionSessionRendererState;
+}) => (
+  <form
+    className="grid gap-5"
+    onSubmit={(event) => {
+      event.preventDefault();
+      void actions.submitPrediction();
+    }}
+  >
+    {state.location.kind === 'intro' ? (
+      <PredictionIntro onStart={actions.startPrediction} />
+    ) : null}
+
+    {state.location.kind === 'step' ? (
+      <PredictionStepView actions={actions} state={state} />
+    ) : null}
+
+    {state.location.kind === 'review' ? (
+      <PredictionReviewScreen
+        activeSteps={state.activeSteps}
+        canRequestDiscard={state.navigation.canRequestDiscard}
+        canSubmit={state.navigation.canSubmit}
+        consistencyIssue={state.consistencyIssue}
+        editSession={state.editSession}
+        fixture={state.fixture}
+        form={state.form}
+        isDiscardConfirmOpen={state.isDiscardConfirmOpen}
+        isPredictionConflict={state.isPredictionConflict}
+        isSubmitting={state.isSubmitting}
+        onBack={actions.goBack}
+        onCancelDiscard={actions.cancelDiscardChanges}
+        onConfirmDiscard={actions.confirmDiscardChanges}
+        onEditStep={actions.editStep}
+        onRequestDiscard={actions.requestDiscardChanges}
+        ruleset={state.ruleset}
+      />
+    ) : null}
+  </form>
+);
 
 const FixtureHeader = ({
   fixture,
@@ -813,81 +560,33 @@ const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
 );
 
 const PredictionStepView = ({
-  activeSteps,
-  consistencyIssue,
-  conversionAdjustmentNotice,
-  fixture,
-  form,
-  messageSelection,
-  onChoiceChange,
-  onCustomAnswerChange,
-  onEditStep,
-  onLocationChange,
-  onReturnToReview,
-  onTeamFieldChange,
-  returnToReviewAvailable,
-  ruleset,
-  stepId,
+  actions,
+  state,
 }: {
-  readonly activeSteps: readonly PredictionSequenceStepDefinition[];
-  readonly consistencyIssue: ReturnType<typeof resultConsistencyIssue>;
-  readonly conversionAdjustmentNotice: string | null;
-  readonly fixture: FixtureDocument;
-  readonly form: PredictionFormState;
-  readonly messageSelection: PredictionMessageVariantSelection;
-  readonly onChoiceChange: PredictionStepContentProps['onChoiceChange'];
-  readonly onCustomAnswerChange: PredictionStepContentProps['onCustomAnswerChange'];
-  readonly onEditStep: (stepId: PredictionStepId) => void;
-  readonly onLocationChange: (location: PredictionSequenceLocation) => void;
-  readonly onReturnToReview: () => void;
-  readonly onTeamFieldChange: PredictionStepContentProps['onTeamFieldChange'];
-  readonly returnToReviewAvailable: boolean;
-  readonly ruleset: RulesetSnapshot;
-  readonly stepId: PredictionStepId;
+  readonly actions: PredictionSessionActions;
+  readonly state: PredictionSessionRendererState;
 }) => {
-  const step = activeSteps.find((candidate) => candidate.id === stepId);
-  const position = predictionStepPosition(activeSteps, stepId);
+  const currentStep = state.currentStep;
 
-  if (!step || !position) {
+  if (!currentStep) {
     return null;
   }
 
-  const customQuestion = isCustomPredictionStep(step)
-    ? customQuestionById(ruleset, step.questionId)
-    : null;
+  const BuiltInStepContent = currentStep.customQuestion
+    ? null
+    : builtInStepRenderers[
+        currentStep.step.id as keyof typeof builtInStepRenderers
+      ];
+  const consistencyIssue = state.visibleConsistencyIssue;
+  const customQuestion = currentStep.customQuestion;
+  const customValidationMessage = currentStep.validationMessage;
+  const forwardNavigationDisabled = !state.navigation.canContinue;
+  const message = currentStep.message;
+  const position = currentStep.position;
 
-  if (isCustomPredictionStep(step) && !customQuestion) {
+  if (!BuiltInStepContent && !customQuestion) {
     return null;
   }
-
-  const message = isBuiltInPredictionStep(step)
-    ? resolvePredictionStepMessage(step.messageId, messageSelection, {
-        ruleset,
-        team1Name: fixture.team1DisplayName,
-        team2Name: fixture.team2DisplayName,
-      })
-    : {
-        body: customQuestion?.banter ?? null,
-        deduction:
-          customQuestion?.type === 'custom-numeric'
-            ? customNumberDeductionText(customQuestion)
-            : customQuestion
-              ? customChoiceDeductionText(customQuestion)
-              : null,
-        heading: customQuestion?.prompt ?? '',
-        supportingText: [],
-      };
-  const customValidationMessage = customQuestion
-    ? customStepValidationMessage(
-        customQuestion,
-        form.customAnswers[customQuestion.id] ?? '',
-      )
-    : null;
-  const BuiltInStepContent = isBuiltInPredictionStep(step)
-    ? builtInStepRenderers[step.id]
-    : null;
-  const forwardNavigationDisabled =
-    consistencyIssue !== null || customValidationMessage !== null;
 
   return (
     <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
@@ -926,20 +625,20 @@ const PredictionStepView = ({
       <div className="mt-6">
         {BuiltInStepContent ? (
           <BuiltInStepContent
-            conversionAdjustmentNotice={conversionAdjustmentNotice}
-            fixture={fixture}
-            form={form}
-            onChoiceChange={onChoiceChange}
-            onCustomAnswerChange={onCustomAnswerChange}
-            onEditStep={onEditStep}
-            onTeamFieldChange={onTeamFieldChange}
-            ruleset={ruleset}
+            conversionAdjustmentNotice={state.conversionAdjustmentNotice}
+            fixture={state.fixture}
+            form={state.form}
+            onChoiceChange={actions.selectBuiltInChoice}
+            onCustomAnswerChange={actions.changeCustomAnswer}
+            onEditStep={actions.editStep}
+            onTeamFieldChange={actions.changeTeamNumericField}
+            ruleset={state.ruleset}
           />
         ) : customQuestion ? (
           <CustomQuestionStep
-            form={form}
+            form={state.form}
             question={customQuestion}
-            onCustomAnswerChange={onCustomAnswerChange}
+            onCustomAnswerChange={actions.changeCustomAnswer}
           />
         ) : null}
       </div>
@@ -947,9 +646,9 @@ const PredictionStepView = ({
       {consistencyIssue ? (
         <div className="mt-5">
           <ResultConsistencyWarning
-            activeSteps={activeSteps}
+            activeSteps={state.activeSteps}
             issue={consistencyIssue}
-            onEditStep={onEditStep}
+            onEditStep={actions.editStep}
           />
         </div>
       ) : null}
@@ -964,17 +663,15 @@ const PredictionStepView = ({
       ) : null}
 
       <StepNavigation
-        backLocation={previousPredictionLocation(activeSteps, step.id)}
-        continueLabel={
-          isFinalPredictionStep(activeSteps, step.id)
-            ? 'Review predictions'
-            : 'Continue'
-        }
+        continueLabel={state.navigation.continueLabel}
         forwardNavigationDisabled={forwardNavigationDisabled}
-        nextLocation={nextPredictionLocation(activeSteps, step.id)}
-        onLocationChange={onLocationChange}
-        onReturnToReview={onReturnToReview}
-        returnToReviewAvailable={returnToReviewAvailable}
+        onBack={actions.goBack}
+        onContinue={actions.continueForward}
+        onReturnToReview={actions.returnToReview}
+        returnToReviewDisabled={!state.navigation.canReturnToReview}
+        returnToReviewAvailable={
+          state.location.kind === 'step' && state.isEditingFromReview
+        }
       />
     </section>
   );
@@ -1003,27 +700,27 @@ const PredictionProgress = ({
 );
 
 const StepNavigation = ({
-  backLocation,
   continueLabel,
   forwardNavigationDisabled,
-  nextLocation,
-  onLocationChange,
+  onBack,
+  onContinue,
   onReturnToReview,
+  returnToReviewDisabled,
   returnToReviewAvailable,
 }: {
-  readonly backLocation: PredictionSequenceLocation;
   readonly continueLabel: string;
   readonly forwardNavigationDisabled: boolean;
-  readonly nextLocation: PredictionSequenceLocation;
-  readonly onLocationChange: (location: PredictionSequenceLocation) => void;
+  readonly onBack: () => void;
+  readonly onContinue: () => void;
   readonly onReturnToReview: () => void;
+  readonly returnToReviewDisabled: boolean;
   readonly returnToReviewAvailable: boolean;
 }) => (
   <div className="mt-7 flex flex-col-reverse gap-3 border-t border-rooster-line pt-5 sm:flex-row sm:items-center sm:justify-between">
     <button
       className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
       type="button"
-      onClick={() => onLocationChange(backLocation)}
+      onClick={onBack}
     >
       Back
     </button>
@@ -1031,7 +728,7 @@ const StepNavigation = ({
       {returnToReviewAvailable ? (
         <button
           className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted sm:w-auto"
-          disabled={forwardNavigationDisabled}
+          disabled={returnToReviewDisabled}
           type="button"
           onClick={onReturnToReview}
         >
@@ -1042,7 +739,7 @@ const StepNavigation = ({
         className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
         disabled={forwardNavigationDisabled}
         type="button"
-        onClick={() => onLocationChange(nextLocation)}
+        onClick={onContinue}
       >
         {continueLabel}
       </button>
@@ -1600,7 +1297,9 @@ const ResultConsistencyWarning = ({
   onEditStep,
 }: {
   readonly activeSteps: readonly PredictionSequenceStepDefinition[];
-  readonly issue: NonNullable<ReturnType<typeof resultConsistencyIssue>>;
+  readonly issue: NonNullable<
+    PredictionSessionRendererState['consistencyIssue']
+  >;
   readonly onEditStep: (stepId: PredictionStepId) => void;
 }) => {
   const resultStep = editStepIdForReviewSection(activeSteps, 'match-result');
@@ -1646,38 +1345,39 @@ const ResultConsistencyWarning = ({
 
 const PredictionReviewScreen = ({
   activeSteps,
+  canRequestDiscard,
+  canSubmit,
   consistencyIssue,
   editSession,
   fixture,
   form,
-  hasUnsavedChanges,
   isDiscardConfirmOpen,
   isPredictionConflict,
   isSubmitting,
+  onBack,
   onCancelDiscard,
   onConfirmDiscard,
   onEditStep,
-  onLocationChange,
   onRequestDiscard,
   ruleset,
 }: {
   readonly activeSteps: readonly PredictionSequenceStepDefinition[];
-  readonly consistencyIssue: ReturnType<typeof resultConsistencyIssue>;
+  readonly canRequestDiscard: boolean;
+  readonly canSubmit: boolean;
+  readonly consistencyIssue: PredictionSessionRendererState['consistencyIssue'];
   readonly editSession: PredictionEditSession;
   readonly fixture: FixtureDocument;
   readonly form: PredictionFormState;
-  readonly hasUnsavedChanges: boolean;
   readonly isDiscardConfirmOpen: boolean;
   readonly isPredictionConflict: boolean;
   readonly isSubmitting: boolean;
+  readonly onBack: () => void;
   readonly onCancelDiscard: () => void;
   readonly onConfirmDiscard: () => void;
   readonly onEditStep: (stepId: PredictionStepId) => void;
-  readonly onLocationChange: (location: PredictionSequenceLocation) => void;
   readonly onRequestDiscard: () => void;
   readonly ruleset: RulesetSnapshot;
 }) => {
-  const finalStep = activeSteps[activeSteps.length - 1];
   const discardHeadingId = useId();
   const discardDescriptionId = useId();
   const discardActionLabel = isPredictionConflict
@@ -1769,22 +1469,14 @@ const PredictionReviewScreen = ({
           <button
             className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
             type="button"
-            onClick={() =>
-              onLocationChange(
-                finalStep
-                  ? { kind: 'step', stepId: finalStep.id }
-                  : { kind: 'intro' },
-              )
-            }
+            onClick={onBack}
           >
             Back
           </button>
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
               className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
-              disabled={
-                isSubmitting || (!isPredictionConflict && !hasUnsavedChanges)
-              }
+              disabled={!canRequestDiscard}
               type="button"
               onClick={onRequestDiscard}
             >
@@ -1792,7 +1484,7 @@ const PredictionReviewScreen = ({
             </button>
             <button
               className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
-              disabled={isSubmitting || Boolean(consistencyIssue)}
+              disabled={!canSubmit}
               type="submit"
             >
               {isSubmitting

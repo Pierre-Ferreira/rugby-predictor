@@ -18,11 +18,16 @@ reimplementing prediction business rules in animation code.
 - `imports/shared/predictions/messages.ts` - shared Intro/step copy catalog,
   stable variant selection, team-name interpolation, and ruleset-derived
   deduction text.
+- `imports/ui/predictions/predictionSession.ts` - CCPP-009A editable
+  session owner, renderer-facing state/actions, navigation guards, selected
+  message variants, revision capture, discard/conflict behavior, and submission
+  handling.
 - `imports/ui/predictions/standardPredictionState.ts` - standard prediction form
   state helpers, score derivation adapters, result consistency detection, and
   first-try constraint handling.
-- `imports/ui/pages/PredictionEntryPage.tsx` - route wrapper, standard sequence
-  presentation, Review, submit/revise/reload/conflict/read-only behavior.
+- `imports/ui/pages/PredictionEntryPage.tsx` - route wrapper, subscription and
+  readiness host, Standard presentation, Review UI, and read-only persisted
+  saved-entry display.
 
 ## Current Sequence
 
@@ -65,9 +70,9 @@ hides grouped sections when no active rows remain.
 
 Step copy lives in `predictionMessageCatalog`. Each built-in step has three
 reviewed variants. A prediction session selects variant indexes once with
-`selectPredictionMessageVariants(...)`; the React page stores that selection in
-state so copy stays stable through rerenders, Back/Continue navigation, Review
-edits, and local form updates.
+`selectPredictionMessageVariants(...)`; `usePredictionSession(...)` stores that
+selection so copy stays stable through rerenders, Back/Continue navigation,
+Review edits, local form updates, and renderer remounts.
 
 Deduction values are not duplicated in React. Message resolution reads the
 fixture's stored ruleset snapshot through narrow helpers such as
@@ -91,9 +96,10 @@ counting definition.
 
 ## Standard State Rules
 
-The standard experience keeps one `PredictionFormState` for the whole sequence.
-Intro, numbered steps, Review, Edit-from-Review, submit/revise, discard, and
-conflict recovery all read or update that same state.
+The shared prediction session keeps one `PredictionFormState` for the whole
+sequence. Intro, numbered steps, Review, Edit-from-Review, submit/revise,
+discard, conflict recovery, Standard React, and future renderers all read or
+update that same state through the session contract.
 
 Custom answers live in the same form state under `customAnswers`, keyed by
 stable custom question ID. Number custom answers are kept as strings while
@@ -114,10 +120,10 @@ formula. Rugby component point values are exported from
 
 Result consistency warnings are shown only after score-producing categories are
 known. The warning never changes the selected result or score inputs. From that
-point onward, the standard step view disables forward Continue navigation while
-keeping Back and the warning's Edit match result/Edit scores actions usable.
-Review disables final submission when the chosen result conflicts with derived
-scores; the server remains authoritative.
+point onward, the session disables forward Continue navigation while keeping
+Back and the warning's Edit match result/Edit scores actions usable. Review
+disables final submission when the chosen result conflicts with derived scores;
+the server remains authoritative.
 
 First-try constraints are derived from predicted tries. Impossible hidden answers
 are removed immediately, and forced answers are explained as based on predicted

@@ -245,6 +245,14 @@ CCPP-008A keeps custom questions on the same ordered sequence and form state as
 built-in questions. Dynamic custom steps are suitable for future Kaplay
 consumption, but CCPP-008A implements only the Standard React presentation.
 
+CCPP-009A extracts the editable prediction session above the replaceable
+presentation subtree. The session owns answers, current location, Review edit
+context, selected message variants, captured expected revision, dirty/discard
+state, conflict feedback, and submission state. Standard React now consumes
+that session contract while preserving the accepted player-facing experience.
+CCPP-009A does not implement Kaplay, canvas rendering, renderer switching,
+animation preferences, or fallback machinery.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
