@@ -55,6 +55,13 @@ export interface PredictionEditSession {
   readonly userId: string;
 }
 
+export interface PredictionSavedBaseline {
+  readonly fixtureId: string;
+  readonly form: PredictionFormState;
+  readonly revision: number | null;
+  readonly userId: string;
+}
+
 export interface PredictionSessionIdentity {
   readonly fixtureId: string;
   readonly userId: string;
@@ -160,6 +167,7 @@ export interface PredictionSessionLocalState {
   readonly location: PredictionSequenceLocation;
   readonly messageSelection: PredictionMessageVariantSelection;
   readonly persistedForm: PredictionFormState;
+  readonly savedBaseline: PredictionSavedBaseline;
   readonly sessionKey: string;
 }
 
@@ -209,6 +217,7 @@ export type PredictionSessionAction =
   | {
       readonly result: PredictionMutationResult;
       readonly sessionKey: string;
+      readonly submitted: PredictionSavedBaseline;
       readonly type: 'submit-success';
     };
 
@@ -232,6 +241,97 @@ export const persistedPredictionForm = (
       : emptyFormForRuleset(ruleset),
     ruleset,
   );
+
+const baselineMatchesContext = (
+  baseline: PredictionSavedBaseline,
+  context: Pick<PredictionSessionReducerContext, 'fixtureId' | 'userId'>,
+): boolean =>
+  baseline.fixtureId === context.fixtureId &&
+  baseline.userId === context.userId;
+
+const entryMatchesContext = (
+  entry: PredictionEntryDocument,
+  context: Pick<PredictionSessionReducerContext, 'fixtureId' | 'userId'>,
+): boolean =>
+  entry.fixtureId === context.fixtureId && entry.userId === context.userId;
+
+const savedBaselineFromEntry = (
+  entry: PredictionEntryDocument | null | undefined,
+  context: PredictionSessionReducerContext,
+): PredictionSavedBaseline | null =>
+  entry && entryMatchesContext(entry, context)
+    ? {
+        fixtureId: entry.fixtureId,
+        form: persistedPredictionForm(entry, context.ruleset),
+        revision: entry.revision,
+        userId: entry.userId,
+      }
+    : null;
+
+const chooseLatestSavedBaseline = (
+  current: PredictionSavedBaseline,
+  candidate: PredictionSavedBaseline | null,
+): PredictionSavedBaseline => {
+  if (!candidate) {
+    return current;
+  }
+
+  if (
+    candidate.fixtureId !== current.fixtureId ||
+    candidate.userId !== current.userId
+  ) {
+    return current;
+  }
+
+  if (candidate.revision === null) {
+    return current;
+  }
+
+  if (current.revision === null || candidate.revision > current.revision) {
+    return candidate;
+  }
+
+  return current;
+};
+
+const latestKnownSavedBaseline = (
+  state: PredictionSessionLocalState,
+  context: PredictionSessionReducerContext,
+): PredictionSavedBaseline => {
+  const currentBaseline = baselineMatchesContext(state.savedBaseline, context)
+    ? state.savedBaseline
+    : {
+        fixtureId: context.fixtureId,
+        form: state.persistedForm,
+        revision: state.editSession.expectedRevision,
+        userId: context.userId,
+      };
+
+  return chooseLatestSavedBaseline(
+    currentBaseline,
+    savedBaselineFromEntry(context.currentEntry, context),
+  );
+};
+
+const withSavedBaseline = (
+  state: PredictionSessionLocalState,
+  savedBaseline: PredictionSavedBaseline,
+): PredictionSessionLocalState => ({
+  ...state,
+  persistedForm: savedBaseline.form,
+  savedBaseline,
+});
+
+const recordLatestPublishedBaseline = (
+  state: PredictionSessionLocalState,
+  context: PredictionSessionReducerContext,
+): PredictionSessionLocalState => {
+  const latestBaseline = latestKnownSavedBaseline(state, context);
+
+  return latestBaseline === state.savedBaseline
+    ? state
+    : withSavedBaseline(state, latestBaseline);
+};
 
 const builtInMessageIds = (
   activeSteps: readonly PredictionSequenceStepDefinition[],
@@ -270,6 +370,12 @@ export const createInitialPredictionSessionState = ({
     random,
   ),
   persistedForm: initialForm,
+  savedBaseline: {
+    fixtureId,
+    form: initialForm,
+    revision: initialExpectedRevision,
+    userId,
+  },
   sessionKey: predictionSessionKey({ fixtureId, userId }),
 });
 
@@ -362,31 +468,32 @@ const loadLatestSavedPredictionState = (
     return state;
   }
 
-  const persistedForm = persistedPredictionForm(
-    context.currentEntry,
-    context.ruleset,
-  );
+  const savedBaseline = latestKnownSavedBaseline(state, context);
+  const persistedForm = savedBaseline.form;
+  const hasSavedEntry = savedBaseline.revision !== null;
 
-  return {
-    ...state,
-    conversionAdjustmentNotice: null,
-    editSession: {
-      expectedRevision: context.currentEntry?.revision ?? null,
-      fixtureId: context.fixtureId,
-      userId: context.userId,
+  return withSavedBaseline(
+    {
+      ...state,
+      conversionAdjustmentNotice: null,
+      editSession: {
+        expectedRevision: savedBaseline.revision,
+        fixtureId: context.fixtureId,
+        userId: context.userId,
+      },
+      feedback: {
+        kind: 'success',
+        message: hasSavedEntry
+          ? 'Latest saved prediction loaded. Unsaved values were replaced.'
+          : 'Blank prediction form loaded. Unsaved values were replaced.',
+      },
+      form: persistedForm,
+      isDiscardConfirmOpen: false,
+      isEditingFromReview: false,
+      location: hasSavedEntry ? { kind: 'review' } : { kind: 'intro' },
     },
-    feedback: {
-      kind: 'success',
-      message: context.currentEntry
-        ? 'Latest saved prediction loaded. Unsaved values were replaced.'
-        : 'Blank prediction form loaded. Unsaved values were replaced.',
-    },
-    form: persistedForm,
-    isDiscardConfirmOpen: false,
-    isEditingFromReview: false,
-    location: context.currentEntry ? { kind: 'review' } : { kind: 'intro' },
-    persistedForm,
-  };
+    savedBaseline,
+  );
 };
 
 const adoptArrivedSavedEntryState = (
@@ -394,57 +501,106 @@ const adoptArrivedSavedEntryState = (
   context: PredictionSessionReducerContext,
 ): PredictionSessionLocalState => {
   const currentEntry = context.currentEntry;
+  const stateWithPublishedBaseline = recordLatestPublishedBaseline(
+    state,
+    context,
+  );
   const hasUntouchedBlankForm =
-    predictionFormsEqual(state.form, emptyFormForRuleset(context.ruleset)) ||
     predictionFormsEqual(
-      state.form,
+      stateWithPublishedBaseline.form,
+      emptyFormForRuleset(context.ruleset),
+    ) ||
+    predictionFormsEqual(
+      stateWithPublishedBaseline.form,
       persistedPredictionForm(null, context.ruleset),
     );
 
-  if (!currentEntry || state.editSession.expectedRevision !== null) {
-    return state;
+  if (
+    !currentEntry ||
+    stateWithPublishedBaseline.editSession.expectedRevision !== null
+  ) {
+    return stateWithPublishedBaseline;
   }
 
   if (
-    state.location.kind !== 'intro' ||
-    state.isSubmitting ||
-    state.isEditingFromReview ||
-    state.isDiscardConfirmOpen ||
-    state.feedback ||
+    stateWithPublishedBaseline.location.kind !== 'intro' ||
+    stateWithPublishedBaseline.isSubmitting ||
+    stateWithPublishedBaseline.isEditingFromReview ||
+    stateWithPublishedBaseline.isDiscardConfirmOpen ||
+    stateWithPublishedBaseline.feedback ||
     !hasUntouchedBlankForm
   ) {
-    return state;
+    return stateWithPublishedBaseline;
   }
 
-  const persistedForm = persistedPredictionForm(currentEntry, context.ruleset);
+  const savedBaseline = latestKnownSavedBaseline(
+    stateWithPublishedBaseline,
+    context,
+  );
 
-  return {
-    ...state,
-    conversionAdjustmentNotice: null,
-    editSession: {
-      expectedRevision: currentEntry.revision,
-      fixtureId: context.fixtureId,
-      userId: context.userId,
+  if (savedBaseline.revision === null) {
+    return stateWithPublishedBaseline;
+  }
+
+  return withSavedBaseline(
+    {
+      ...stateWithPublishedBaseline,
+      conversionAdjustmentNotice: null,
+      editSession: {
+        expectedRevision: savedBaseline.revision,
+        fixtureId: context.fixtureId,
+        userId: context.userId,
+      },
+      form: savedBaseline.form,
+      location: { kind: 'review' },
     },
-    form: persistedForm,
-    location: { kind: 'review' },
-    persistedForm,
-  };
+    savedBaseline,
+  );
 };
+
+const savedBaselineFromSubmitSuccess = (
+  state: PredictionSessionLocalState,
+  action: Extract<PredictionSessionAction, { readonly type: 'submit-success' }>,
+  context: PredictionSessionReducerContext,
+): PredictionSavedBaseline => {
+  const candidate: PredictionSavedBaseline | null =
+    action.result.fixtureId === context.fixtureId &&
+    action.submitted.fixtureId === context.fixtureId &&
+    action.submitted.userId === context.userId
+      ? {
+          fixtureId: action.submitted.fixtureId,
+          form: action.submitted.form,
+          revision: action.result.revision,
+          userId: action.submitted.userId,
+        }
+      : null;
+
+  return chooseLatestSavedBaseline(
+    latestKnownSavedBaseline(state, context),
+    candidate,
+  );
+};
+
+const submitSuccessMatchesContext = (
+  action: Extract<PredictionSessionAction, { readonly type: 'submit-success' }>,
+  context: PredictionSessionReducerContext,
+): boolean =>
+  action.result.fixtureId === context.fixtureId &&
+  action.submitted.fixtureId === context.fixtureId &&
+  action.submitted.userId === context.userId;
 
 export const derivePredictionSessionState = (
   state: PredictionSessionLocalState,
   context: PredictionSessionReducerContext,
 ): PredictionSessionRendererState => {
-  const persistedForm = context.currentEntry
-    ? persistedPredictionForm(context.currentEntry, context.ruleset)
-    : state.persistedForm;
+  const savedBaseline = latestKnownSavedBaseline(state, context);
+  const persistedForm = savedBaseline.form;
   const hasUnsavedChanges = !predictionFormsEqual(state.form, persistedForm);
   const isPredictionConflict = state.feedback?.code === 'prediction-conflict';
   const savedEntryChanged = Boolean(
-    context.currentEntry &&
+    savedBaseline.revision !== null &&
     state.editSession.expectedRevision !== null &&
-    context.currentEntry.revision !== state.editSession.expectedRevision,
+    savedBaseline.revision > state.editSession.expectedRevision,
   );
   const consistencyIssue = isBuiltInEnabled(context.ruleset, 'match-result')
     ? resultConsistencyIssue(state.form, context.fixture)
@@ -758,24 +914,30 @@ export const reducePredictionSessionState = (
       };
 
     case 'submit-success':
-      return {
-        ...state,
-        editSession: {
-          expectedRevision: action.result.revision,
-          fixtureId: context.fixtureId,
-          userId: context.userId,
+      if (!submitSuccessMatchesContext(action, context)) {
+        return state;
+      }
+
+      return withSavedBaseline(
+        {
+          ...state,
+          editSession: {
+            expectedRevision: action.result.revision,
+            fixtureId: context.fixtureId,
+            userId: context.userId,
+          },
+          feedback: {
+            kind: 'success',
+            message:
+              action.result.status === 'created'
+                ? 'Prediction saved.'
+                : 'Prediction updated.',
+          },
+          isDiscardConfirmOpen: false,
+          location: { kind: 'review' },
         },
-        feedback: {
-          kind: 'success',
-          message:
-            action.result.status === 'created'
-              ? 'Prediction saved.'
-              : 'Prediction updated.',
-        },
-        isDiscardConfirmOpen: false,
-        location: { kind: 'review' },
-        persistedForm: state.form,
-      };
+        savedBaselineFromSubmitSuccess(state, action, context),
+      );
   }
 };
 
@@ -934,6 +1096,15 @@ export const usePredictionSession = (
         latestContext.ruleset,
         latestContext.fixture,
       );
+      const submitted: PredictionSavedBaseline = {
+        fixtureId: latestContext.fixtureId,
+        form: normalizeInitialPredictionForm(
+          formFromPrediction(prediction, latestContext.ruleset),
+          latestContext.ruleset,
+        ),
+        revision: null,
+        userId: latestContext.userId,
+      };
       const result = await methodCallerRef.current<PredictionMutationResult>(
         PREDICTION_METHODS.submit,
         {
@@ -952,6 +1123,7 @@ export const usePredictionSession = (
         dispatch({
           result,
           sessionKey: latestState.sessionKey,
+          submitted,
           type: 'submit-success',
         });
       }

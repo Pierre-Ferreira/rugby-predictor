@@ -161,11 +161,22 @@ existing server.
 When `RUGBY_ROOSTER_E2E_EVIDENCE_DIR` is set, the Playwright launcher writes
 sanitized launch metadata, safe environment fields, Playwright stdout/stderr,
 process/listener snapshots, and process events to that directory. Evidence mode
-also performs a bounded post-close cleanup for isolated run-owned Meteor/Rspack
-child processes discovered through the test local directory, exact test
-settings/app port, Rspack dev-server port, and their descendants. It preserves
-the Playwright exit code and logs before cleanup and must not target unrelated
-developer listeners such as a normal app on 3000/3001/3002.
+also performs bounded post-close cleanup for the current run's verified process
+records only. Ownership starts with the Playwright process actually spawned by
+the launcher. While that process is active, descendants are recorded only when
+their lineage to an already owned process is visible and their `/proc` start
+identity can be read. Repository paths, `.meteor/local-playwright`, familiar
+settings files, and port substrings are not cleanup authority.
+
+Before sending SIGTERM, cleanup revalidates that the PID still has the recorded
+start identity. After the grace period, SIGKILL is considered only for records
+that were sent SIGTERM and still revalidate. Already-exited processes, changed
+or reused PIDs, permission-denied metadata, unreadable metadata, and duplicate
+cleanup calls are recorded separately and skipped or reported without broadening
+the target set. On platforms where process identity cannot be verified, the
+launcher must leave uncertain leftovers alone and report the limitation. The
+launcher preserves the Playwright exit code and logs before cleanup, and it must
+not target unrelated developer listeners such as a normal app on 3000/3001/3002.
 
 During isolated E2E client-development builds whose run id begins with
 `rr-e2e-`, `rspack.config.ts` disables only Rspack HMR/live reload. It does not

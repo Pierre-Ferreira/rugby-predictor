@@ -96,6 +96,10 @@
 - `docs/AUDIT_009B3_Isolated_Script_Delivery.md` - CCPP-009B3 isolated
   script-delivery evidence, saved-entry revisit readiness correction, launcher
   cleanup, verification, limitations, and review archive evidence.
+- `docs/AUDIT_009B3A_Save_Baseline_Process_Cleanup.md` - CCPP-009B3A
+  saved-baseline correctness, publication-lag discard behavior, verified
+  process-cleanup ownership, verification, limitations, and review archive
+  evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -135,6 +139,9 @@
 - `docs/TEMP_009B3_Resume.md` - temporary CCPP-009B3 checkpoint for isolated
   script-delivery evidence, saved-entry revisit diagnosis, verification,
   documentation, and packaging.
+- `docs/TEMP_009B3A_Resume.md` - temporary CCPP-009B3A checkpoint for
+  save-baseline correctness, safe process cleanup, verification, documentation,
+  and packaging.
 
 ## Application Entry Points
 
@@ -280,18 +287,19 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `.github/workflows/verification.yml` - GitHub Actions verification workflow.
 - `scripts/check-project-invariants.mjs` - durable Rugby Rooster project-invariant checks.
 - `scripts/test-environment.mjs` - isolated local test environment builder and
-  process-ownership helpers shared by integration and Playwright launchers.
+  verified process-ownership helpers shared by integration and Playwright
+  launchers.
 - `scripts/run-integration-tests.mjs` - Meteor full-app integration-test launcher with loopback binding and inherited Mongo variable rejection.
 - `scripts/run-playwright-tests.mjs` - Playwright launcher with isolated test
   run IDs, Meteor-managed local test environment variables, optional evidence
-  capture, and bounded run-owned child-process cleanup.
+  capture, and bounded cleanup for recorded current-run child processes.
 - `tests/unit/routes.test.ts` - route resolution unit tests.
 - `tests/unit/auth-helpers.test.ts` - auth helper unit tests.
 - `tests/unit/auth-config.test.ts` - auth runtime configuration tests.
 - `tests/unit/postmark-email.test.ts` - Postmark email adapter unit tests.
 - `tests/unit/test-database-identity.test.ts` - isolated test MongoDB endpoint/database identity comparison tests.
 - `tests/unit/test-launchers.test.ts` - isolated test launcher environment and
-  process-ownership selection tests.
+  process-ownership selection/signalling tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
@@ -302,12 +310,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   state-helper unit tests.
 - `tests/unit/prediction-session.test.ts` - CCPP-009A/009A1 shared prediction
   session reducer/derivation contract, read-only guard, discard/reload guard,
-  revision preservation, duplicate submit state, and stale response isolation
-  tests.
+  revision-aware saved-baseline preservation, duplicate submit state, and stale
+  response isolation tests.
 - `tests/unit/prediction-session-hook.test.ts` - CCPP-009A1 React DOM
   `usePredictionSession(...)` lifecycle, Strict Mode effect replay,
   presentation replacement, duplicate transport, read-only context update, and
-  disposed-owner stale completion tests.
+  disposed-owner stale completion tests, including CCPP-009B3A controlled
+  transport saved-baseline regressions.
 - `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B preview
   effective-mode and preference-storage unit tests.
 - `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B React DOM

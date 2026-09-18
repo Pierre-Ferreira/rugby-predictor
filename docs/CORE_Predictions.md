@@ -189,11 +189,22 @@ submitted, the server returns a conflict and the browser offers an explicit
 `Load latest saved prediction` action that intentionally replaces unsaved values
 with the saved entry.
 
+The editable form and the latest known saved baseline are separate. A save
+acknowledgement records the normalized prediction payload that was actually
+submitted, with the returned revision. Edits made while that request is pending
+remain unsaved and dirty after the acknowledgement. Older or temporarily absent
+publication data cannot erase a newer acknowledged save, and discard during
+publication lag restores the acknowledged saved answers rather than a blank or
+older form.
+
 When a saved entry or save acknowledgement arrives slightly after the editable
 session initializes, the browser may reconcile only the untouched initial state
-or the just-submitted local form. It must not replace answers after the player
-has started editing, and it must not silently advance the captured revision from
-later reactive updates.
+or the just-submitted saved snapshot. It must not replace answers after the
+player has started editing, and it must not silently advance the captured
+revision from later reactive updates. A genuinely newer published saved version
+can become the latest known saved baseline for dirty/discard feedback, but the
+player adopts it only through the existing explicit reload/discard action or a
+legitimate successful save.
 
 In the normal editable Review state, the explicit replacement action is labelled
 `Discard changes`. It is disabled while the form matches the currently loaded

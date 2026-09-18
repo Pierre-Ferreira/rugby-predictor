@@ -2,10 +2,14 @@ import { spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
-  collectOwnedTestProcessIds,
+  cleanupOwnedTestProcesses,
+  createOwnedTestProcessTracker,
   createIsolatedTestEnvironment,
+  ownedTestProcessRecords,
   parseProcessTable,
   parseLoopbackPort,
+  readLinuxProcessIdentity,
+  recordOwnedTestProcessTree,
 } from './test-environment.mjs';
 
 const port = parseLoopbackPort(process.env.PORT, 3200, 'Playwright test port');
@@ -100,83 +104,87 @@ const captureOwnershipSnapshot = (label) => {
   });
 };
 
-const collectOwnedProcessIds = () => {
+const summarizeOwnedRecords = (tracker) =>
+  ownedTestProcessRecords(tracker).map((record) => ({
+    origin: record.origin,
+    pid: record.pid,
+    ppid: record.ppid,
+    runId: record.runId,
+    verifiedAt: record.verifiedAt,
+  }));
+
+let ownedProcessTracker = null;
+let runIsActive = false;
+
+const recordOwnedProcessTree = (label) => {
+  if (!ownedProcessTracker || !runIsActive) {
+    return;
+  }
+
   const ps = commandOutput('ps', ['-eo', 'pid=,ppid=,command=']);
 
   appendJsonLine('process-events.jsonl', {
-    event: 'owned-process-scan',
+    event: 'owned-process-record-scan',
+    label,
     status: ps.status,
     stderr: ps.stderr,
     time: utcNow(),
   });
 
   if (ps.status !== 0 || ps.error) {
-    return [];
-  }
-
-  return collectOwnedTestProcessIds({
-    appPort: env.PORT,
-    cwd: process.cwd(),
-    excludedPids: [process.pid, child.pid].filter(Boolean),
-    localDir: env.METEOR_LOCAL_DIR,
-    mongoPort: env.RUGBY_ROOSTER_TEST_MONGO_PORT,
-    processRows: parseProcessTable(ps.stdout),
-    rspackDevServerPort: env.RSPACK_DEVSERVER_PORT,
-  });
-};
-
-const signalOwnedProcesses = (pids, signal) => {
-  const results = [];
-
-  for (const pid of pids) {
-    try {
-      process.kill(pid, signal);
-      results.push({ pid, signal, status: 'sent' });
-    } catch (error) {
-      results.push({
-        error: error instanceof Error ? error.message : String(error),
-        pid,
-        signal,
-        status: 'failed',
-      });
-    }
-  }
-
-  appendJsonLine('process-events.jsonl', {
-    event: 'owned-process-signal',
-    results,
-    time: utcNow(),
-  });
-};
-
-const cleanupOwnedProcesses = async () => {
-  const initialPids = collectOwnedProcessIds();
-
-  appendJsonLine('process-events.jsonl', {
-    event: 'owned-process-cleanup-start',
-    pids: initialPids,
-    time: utcNow(),
-  });
-
-  if (initialPids.length === 0) {
     return;
   }
 
-  signalOwnedProcesses(initialPids, 'SIGTERM');
-  await sleep(750);
-
-  const remainingPids = collectOwnedProcessIds();
+  const result = recordOwnedTestProcessTree({
+    identityLookup: readLinuxProcessIdentity,
+    processRows: parseProcessTable(ps.stdout),
+    tracker: ownedProcessTracker,
+  });
 
   appendJsonLine('process-events.jsonl', {
-    event: 'owned-process-cleanup-after-sigterm',
-    pids: remainingPids,
+    event: 'owned-process-records',
+    label,
+    result,
+    time: utcNow(),
+  });
+};
+
+const captureAndRecordOwnershipSnapshot = (label) => {
+  captureOwnershipSnapshot(label);
+  recordOwnedProcessTree(label);
+};
+
+const cleanupOwnedProcesses = async () => {
+  if (!ownedProcessTracker) {
+    appendJsonLine('process-events.jsonl', {
+      event: 'owned-process-cleanup-skipped',
+      reason: 'no-owned-tracker',
+      time: utcNow(),
+    });
+
+    return;
+  }
+
+  const records = summarizeOwnedRecords(ownedProcessTracker);
+
+  appendJsonLine('process-events.jsonl', {
+    event: 'owned-process-cleanup-start',
+    records,
     time: utcNow(),
   });
 
-  if (remainingPids.length > 0) {
-    signalOwnedProcesses(remainingPids, 'SIGKILL');
-    await sleep(250);
-  }
+  const result = await cleanupOwnedTestProcesses({
+    identityLookup: readLinuxProcessIdentity,
+    signalProcess: process.kill,
+    sleep,
+    tracker: ownedProcessTracker,
+  });
+
+  appendJsonLine('process-events.jsonl', {
+    event: 'owned-process-cleanup-result',
+    result,
+    time: utcNow(),
+  });
 };
 
 writeJson('launch-manifest.json', {
@@ -205,20 +213,30 @@ writeJson('launch-manifest.json', {
   },
   startTime: utcNow(),
 });
-captureOwnershipSnapshot('before-playwright-spawn');
+captureAndRecordOwnershipSnapshot('before-playwright-spawn');
 
 const startedAt = Date.now();
 const child = spawn('playwright', playwrightArgs, {
   env,
   stdio: ['ignore', 'pipe', 'pipe'],
 });
+runIsActive = true;
+
+ownedProcessTracker = createOwnedTestProcessTracker({
+  rootIdentity: child.pid ? readLinuxProcessIdentity(child.pid) : null,
+  rootPid: child.pid,
+  runId: env.RUGBY_ROOSTER_TEST_RUN_ID,
+});
 
 appendJsonLine('process-events.jsonl', {
   event: 'playwright-spawned',
   pid: child.pid,
+  recordedOwnership: ownedProcessTracker
+    ? summarizeOwnedRecords(ownedProcessTracker)
+    : [],
   time: utcNow(),
 });
-captureOwnershipSnapshot('after-playwright-spawn');
+captureAndRecordOwnershipSnapshot('after-playwright-spawn');
 
 const recordOutput = (source, chunk) => {
   const text = chunk.toString();
@@ -250,11 +268,12 @@ child.on('error', (error) => {
 });
 
 const ownershipInterval = setInterval(() => {
-  captureOwnershipSnapshot('during-playwright-run');
+  captureAndRecordOwnershipSnapshot('during-playwright-run');
 }, 2_000);
 
 child.on('close', async (code, signal) => {
   clearInterval(ownershipInterval);
+  runIsActive = false;
   captureOwnershipSnapshot('after-playwright-close');
   writeJson('exit.json', {
     code,

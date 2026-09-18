@@ -146,20 +146,35 @@ Submitting builds the existing prediction payload shape only at submission time.
 ## Revision, Submission, And Async Safety
 
 The session captures `expectedRevision` when initialized from a saved entry or
-when explicitly loading latest saved data. Reactive publication updates can set
-changed-entry feedback and update the persisted comparison source, but they do
-not silently replace dirty answers or advance the captured expected revision.
+when explicitly loading latest saved data. That captured edit revision is not
+the same as the latest known saved baseline. Reactive publication updates can
+set changed-entry feedback and update the saved baseline, but they do not
+silently replace dirty answers or advance the captured expected revision.
 
 Successful saves update the captured revision from the server response. Stale
 conflicts preserve local answers and expose the accepted explicit
 `Load latest saved prediction` path.
 
-Successful saves also mark the submitted local form as the local persisted
-baseline until the current-entry publication catches up. This prevents the
-Review from showing a just-saved form as dirty merely because the method
-acknowledgement arrived before the saved-entry subscription update. When a
-published current entry is available, it remains the authoritative comparison
-source.
+The submit command builds and validates the existing prediction payload before
+awaiting the Meteor method. It also captures a normalized form snapshot derived
+from that exact payload. A successful acknowledgement records that submitted
+snapshot with the returned revision as saved evidence. The reducer never copies
+the mutable editable form at response time, so edits made while the request is
+pending remain unsaved and dirty.
+
+The session keeps a small account/fixture-local latest-known saved baseline.
+Valid evidence sources are the initial saved entry, a same-account/fixture
+published entry, and a same-session successful acknowledgement of the captured
+submitted snapshot. Revision ordering is monotonic: an older publication cannot
+replace a newer acknowledged baseline, a matching publication confirms the same
+saved version, and a genuinely newer publication can become the latest saved
+baseline without changing the current editable form or captured edit revision.
+Temporary absence of `currentEntry` does not erase a known saved version.
+
+This prevents the Review from showing a just-saved form as dirty merely because
+the method acknowledgement arrived before the saved-entry subscription update.
+It also prevents discard during publication lag from restoring a blank or older
+form after an acknowledged first save.
 
 The submit command has a narrow in-flight guard so repeated activation in the
 same session cannot issue duplicate submissions. Async responses include the
@@ -184,12 +199,12 @@ Normal saved edit behavior remains:
 - clean Review disables `Discard changes`;
 - dirty Review asks for confirmation;
 - `Keep editing` preserves local values;
-- confirmed discard replaces local values from the latest persisted entry and
-  captures that entry's revision without writing to the server.
+- confirmed discard replaces local values from the latest known saved baseline
+  and captures that baseline's revision without writing to the server.
 
 Conflict recovery keeps `Load latest saved prediction` direct and explicit. It
-replaces local values from persisted data and captures the latest persisted
-revision without creating a prediction revision.
+replaces local values from the latest known saved baseline and captures that
+baseline's revision without creating a prediction revision.
 
 Discard and latest-load replacement are blocked while a save is in flight. The
 shared replacement helper refuses to replace local answers when

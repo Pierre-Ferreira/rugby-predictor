@@ -54,6 +54,12 @@ interface TransportCall {
   readonly methodName: string;
 }
 
+interface SubmitTransportInput {
+  readonly expectedRevision?: number;
+  readonly fixtureId: string;
+  readonly prediction: FixturePrediction;
+}
+
 interface ControlledTransport {
   readonly caller: PredictionMethodCaller;
   readonly calls: readonly TransportCall[];
@@ -251,6 +257,74 @@ const mutationResult = ({
   revision,
   status,
 });
+
+const enterPredictionAnswers = async (
+  harness: SessionHarness,
+  prediction: FixturePrediction,
+) => {
+  await runAction(harness, (session) => {
+    for (const side of ['team1', 'team2'] as const) {
+      const team = prediction[side];
+
+      session.actions.changeTeamNumericField(side, 'tries', String(team.tries));
+      session.actions.changeTeamNumericField(
+        side,
+        'conversions',
+        String(team.conversions ?? 0),
+      );
+      session.actions.changeTeamNumericField(
+        side,
+        'penaltyKicks',
+        String(team.penaltyKicks),
+      );
+      session.actions.changeTeamNumericField(
+        side,
+        'dropGoals',
+        String(team.dropGoals),
+      );
+      session.actions.changeTeamNumericField(
+        side,
+        'yellowCards',
+        String(team.yellowCards ?? 0),
+      );
+      session.actions.changeTeamNumericField(
+        side,
+        'redCards',
+        String(team.redCards ?? 0),
+      );
+    }
+
+    session.actions.selectBuiltInChoice(
+      'matchResult',
+      prediction.matchResult ?? '',
+    );
+    session.actions.selectBuiltInChoice('firstTry', prediction.firstTry ?? '');
+    session.actions.selectBuiltInChoice(
+      'highestScoringHalf',
+      prediction.highestScoringHalf ?? '',
+    );
+    session.actions.selectBuiltInChoice(
+      'halfTimeLeader',
+      prediction.halfTimeLeader ?? '',
+    );
+
+    for (const [questionId, value] of Object.entries(
+      prediction.customAnswers ?? {},
+    )) {
+      session.actions.changeCustomAnswer(questionId, String(value));
+    }
+  });
+};
+
+const advanceToReview = async (harness: SessionHarness) => {
+  await runAction(harness, (session) => {
+    session.actions.startPrediction();
+
+    for (let index = 0; index <= session.state.activeSteps.length; index += 1) {
+      session.actions.continueForward();
+    }
+  });
+};
 
 const sessionInput = ({
   currentEntry,
@@ -515,6 +589,326 @@ describe('prediction session hook lifecycle', () => {
     expect(harness.session().state.isSubmitting).toBe(false);
   });
 
+  it('keeps edits made during a save dirty against the submitted snapshot', async () => {
+    const ruleset = buildConfiguredRulesetSnapshot(customQuestionConfig());
+    const transport = createControlledTransport();
+    const submittedPrediction: FixturePrediction = {
+      ...validPrediction(),
+      customAnswers: {
+        'player-band': 'backs',
+        'scrum-pressure': 4,
+      },
+    };
+    const entry = predictionEntry({
+      prediction: submittedPrediction,
+      revision: 7,
+      ruleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: entry,
+        ruleset,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    const { submitPromise } = await submitWithoutWaiting(harness);
+
+    await runAction(harness, (session) => {
+      session.actions.selectBuiltInChoice('halfTimeLeader', 'draw');
+      session.actions.changeCustomAnswer('scrum-pressure', '6');
+      session.actions.changeCustomAnswer('player-band', 'forwards');
+    });
+
+    const submittedInput = transport.calls[0]?.input as SubmitTransportInput;
+
+    expect(submittedInput).toMatchObject({
+      expectedRevision: 7,
+      fixtureId: 'fixture-1',
+      prediction: submittedPrediction,
+    });
+
+    await resolveTransportCall(
+      transport.calls[0],
+      mutationResult({
+        revision: 8,
+      }),
+      submitPromise,
+    );
+
+    const state = harness.session().state;
+
+    expect(state.editSession.expectedRevision).toBe(8);
+    expect(state.persistedForm).toEqual(
+      formFromPrediction(submittedPrediction, ruleset),
+    );
+    expect(state.form.halfTimeLeader).toBe('draw');
+    expect(state.form.customAnswers['scrum-pressure']).toBe('6');
+    expect(state.form.customAnswers['player-band']).toBe('forwards');
+    expect(state.hasUnsavedChanges).toBe(true);
+  });
+
+  it('keeps an acknowledged revision clean while publication is absent or older', async () => {
+    const transport = createControlledTransport();
+    const originalPrediction = validPrediction();
+    const submittedPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+    };
+    const originalEntry = predictionEntry({
+      prediction: originalPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const matchingEntry = predictionEntry({
+      prediction: submittedPrediction,
+      revision: 2,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: originalEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    await runAction(harness, (session) => {
+      session.actions.selectBuiltInChoice('halfTimeLeader', 'draw');
+    });
+
+    const { submitPromise } = await submitWithoutWaiting(harness);
+
+    expect(
+      (transport.calls[0]?.input as SubmitTransportInput).prediction,
+    ).toEqual(submittedPrediction);
+
+    await resolveTransportCall(
+      transport.calls[0],
+      mutationResult({
+        revision: 2,
+      }),
+      submitPromise,
+    );
+
+    expect(harness.session().state.persistedForm).toEqual(
+      formFromPrediction(submittedPrediction, defaultRuleset),
+    );
+    expect(harness.session().state.hasUnsavedChanges).toBe(false);
+    expect(harness.session().state.savedEntryChanged).toBe(false);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: null,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.hasUnsavedChanges).toBe(false);
+    expect(harness.session().state.savedEntryChanged).toBe(false);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: originalEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.hasUnsavedChanges).toBe(false);
+    expect(harness.session().state.savedEntryChanged).toBe(false);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: matchingEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.form).toEqual(
+      formFromPrediction(submittedPrediction, defaultRuleset),
+    );
+    expect(harness.session().state.hasUnsavedChanges).toBe(false);
+    expect(harness.session().state.savedEntryChanged).toBe(false);
+  });
+
+  it('discards to an acknowledged first save while publication still lags', async () => {
+    const transport = createControlledTransport();
+    const submittedPrediction = validPrediction();
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: null,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    await enterPredictionAnswers(harness, submittedPrediction);
+    await advanceToReview(harness);
+
+    const { submitPromise } = await submitWithoutWaiting(harness);
+
+    await resolveTransportCall(
+      transport.calls[0],
+      mutationResult({
+        revision: 1,
+        status: 'created',
+      }),
+      submitPromise,
+    );
+
+    await runAction(harness, (session) => {
+      session.actions.selectBuiltInChoice('halfTimeLeader', 'draw');
+      session.actions.requestDiscardChanges();
+      session.actions.confirmDiscardChanges();
+    });
+
+    const state = harness.session().state;
+
+    expect(state.form).toEqual(
+      formFromPrediction(submittedPrediction, defaultRuleset),
+    );
+    expect(state.editSession.expectedRevision).toBe(1);
+    expect(state.location).toEqual({ kind: 'review' });
+    expect(state.hasUnsavedChanges).toBe(false);
+    expect(transport.calls).toHaveLength(1);
+  });
+
+  it('keeps dirty answers and captured revision when a genuinely newer entry publishes', async () => {
+    const transport = createControlledTransport();
+    const originalPrediction = validPrediction();
+    const latestPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+      team1: {
+        ...validPrediction().team1,
+        tries: 1,
+      },
+    };
+    const originalEntry = predictionEntry({
+      prediction: originalPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const latestEntry = predictionEntry({
+      prediction: latestPrediction,
+      revision: 2,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: originalEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    await runAction(harness, (session) => {
+      session.actions.changeTeamNumericField('team1', 'tries', '5');
+    });
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: latestEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.form.team1.tries).toBe('5');
+    expect(harness.session().state.editSession.expectedRevision).toBe(1);
+    expect(harness.session().state.savedEntryChanged).toBe(true);
+
+    await runAction(harness, (session) => {
+      session.actions.loadLatestSavedPrediction();
+    });
+
+    expect(harness.session().state.form).toEqual(
+      formFromPrediction(latestPrediction, defaultRuleset),
+    );
+    expect(harness.session().state.editSession.expectedRevision).toBe(2);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: null,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.persistedForm).toEqual(
+      formFromPrediction(latestPrediction, defaultRuleset),
+    );
+    expect(harness.session().state.editSession.expectedRevision).toBe(2);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: originalEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.persistedForm).toEqual(
+      formFromPrediction(latestPrediction, defaultRuleset),
+    );
+  });
+
+  it('does not regress a newer published baseline when an older acknowledgement arrives', async () => {
+    const transport = createControlledTransport();
+    const submittedPrediction = validPrediction();
+    const newerPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+    };
+    const originalEntry = predictionEntry({
+      prediction: submittedPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const newerEntry = predictionEntry({
+      prediction: newerPrediction,
+      revision: 3,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: originalEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+    const { submitPromise } = await submitWithoutWaiting(harness);
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: newerEntry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.savedEntryChanged).toBe(true);
+
+    await resolveTransportCall(
+      transport.calls[0],
+      mutationResult({
+        revision: 2,
+      }),
+      submitPromise,
+    );
+
+    const state = harness.session().state;
+
+    expect(state.editSession.expectedRevision).toBe(2);
+    expect(state.persistedForm).toEqual(
+      formFromPrediction(newerPrediction, defaultRuleset),
+    );
+    expect(state.savedEntryChanged).toBe(true);
+    expect(state.hasUnsavedChanges).toBe(true);
+  });
+
   it('surfaces failed save completion after StrictMode replay and permits a later attempt', async () => {
     const transport = createControlledTransport();
     const entry = predictionEntry({
@@ -553,6 +947,10 @@ describe('prediction session hook lifecycle', () => {
       message: 'The save transport failed.',
     });
     expect(harness.session().state.form.halfTimeLeader).toBe('draw');
+    expect(harness.session().state.persistedForm).toEqual(
+      formFromPrediction(validPrediction(), defaultRuleset),
+    );
+    expect(harness.session().state.hasUnsavedChanges).toBe(true);
     expect(harness.session().state.isSubmitting).toBe(false);
 
     const { submitPromise: retryPromise } = await submitWithoutWaiting(harness);
@@ -570,6 +968,53 @@ describe('prediction session hook lifecycle', () => {
     expect(harness.session().state.editSession.expectedRevision).toBe(8);
     expect(harness.session().state.feedback?.kind).toBe('success');
     expect(harness.session().state.isSubmitting).toBe(false);
+  });
+
+  it('preserves edits and the saved baseline after a stale conflict', async () => {
+    const transport = createControlledTransport();
+    const entry = predictionEntry({
+      prediction: validPrediction(),
+      revision: 7,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: sessionInput({
+        currentEntry: entry,
+        submitPredictionMethod: transport.caller,
+      }),
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    await runAction(harness, (session) => {
+      session.actions.selectBuiltInChoice('halfTimeLeader', 'draw');
+    });
+
+    const { submitPromise } = await submitWithoutWaiting(harness);
+
+    await rejectTransportCall(
+      transport.calls[0],
+      {
+        error: 'prediction-conflict',
+        reason: 'Saved prediction changed. Load the latest saved prediction.',
+      },
+      submitPromise,
+    );
+
+    const state = harness.session().state;
+
+    expect(state.feedback).toEqual({
+      code: 'prediction-conflict',
+      kind: 'error',
+      message: 'Saved prediction changed. Load the latest saved prediction.',
+    });
+    expect(state.form.halfTimeLeader).toBe('draw');
+    expect(state.persistedForm).toEqual(
+      formFromPrediction(validPrediction(), defaultRuleset),
+    );
+    expect(state.editSession.expectedRevision).toBe(7);
+    expect(state.hasUnsavedChanges).toBe(true);
+    expect(state.isPredictionConflict).toBe(true);
   });
 
   it('preserves the owner session when only the presentation consumer is replaced', async () => {

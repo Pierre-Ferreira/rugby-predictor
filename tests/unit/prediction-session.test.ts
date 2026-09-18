@@ -172,6 +172,16 @@ const predictionEntry = ({
   userId,
 });
 
+const submittedBaseline = (
+  context: PredictionSessionReducerContext,
+  prediction: FixturePrediction,
+) => ({
+  fixtureId: context.fixtureId,
+  form: formFromPrediction(prediction, context.ruleset),
+  revision: null,
+  userId: context.userId,
+});
+
 describe('prediction session contract', () => {
   it('updates one shared answer state and preserves values through Back and Continue', () => {
     const context = contextForRuleset(defaultRuleset);
@@ -420,6 +430,193 @@ describe('prediction session contract', () => {
     expect(state.editSession.expectedRevision).toBe(2);
   });
 
+  it('keeps an acknowledged saved baseline ahead of an older publication', () => {
+    const previousPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+    };
+    const submittedPrediction = validPrediction();
+    const staleEntry = predictionEntry({
+      prediction: previousPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const staleContext = contextForRuleset(defaultRuleset, {
+      currentEntry: staleEntry,
+    });
+    const sessionKey = predictionSessionKey({
+      fixtureId: staleContext.fixtureId,
+      userId: staleContext.userId,
+    });
+    let state = initialSession(staleContext, {
+      expectedRevision: 1,
+      form: formFromPrediction(submittedPrediction, defaultRuleset),
+    });
+
+    state = reduce(state, staleContext, {
+      result: {
+        fixtureId: staleContext.fixtureId,
+        predictionId: 'prediction-2',
+        revision: 2,
+        status: 'updated',
+      },
+      sessionKey,
+      submitted: submittedBaseline(staleContext, submittedPrediction),
+      type: 'submit-success',
+    });
+
+    const stalePublicationView = derivePredictionSessionState(
+      state,
+      staleContext,
+    );
+
+    expect(stalePublicationView.persistedForm).toEqual(
+      formFromPrediction(submittedPrediction, defaultRuleset),
+    );
+    expect(stalePublicationView.hasUnsavedChanges).toBe(false);
+    expect(stalePublicationView.savedEntryChanged).toBe(false);
+
+    state = {
+      ...state,
+      form: formFromPrediction(
+        {
+          ...submittedPrediction,
+          halfTimeLeader: 'team2',
+        },
+        defaultRuleset,
+      ),
+    };
+
+    const discarded = reduce(state, staleContext, {
+      type: 'load-latest-saved-prediction',
+    });
+
+    expect(discarded.form).toEqual(
+      formFromPrediction(submittedPrediction, defaultRuleset),
+    );
+    expect(discarded.editSession.expectedRevision).toBe(2);
+  });
+
+  it('remembers a genuinely newer publication without advancing the captured edit revision', () => {
+    const originalPrediction = validPrediction();
+    const latestPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+      team1: {
+        ...validPrediction().team1,
+        tries: 1,
+      },
+    };
+    const originalEntry = predictionEntry({
+      prediction: originalPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const latestEntry = predictionEntry({
+      prediction: latestPrediction,
+      revision: 2,
+      ruleset: defaultRuleset,
+    });
+    const originalContext = contextForRuleset(defaultRuleset, {
+      currentEntry: originalEntry,
+    });
+    const latestContext = contextForRuleset(defaultRuleset, {
+      currentEntry: latestEntry,
+    });
+    const absentContext = contextForRuleset(defaultRuleset);
+    let state = initialSession(originalContext, {
+      expectedRevision: 1,
+      form: formFromPrediction(originalPrediction, defaultRuleset),
+    });
+
+    state = reduce(state, originalContext, {
+      field: 'tries',
+      side: 'team1',
+      type: 'change-team-field',
+      value: '5',
+    });
+    state = reduce(state, latestContext, {
+      type: 'adopt-arrived-saved-entry',
+    });
+
+    const afterNewerPublication = derivePredictionSessionState(
+      state,
+      absentContext,
+    );
+
+    expect(afterNewerPublication.form.team1.tries).toBe('5');
+    expect(afterNewerPublication.editSession.expectedRevision).toBe(1);
+    expect(afterNewerPublication.savedEntryChanged).toBe(true);
+
+    const reloaded = reduce(state, absentContext, {
+      type: 'load-latest-saved-prediction',
+    });
+
+    expect(reloaded.form).toEqual(
+      formFromPrediction(latestPrediction, defaultRuleset),
+    );
+    expect(reloaded.editSession.expectedRevision).toBe(2);
+  });
+
+  it('does not regress a newer known saved baseline when an older acknowledgement arrives later', () => {
+    const revisionOnePrediction = validPrediction();
+    const revisionTwoPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'team2',
+    };
+    const revisionThreePrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+    };
+    const revisionOneEntry = predictionEntry({
+      prediction: revisionOnePrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const revisionThreeEntry = predictionEntry({
+      prediction: revisionThreePrediction,
+      revision: 3,
+      ruleset: defaultRuleset,
+    });
+    const revisionOneContext = contextForRuleset(defaultRuleset, {
+      currentEntry: revisionOneEntry,
+    });
+    const revisionThreeContext = contextForRuleset(defaultRuleset, {
+      currentEntry: revisionThreeEntry,
+    });
+    const sessionKey = predictionSessionKey({
+      fixtureId: revisionOneContext.fixtureId,
+      userId: revisionOneContext.userId,
+    });
+    let state = initialSession(revisionOneContext, {
+      expectedRevision: 1,
+      form: formFromPrediction(revisionTwoPrediction, defaultRuleset),
+    });
+
+    state = reduce(state, revisionThreeContext, {
+      type: 'adopt-arrived-saved-entry',
+    });
+    state = reduce(state, revisionThreeContext, {
+      result: {
+        fixtureId: revisionThreeContext.fixtureId,
+        predictionId: 'prediction-2',
+        revision: 2,
+        status: 'updated',
+      },
+      sessionKey,
+      submitted: submittedBaseline(revisionThreeContext, revisionTwoPrediction),
+      type: 'submit-success',
+    });
+
+    const view = derivePredictionSessionState(state, revisionOneContext);
+
+    expect(view.persistedForm).toEqual(
+      formFromPrediction(revisionThreePrediction, defaultRuleset),
+    );
+    expect(view.editSession.expectedRevision).toBe(2);
+    expect(view.savedEntryChanged).toBe(true);
+  });
+
   it('adopts a saved entry that arrives after untouched blank initialization', () => {
     const savedPrediction = validPrediction();
     const savedEntry = predictionEntry({
@@ -458,11 +655,20 @@ describe('prediction session contract', () => {
       currentEntry: latestEntry,
     });
 
-    expect(
-      reduce(state, latestContext, {
-        type: 'adopt-arrived-saved-entry',
-      }),
-    ).toEqual(state);
+    const latestRecorded = reduce(state, latestContext, {
+      type: 'adopt-arrived-saved-entry',
+    });
+    const latestRecordedView = derivePredictionSessionState(
+      latestRecorded,
+      latestContext,
+    );
+
+    expect(latestRecorded.form).toEqual(state.form);
+    expect(latestRecorded.editSession.expectedRevision).toBe(3);
+    expect(latestRecordedView.savedEntryChanged).toBe(true);
+    expect(latestRecordedView.persistedForm).toEqual(
+      formFromPrediction(latestEntry.prediction, defaultRuleset),
+    );
   });
 
   it('does not adopt a late saved entry after the blank session is edited', () => {
@@ -484,11 +690,21 @@ describe('prediction session contract', () => {
       value: 'team2',
     });
 
-    expect(
-      reduce(state, savedContext, {
-        type: 'adopt-arrived-saved-entry',
-      }),
-    ).toEqual(state);
+    const notAdopted = reduce(state, savedContext, {
+      type: 'adopt-arrived-saved-entry',
+    });
+    const notAdoptedView = derivePredictionSessionState(
+      notAdopted,
+      savedContext,
+    );
+
+    expect(notAdopted.form).toEqual(state.form);
+    expect(notAdopted.location).toEqual(state.location);
+    expect(notAdopted.editSession.expectedRevision).toBeNull();
+    expect(notAdoptedView.persistedForm).toEqual(
+      formFromPrediction(savedEntry.prediction, defaultRuleset),
+    );
+    expect(notAdoptedView.hasUnsavedChanges).toBe(true);
   });
 
   it('guards duplicate submit state and ignores stale async responses for another session key', () => {
@@ -518,6 +734,7 @@ describe('prediction session contract', () => {
         status: 'updated',
       },
       sessionKey: 'user-old:fixture-old',
+      submitted: submittedBaseline(context, validPrediction()),
       type: 'submit-success',
     });
 
@@ -532,6 +749,7 @@ describe('prediction session contract', () => {
         status: 'created',
       },
       sessionKey: currentKey,
+      submitted: submittedBaseline(context, validPrediction()),
       type: 'submit-success',
     });
 
@@ -565,6 +783,7 @@ describe('prediction session contract', () => {
         status: 'created',
       },
       sessionKey,
+      submitted: submittedBaseline(context, validPrediction()),
       type: 'submit-success',
     });
 
@@ -788,6 +1007,7 @@ describe('prediction session contract', () => {
         status: 'created',
       },
       sessionKey,
+      submitted: submittedBaseline(editableContext, validPrediction()),
       type: 'submit-success',
     });
     state = reduce(state, readOnlyContext, {

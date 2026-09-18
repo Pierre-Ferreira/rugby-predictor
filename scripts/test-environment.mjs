@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 export const INHERITED_MONGO_CONNECTION_VARIABLES = [
   'MONGO_URL',
@@ -91,28 +92,213 @@ export const parseProcessTable = (stdout) =>
 
 /**
  * @param {{
- *   readonly appPort: number | string;
- *   readonly cwd: string;
- *   readonly excludedPids?: readonly number[];
- *   readonly localDir: string;
- *   readonly mongoPort: number | string;
- *   readonly processRows: readonly ProcessTableRow[];
- *   readonly rspackDevServerPort: number | string;
- * }} input
- * @returns {number[]}
+ *   readonly command?: string;
+ *   readonly pid: number;
+ *   readonly startId: string;
+ * }} ProcessIdentity
  */
-export const collectOwnedTestProcessIds = ({
-  appPort,
-  cwd,
-  excludedPids = [],
-  localDir,
-  mongoPort,
-  processRows,
-  rspackDevServerPort,
+
+/**
+ * @typedef {{
+ *   readonly command: string;
+ *   readonly origin: 'spawned-root' | 'verified-descendant';
+ *   readonly pid: number;
+ *   readonly ppid: number | null;
+ *   readonly runId: string;
+ *   readonly startId: string;
+ *   readonly verifiedAt: string;
+ * }} OwnedProcessRecord
+ */
+
+/**
+ * @typedef {{
+ *   cleanupStarted: boolean;
+ *   readonly records: Map<number, OwnedProcessRecord>;
+ *   readonly rootPid: number | null;
+ *   readonly runId: string;
+ * }} OwnedProcessTracker
+ */
+
+const normalizeProcessIdentity = (identity) => {
+  if (!identity || typeof identity !== 'object') {
+    return null;
+  }
+
+  const pid = Number(identity.pid);
+  const startId = identity.startId;
+
+  if (!Number.isInteger(pid) || typeof startId !== 'string' || !startId) {
+    return null;
+  }
+
+  return {
+    command:
+      typeof identity.command === 'string' ? identity.command : undefined,
+    pid,
+    startId,
+  };
+};
+
+const processIdentityMatches = (record, identity) => {
+  const normalized = normalizeProcessIdentity(identity);
+
+  return (
+    normalized !== null &&
+    normalized.pid === record.pid &&
+    normalized.startId === record.startId
+  );
+};
+
+const toErrorMessage = (error) =>
+  error instanceof Error ? error.message : String(error);
+
+const toErrorCode = (error) =>
+  error && typeof error === 'object' && 'code' in error
+    ? String(error.code)
+    : undefined;
+
+const parseLinuxStatStartId = (stat) => {
+  const commandEnd = stat.lastIndexOf(') ');
+
+  if (commandEnd === -1) {
+    return null;
+  }
+
+  const fieldsAfterCommand = stat
+    .slice(commandEnd + 2)
+    .trim()
+    .split(/\s+/);
+
+  return fieldsAfterCommand[19] ?? null;
+};
+
+export const readLinuxProcessIdentity = (pid) => {
+  const numericPid = Number(pid);
+
+  if (!Number.isInteger(numericPid)) {
+    return null;
+  }
+
+  try {
+    const stat = readFileSync(`/proc/${numericPid}/stat`, 'utf8');
+    const startId = parseLinuxStatStartId(stat);
+
+    return startId ? { pid: numericPid, startId } : null;
+  } catch (error) {
+    if (toErrorCode(error) === 'ENOENT') {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
+const upsertOwnedProcessRecord = ({
+  command,
+  origin,
+  pid,
+  ppid,
+  runId,
+  startId,
+  tracker,
+  verifiedAt,
 }) => {
-  const excluded = new Set(excludedPids);
+  const existing = tracker.records.get(pid);
+
+  if (existing && existing.startId !== startId) {
+    return false;
+  }
+
+  tracker.records.set(pid, {
+    command,
+    origin: existing?.origin ?? origin,
+    pid,
+    ppid,
+    runId,
+    startId,
+    verifiedAt,
+  });
+
+  return true;
+};
+
+/**
+ * @param {{
+ *   readonly rootIdentity?: ProcessIdentity | null;
+ *   readonly rootPid?: number | null;
+ *   readonly runId: string;
+ *   readonly now?: () => string;
+ * }} input
+ * @returns {OwnedProcessTracker}
+ */
+export const createOwnedTestProcessTracker = ({
+  rootIdentity = null,
+  rootPid = null,
+  runId,
+  now = () => new Date().toISOString(),
+}) => {
+  const tracker = {
+    cleanupStarted: false,
+    records: new Map(),
+    rootPid: Number.isInteger(Number(rootPid)) ? Number(rootPid) : null,
+    runId,
+  };
+  const normalizedRootIdentity = normalizeProcessIdentity(rootIdentity);
+
+  if (
+    tracker.rootPid !== null &&
+    normalizedRootIdentity &&
+    normalizedRootIdentity.pid === tracker.rootPid
+  ) {
+    upsertOwnedProcessRecord({
+      command: normalizedRootIdentity.command ?? '',
+      origin: 'spawned-root',
+      pid: tracker.rootPid,
+      ppid: null,
+      runId,
+      startId: normalizedRootIdentity.startId,
+      tracker,
+      verifiedAt: now(),
+    });
+  }
+
+  return tracker;
+};
+
+export const ownedTestProcessRecords = (tracker) =>
+  [...tracker.records.values()].sort((a, b) => b.pid - a.pid);
+
+/**
+ * @param {{
+ *   readonly identityLookup: (pid: number) => ProcessIdentity | null;
+ *   readonly processRows: readonly ProcessTableRow[];
+ *   readonly tracker: OwnedProcessTracker;
+ *   readonly now?: () => string;
+ * }} input
+ * @returns {{
+ *   readonly discovered: number[];
+ *   readonly recorded: number[];
+ *   readonly skipped: Array<{ readonly pid: number; readonly reason: string }>;
+ * }}
+ */
+export const recordOwnedTestProcessTree = ({
+  identityLookup,
+  processRows,
+  tracker,
+  now = () => new Date().toISOString(),
+}) => {
+  if (tracker.cleanupStarted) {
+    return {
+      discovered: [],
+      recorded: ownedTestProcessRecords(tracker).map((record) => record.pid),
+      skipped: [],
+    };
+  }
+
   const byParent = new Map();
-  const seedPids = new Set();
+  const rowsByPid = new Map();
+  const discovered = [];
+  const skipped = [];
 
   for (const row of processRows) {
     if (!byParent.has(row.ppid)) {
@@ -120,37 +306,250 @@ export const collectOwnedTestProcessIds = ({
     }
 
     byParent.get(row.ppid).push(row);
+    rowsByPid.set(row.pid, row);
+  }
 
-    const command = row.command;
-    const isOwnedSeed =
-      command.includes(localDir) ||
-      (command.includes(cwd) &&
-        command.includes(`devServerPort=${rspackDevServerPort}`)) ||
-      (command.includes(`127.0.0.1:${appPort}`) &&
-        command.includes('tests/settings/playwright-settings.json')) ||
-      (command.includes(`--port ${mongoPort}`) && command.includes(localDir));
+  const rootPid = tracker.rootPid;
+  const rootRow = rootPid === null ? null : rowsByPid.get(rootPid);
 
-    if (isOwnedSeed && !excluded.has(row.pid)) {
-      seedPids.add(row.pid);
+  if (rootPid !== null && rootRow && !tracker.records.has(rootPid)) {
+    let rootIdentity = null;
+
+    try {
+      rootIdentity = normalizeProcessIdentity(identityLookup(rootPid));
+    } catch (error) {
+      skipped.push({
+        pid: rootPid,
+        reason: `identity-unavailable:${toErrorMessage(error)}`,
+      });
+    }
+
+    if (rootIdentity && rootIdentity.pid === rootPid) {
+      upsertOwnedProcessRecord({
+        command: rootRow.command,
+        origin: 'spawned-root',
+        pid: rootPid,
+        ppid: rootRow.ppid,
+        runId: tracker.runId,
+        startId: rootIdentity.startId,
+        tracker,
+        verifiedAt: now(),
+      });
     }
   }
 
-  const owned = new Set(seedPids);
-  const queue = [...seedPids];
+  const rootRecord =
+    rootPid === null ? null : (tracker.records.get(rootPid) ?? null);
+  let rootIsCurrent = false;
+
+  if (rootRecord) {
+    try {
+      rootIsCurrent = processIdentityMatches(
+        rootRecord,
+        identityLookup(rootPid),
+      );
+    } catch (error) {
+      skipped.push({
+        pid: rootPid,
+        reason: `identity-unavailable:${toErrorMessage(error)}`,
+      });
+    }
+  }
+  const queue = rootIsCurrent ? [rootPid] : [];
+  const verifiedParents = new Set(queue);
 
   while (queue.length > 0) {
     const parentPid = queue.shift();
     const children = byParent.get(parentPid) ?? [];
 
     for (const child of children) {
-      if (!owned.has(child.pid) && !excluded.has(child.pid)) {
-        owned.add(child.pid);
+      if (verifiedParents.has(child.pid)) {
+        continue;
+      }
+
+      let childIdentity = null;
+
+      try {
+        childIdentity = normalizeProcessIdentity(identityLookup(child.pid));
+      } catch (error) {
+        skipped.push({
+          pid: child.pid,
+          reason: `identity-unavailable:${toErrorMessage(error)}`,
+        });
+        continue;
+      }
+
+      if (!childIdentity || childIdentity.pid !== child.pid) {
+        skipped.push({
+          pid: child.pid,
+          reason: 'identity-unverified',
+        });
+        continue;
+      }
+
+      const wasRecorded = tracker.records.has(child.pid);
+
+      if (
+        upsertOwnedProcessRecord({
+          command: child.command,
+          origin: 'verified-descendant',
+          pid: child.pid,
+          ppid: child.ppid,
+          runId: tracker.runId,
+          startId: childIdentity.startId,
+          tracker,
+          verifiedAt: now(),
+        })
+      ) {
+        if (!wasRecorded) {
+          discovered.push(child.pid);
+        }
+
+        verifiedParents.add(child.pid);
         queue.push(child.pid);
       }
     }
   }
 
-  return [...owned].sort((a, b) => b - a);
+  return {
+    discovered: discovered.sort((a, b) => b - a),
+    recorded: ownedTestProcessRecords(tracker).map((record) => record.pid),
+    skipped,
+  };
+};
+
+const emptySignalResults = () => ({
+  exited: [],
+  failed: [],
+  sent: [],
+  skipped: [],
+});
+
+const signalVerifiedProcessRecords = ({
+  identityLookup,
+  records,
+  signal,
+  signalProcess,
+}) => {
+  const results = emptySignalResults();
+  const sentRecords = [];
+
+  for (const record of records) {
+    let currentIdentity = null;
+
+    try {
+      currentIdentity = normalizeProcessIdentity(identityLookup(record.pid));
+    } catch (error) {
+      results.skipped.push({
+        error: toErrorMessage(error),
+        pid: record.pid,
+        reason: 'identity-unavailable',
+        signal,
+      });
+      continue;
+    }
+
+    if (!currentIdentity) {
+      results.exited.push({
+        pid: record.pid,
+        reason: 'not-running',
+        signal,
+      });
+      continue;
+    }
+
+    if (!processIdentityMatches(record, currentIdentity)) {
+      results.skipped.push({
+        pid: record.pid,
+        reason: 'identity-changed',
+        signal,
+      });
+      continue;
+    }
+
+    try {
+      signalProcess(record.pid, signal);
+      results.sent.push({
+        pid: record.pid,
+        signal,
+        status: 'sent',
+      });
+      sentRecords.push(record);
+    } catch (error) {
+      if (toErrorCode(error) === 'ESRCH') {
+        results.exited.push({
+          pid: record.pid,
+          reason: 'not-running',
+          signal,
+        });
+      } else {
+        results.failed.push({
+          error: toErrorMessage(error),
+          pid: record.pid,
+          signal,
+        });
+      }
+    }
+  }
+
+  return {
+    results,
+    sentRecords,
+  };
+};
+
+/**
+ * @param {{
+ *   readonly graceMs?: number;
+ *   readonly identityLookup: (pid: number) => ProcessIdentity | null;
+ *   readonly signalProcess?: (pid: number, signal: NodeJS.Signals | string) => void;
+ *   readonly sleep?: (durationMs: number) => Promise<void>;
+ *   readonly tracker: OwnedProcessTracker;
+ * }} input
+ */
+export const cleanupOwnedTestProcesses = async ({
+  graceMs = 750,
+  identityLookup,
+  signalProcess = process.kill,
+  sleep = (durationMs) =>
+    new Promise((resolveSleep) => {
+      setTimeout(resolveSleep, durationMs);
+    }),
+  tracker,
+}) => {
+  if (tracker.cleanupStarted) {
+    return {
+      alreadyStarted: true,
+      kill: emptySignalResults(),
+      term: emptySignalResults(),
+    };
+  }
+
+  tracker.cleanupStarted = true;
+
+  const termAttempt = signalVerifiedProcessRecords({
+    identityLookup,
+    records: ownedTestProcessRecords(tracker),
+    signal: 'SIGTERM',
+    signalProcess,
+  });
+
+  if (termAttempt.sentRecords.length > 0) {
+    await sleep(graceMs);
+  }
+
+  const killAttempt = signalVerifiedProcessRecords({
+    identityLookup,
+    records: termAttempt.sentRecords,
+    signal: 'SIGKILL',
+    signalProcess,
+  });
+
+  return {
+    alreadyStarted: false,
+    kill: killAttempt.results,
+    term: termAttempt.results,
+  };
 };
 
 export const createIsolatedTestEnvironment = ({
