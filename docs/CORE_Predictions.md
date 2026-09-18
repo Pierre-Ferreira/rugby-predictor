@@ -262,14 +262,27 @@ state. A save accepted before lock can still finish for the same active session
 and clear its submitting state; the visible locked display remains based on the
 persisted prediction entry.
 
+CCPP-009B adds a development/test-only Kaplay preview for the Match Result
+step. Standard remains the default presentation for ordinary use and remains
+the presentation for Intro, all non-Match-Result questions, Review, and locked
+views. The preview uses the same shared prediction session and can be switched
+On/Off without losing answers, location, message variants, captured revision,
+conflict/submission state, dirty/discard state, or partial custom answers. It
+falls back to Standard when the preview gate is disabled, Animations are Off,
+reduced motion is requested, the step is unsupported, initialization is
+cancelled or fails, the runtime fails, or the canvas loses its graphics
+context. This milestone does not implement the full animated flow, Rooster
+artwork, shove animation, or animated Review/submission.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
 - Match results and final scoring persistence.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
-- Kaplay animation design, mascot behavior, capability detection, fallback
-  machinery, and player animation controls.
+- Kaplay animation design beyond the 009B Match Result preview, mascot
+  behavior, full-flow capability detection, production rollout, and player
+  animation controls beyond the development/test On/Off preview.
 - Custom-question scoring or settlement, official-answer workflows, and future
   balancing across fixtures with different optional/custom question sets.
 - Detailed card-event normalization, including second-yellow dismissals and card

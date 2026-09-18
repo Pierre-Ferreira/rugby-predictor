@@ -48,6 +48,12 @@ The active numbered list is built from `activePredictionSteps(ruleset)`.
 Progress, Back/Continue, final `Review predictions`, Review edit destinations,
 and locked read-only Review rendering consume that active list.
 
+CCPP-009B adds Kaplay support for the Match Result step only. The active
+sequence does not change: Intro is still outside numbered progress, Match
+Result remains step 1 when enabled, and Continue still advances to the next
+actual sequence item. Unsupported steps do not reset, skip, or auto-answer
+questions just to show the preview; they render through Standard.
+
 CCPP-008A extends that same active list with dynamic custom steps from the
 fixture's frozen ruleset snapshot. Custom step IDs use
 `custom:<questionId>`. The player order is:
@@ -98,8 +104,8 @@ counting definition.
 
 The shared prediction session keeps one `PredictionFormState` for the whole
 sequence. Intro, numbered steps, Review, Edit-from-Review, submit/revise,
-discard, conflict recovery, Standard React, and future renderers all read or
-update that same state through the session contract.
+discard, conflict recovery, Standard React, and the CCPP-009B Kaplay Match
+Result preview all read or update that same state through the session contract.
 
 Custom answers live in the same form state under `customAnswers`, keyed by
 stable custom question ID. Number custom answers are kept as strings while

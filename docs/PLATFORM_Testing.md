@@ -53,7 +53,7 @@ Runner: Vitest.
 
 Current implementation: locally verified for CCPP-003A.
 
-Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation. CCPP-009A1 also uses a per-file `jsdom` environment for real React DOM hook/component lifecycle tests; those tests still mock the Meteor transport boundary with controlled promises and are not live Meteor integration tests.
+Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation. CCPP-009A1 also uses a per-file `jsdom` environment for real React DOM hook/component lifecycle tests; those tests still mock the Meteor transport boundary with controlled promises and are not live Meteor integration tests. CCPP-009B configures Vitest's OXC JSX transform so those React component tests can import TSX modules while Meteor continues to preserve JSX for application bundling.
 
 Test locations and naming:
 
@@ -105,6 +105,12 @@ Current unit test files:
   replaceable keyed consumers below one session owner, controlled submit
   promises, duplicate-submit transport assertions, read-only context updates,
   and disposed-owner stale completion isolation.
+- `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B pure preview
+  gate/effective-mode and animation preference storage tests.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B real React DOM
+  presentation-host lifecycle tests using mocked runtime factories, controlled
+  initialization promises, timeout control, cleanup/disposal assertions,
+  failure latch/retry, and stale callback isolation.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,
@@ -230,6 +236,14 @@ The current browser suite covers:
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.
+- Kaplay Match Result preview coverage in
+  `tests/e2e/kaplay-prediction-preview.spec.ts`: cold Standard-only visits do
+  not import Kaplay, real Kaplay canvas choice selection updates shared session
+  state, Off/On switching preserves the answer, Continue hands off to the next
+  Standard step, reduced motion stops the preview, delayed initialization can
+  be cancelled, runtime callback failure and graphics-context loss fall back to
+  Standard, keyboard selection works through the DOM bridge, and the disabled
+  preview gate cannot be overridden by stored On.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

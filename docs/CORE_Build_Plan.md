@@ -519,12 +519,62 @@ Not implemented:
   visual redesign, browser draft persistence, scoring changes, result changes,
   leaderboards, or service-worker caching.
 
+## CCPP-009A1 Scope
+
+Milestone status: implemented for shared prediction session lifecycle guards.
+Verification evidence is recorded in
+`docs/AUDIT_009A1_Session_Lifecycle_Guards.md`.
+
+Implemented:
+
+- Symmetrical session-owner effect setup and cleanup.
+- Read-only command guards for direct renderer actions.
+- In-flight duplicate-submit and discard/reload protections.
+- Old-owner async response isolation.
+- Legitimate same-session submit completion after reactive read-only changes.
+- Real React DOM hook coverage for owner and replaceable consumer behavior.
+
+Not implemented:
+
+- Kaplay runtime, canvas rendering, renderer switching, animation preferences,
+  reduced-motion handling, or runtime fallback.
+
+## CCPP-009B Scope
+
+Milestone status: implemented for the development/test-only Kaplay runtime
+preview and safe fallback. Platform details live in
+`docs/PLATFORM_Kaplay_Predictions.md`, and verification evidence is recorded in
+`docs/AUDIT_009B_Kaplay_Runtime_Fallback.md`.
+
+Implemented:
+
+- `kaplay@3001.0.19` dependency and lazy client-only dynamic import.
+- Settings-gated non-production preview with Animations On/Off preference.
+- Reduced-motion Standard fallback.
+- Effective-mode projection for gate, preference, reduced motion, step support,
+  and runtime state.
+- Owned canvas, non-global KAPLAY context, initialization timeout, runtime
+  cleanup, context-loss handling, visibility pause, failure latch, and retry.
+- One real interactive Kaplay Match Result screen using the shared prediction
+  session, actual fixture team names, Draw, current messages, current selected
+  state, and shared Back/Continue actions.
+- DOM semantic choice bridge for keyboard/accessibility.
+- Focused unit, mocked lifecycle, real-browser preview, and Standard
+  regression coverage.
+
+Not implemented:
+
+- Rooster artwork, shove animation, complete built-in/custom Kaplay question
+  flow, Kaplay Review/submission, public/default rollout, FPS quality tiers,
+  new persistence schemas, prediction/server redesign, scores/leaderboards,
+  result settlement, authentication/Postmark, admin refresh, or offline
+  caching.
+
 ## CCPP-009 Future Boundaries
 
 These boundaries preserve the staged Kaplay plan. They are not implemented by
-CCPP-009A.
+CCPP-009B.
 
-- 009B - Kaplay runtime, mode switching, and fallback.
 - 009C - visual foundation and Rooster shove.
 - 009D - complete built-in/custom question screens.
 - 009E - Review/submission/edit parity.

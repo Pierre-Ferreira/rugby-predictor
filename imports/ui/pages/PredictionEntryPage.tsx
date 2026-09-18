@@ -1,6 +1,7 @@
 import {
   type ChangeEvent,
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useState,
@@ -71,6 +72,8 @@ import {
   type PredictionSessionActions,
   type PredictionSessionRendererState,
 } from '../predictions/predictionSession';
+import { kaplayPreviewSettingsFromMeteor } from '../predictions/presentationMode';
+import { PredictionPresentationHost } from '../predictions/PredictionPresentationHost';
 
 type PredictionStepRenderer = (props: PredictionStepContentProps) => ReactNode;
 
@@ -338,6 +341,16 @@ const PredictionEntrySession = ({
     ruleset,
     userId,
   });
+  const previewSettings = kaplayPreviewSettingsFromMeteor(Meteor);
+  const renderStandardPrediction = useCallback(
+    () => (
+      <StandardPredictionRenderer
+        actions={session.actions}
+        state={session.state}
+      />
+    ),
+    [session.actions, session.state],
+  );
 
   return (
     <PredictionShell>
@@ -360,8 +373,10 @@ const PredictionEntrySession = ({
           ruleset={ruleset}
         />
       ) : (
-        <StandardPredictionRenderer
+        <PredictionPresentationHost
           actions={session.actions}
+          previewSettings={previewSettings}
+          renderStandard={renderStandardPrediction}
           state={session.state}
         />
       )}

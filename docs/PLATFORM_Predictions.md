@@ -278,6 +278,13 @@ answer by stable question ID, Back, Continue, edit step, return to Review,
 submit/revise, discard confirmation, and load latest saved prediction. Commands
 do not require React event objects or DOM access.
 
+CCPP-009B adds `imports/ui/predictions/PredictionPresentationHost.tsx` below
+that session owner. The host gates the development/test Kaplay preview,
+persists only the Animations On/Off preference, observes reduced motion, and
+selects Standard or the lazy preview without remounting the shared session.
+`imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx` is the only
+Kaplay-backed screen in 009B.
+
 ## Prediction Presentation Architecture
 
 Future Rugby Rooster prediction presentation has two complete experiences:
@@ -320,8 +327,13 @@ CCPP-009A implements the first code boundary for that architecture: one shared
 editable session above the presentation subtree. Replacing or remounting the
 renderer preserves answers, current location, Review/edit context, message
 variants, captured expected revision, dirty/conflict state, and submission
-state because those values are owned outside the renderer. Kaplay remains
-unimplemented.
+state because those values are owned outside the renderer.
+
+CCPP-009B implements the first runtime proof: a non-production, settings-gated,
+lazy-loaded Kaplay Match Result preview. Standard remains the ordinary default
+and handles all unsupported steps, read-only saved-entry views, Off preference,
+reduced-motion preference, loading cancellation, initialization failure,
+runtime failure, and graphics-context loss.
 
 ## Test Support
 

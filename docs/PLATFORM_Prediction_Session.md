@@ -199,13 +199,14 @@ Read-only locked/cancelled display intentionally remains outside the editable
 renderer contract in 009A. It continues to render from persisted entry data, not
 dirty local form values.
 
-## Future Kaplay Adapter
+## Kaplay Preview Adapter
 
-A later CCPP-009 stage may add a Kaplay presentation beside Standard. That
-adapter should receive the same session state and call the same session actions.
-Kaplay may own canvas setup, scene objects, animation progress, visual effects,
-and input affordances, but it must not own a second prediction answer state,
-duplicate submission logic, or independent business validation.
+CCPP-009B adds the first Kaplay presentation beside Standard for the Match
+Result step only. The adapter receives the same session state and calls the same
+session actions. Kaplay owns canvas setup, draw/update handlers, pointer
+hit-testing, a short selection pulse, visual effects, and runtime cleanup. It
+does not own a second prediction answer state, duplicate submission logic, or
+independent business validation.
 
 Renderer replacement preserves answers, location, message variants, captured
 revision, conflict state, and submission state because those values are owned by
@@ -214,6 +215,14 @@ the shared session above the renderer subtree.
 009A1 verifies that behavior with a real React DOM harness: the owner remains
 mounted while a keyed consumer below it is replaced, replacement sends no save
 request, and a pending request completes into the surviving owner exactly once.
+
+009B extends that protection with presentation-mode and mocked-runtime lifecycle
+tests. The runtime callback path re-checks the current session and supported
+step before dispatching `selectBuiltInChoice('matchResult', value)`. Unsupported
+steps, loading cancellation, reduced motion, Off preference, runtime failure,
+read-only context, account replacement, and fixture replacement all leave the
+shared session owner as the source of truth and render Standard or persisted
+read-only display as appropriate.
 
 ## Renderer-Local State
 

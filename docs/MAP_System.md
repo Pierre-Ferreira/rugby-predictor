@@ -27,6 +27,9 @@
   session ownership, lifecycle, renderer-facing state/actions, Standard
   adapter, future Kaplay adapter boundary, revision/submission/discard handling,
   and renderer-local state.
+- `docs/PLATFORM_Kaplay_Predictions.md` - CCPP-009B development/test Kaplay
+  prediction preview gate, lazy runtime, effective-mode policy, one-screen Match
+  Result support, fallback, cleanup, accessibility bridge, and limitations.
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
   revision handling, final confirmation, and custom Void scoring preparation.
@@ -76,6 +79,12 @@
 - `docs/AUDIT_009A_Shared_Prediction_Session.md` - CCPP-009A shared
   prediction session and renderer contract implementation, tests, asset
   inventory, limitations, and review archive evidence.
+- `docs/AUDIT_009A1_Session_Lifecycle_Guards.md` - CCPP-009A1 shared session
+  lifecycle guards, command guards, stale-response isolation, tests, and review
+  archive evidence.
+- `docs/AUDIT_009B_Kaplay_Runtime_Fallback.md` - CCPP-009B Kaplay runtime,
+  mode switching, safe fallback, one-screen Match Result preview, tests,
+  limitations, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -102,6 +111,10 @@
   settlement and final packaging handoff.
 - `docs/TEMP_009A_Resume.md` - temporary CCPP-009A checkpoint for shared
   prediction session extraction, Standard wiring, tests, docs, and packaging.
+- `docs/TEMP_009A1_Resume.md` - temporary CCPP-009A1 checkpoint for session
+  lifecycle guard verification.
+- `docs/TEMP_009B_Resume.md` - temporary CCPP-009B checkpoint for Kaplay
+  runtime, fallback, verification, documentation, and packaging.
 
 ## Application Entry Points
 
@@ -216,16 +229,29 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/predictions/standardPredictionState.ts` - CCPP-007 standard
   prediction form state helpers, score derivation adapters, result consistency,
   and first-try constraints.
+- `imports/ui/predictions/PredictionPresentationHost.tsx` - CCPP-009B
+  Standard/Kaplay preview selection host, Animations control, reduced-motion
+  fallback, loading cancel, failure latch, and retry.
+- `imports/ui/predictions/presentationMode.ts` - CCPP-009B preview setting,
+  supported-step, and effective-mode policy helpers.
+- `imports/ui/predictions/presentationPreference.ts` - CCPP-009B resilient
+  browser-storage preference helper for Animations On/Off.
+- `imports/ui/predictions/reducedMotion.ts` - CCPP-009B reduced-motion media
+  query helper.
+- `imports/ui/predictions/kaplay/` - CCPP-009B lazy Kaplay Match Result
+  preview component and runtime adapter.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
-  route host, Standard renderer, Intro, numbered steps, Review/Edit UI, and
-  read-only locked-entry UI that presents persisted entry data.
+  route host, shared session host, Standard renderer, Kaplay presentation host,
+  Intro, numbered steps, Review/Edit UI, and read-only locked-entry UI that
+  presents persisted entry data.
 
 ## Verification Entry Points
 
 - `eslint.config.mjs` - ESLint flat config for TypeScript syntax, React, hooks, JSX accessibility, JavaScript, and config files.
 - `prettier.config.cjs` - Prettier formatting settings.
 - `.prettierignore` - generated and dependency paths excluded from formatting.
-- `vitest.config.mts` - unit-test configuration.
+- `vitest.config.mts` - unit-test configuration, including CCPP-009B OXC JSX
+  transform settings for React component tests.
 - `playwright.config.ts` - browser-test configuration with local Meteor web server management.
 - `rspack.config.ts` - Meteor Rspack configuration, TypeScript checker plugin, local dev-server host settings, and isolated-E2E Rspack HMR/live-reload suppression gate.
 - `.github/workflows/verification.yml` - GitHub Actions verification workflow.
@@ -255,6 +281,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   `usePredictionSession(...)` lifecycle, Strict Mode effect replay,
   presentation replacement, duplicate transport, read-only context update, and
   disposed-owner stale completion tests.
+- `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B preview
+  effective-mode and preference-storage unit tests.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B React DOM
+  presentation-host lifecycle tests with mocked runtime factories.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
@@ -279,6 +309,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   first-try constraints, submit/revisit, Review Edit and Return to Review, edit
   before kickoff, persisted locked read-only display after dirty local edits,
   custom Number/Choice questions, and conflict value preservation.
+- `tests/e2e/kaplay-prediction-preview.spec.ts` - CCPP-009B browser tests for
+  real Kaplay Match Result preview selection, mode switching, reduced motion,
+  delayed initialization cancellation, runtime failure fallback,
+  graphics-context loss, keyboard bridge, and preview-gate behavior.
 - `tests/e2e/results.spec.ts` - browser tests for result admin provisional
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only

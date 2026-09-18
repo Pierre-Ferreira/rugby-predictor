@@ -1,4 +1,12 @@
 {
+  "public": {
+    "rugbyRooster": {
+      "kaplayPredictionPreview": {
+        "enabled": true,
+        "testControls": true
+      }
+    }
+  },
   "private": {
     "rugbyRooster": {
       "appUrl": "http://127.0.0.1:3200",
