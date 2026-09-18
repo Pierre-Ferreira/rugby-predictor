@@ -83,6 +83,7 @@ const contextForRuleset = (
   options: {
     readonly currentEntry?: PredictionSessionReducerContext['currentEntry'];
     readonly fixtureId?: string;
+    readonly isReadOnly?: boolean;
     readonly userId?: string;
   } = {},
 ): PredictionSessionReducerContext => {
@@ -93,7 +94,7 @@ const contextForRuleset = (
     currentEntry: options.currentEntry ?? null,
     fixture: fixtureForRuleset(ruleset, fixtureId),
     fixtureId,
-    isReadOnly: false,
+    isReadOnly: options.isReadOnly ?? false,
     ruleset,
     userId: options.userId ?? 'user-1',
   };
@@ -465,5 +466,233 @@ describe('prediction session contract', () => {
 
     expect(accepted.editSession.expectedRevision).toBe(1);
     expect(accepted.feedback?.message).toBe('Prediction saved.');
+  });
+
+  it('keeps read-only availability and direct edit commands aligned', () => {
+    const ruleset = buildConfiguredRulesetSnapshot(customQuestionConfig());
+    const savedPrediction: FixturePrediction = {
+      ...validPrediction(),
+      customAnswers: {
+        'player-band': 'backs',
+        'scrum-pressure': 4,
+      },
+    };
+    const entry = predictionEntry({
+      prediction: savedPrediction,
+      revision: 3,
+      ruleset,
+    });
+    const context = contextForRuleset(ruleset, {
+      currentEntry: entry,
+      isReadOnly: true,
+    });
+    const state = initialSession(context, {
+      expectedRevision: entry.revision,
+      form: formFromPrediction(savedPrediction, ruleset),
+    });
+    const view = derivePredictionSessionState(state, context);
+
+    expect(view.navigation.canContinue).toBe(false);
+    expect(view.navigation.canGoBack).toBe(false);
+    expect(view.navigation.canRequestDiscard).toBe(false);
+    expect(view.navigation.canReturnToReview).toBe(false);
+    expect(view.navigation.canSubmit).toBe(false);
+
+    expect(
+      reduce(state, context, {
+        field: 'matchResult',
+        type: 'select-built-in-choice',
+        value: 'team2',
+      }),
+    ).toEqual(state);
+    expect(
+      reduce(state, context, {
+        field: 'tries',
+        side: 'team1',
+        type: 'change-team-field',
+        value: '8',
+      }),
+    ).toEqual(state);
+    expect(
+      reduce(state, context, {
+        questionId: 'scrum-pressure',
+        type: 'change-custom-answer',
+        value: '9',
+      }),
+    ).toEqual(state);
+    expect(
+      reduce(state, context, {
+        stepId: 'match-result',
+        type: 'edit-step',
+      }),
+    ).toEqual(state);
+    expect(reduce(state, context, { type: 'go-back' })).toEqual(state);
+    expect(reduce(state, context, { type: 'request-discard' })).toEqual(state);
+    expect(
+      reduce(state, context, { type: 'load-latest-saved-prediction' }),
+    ).toEqual(state);
+
+    const introState = initialSession(context, {
+      expectedRevision: null,
+    });
+
+    expect(
+      derivePredictionSessionState(introState, context).navigation.canContinue,
+    ).toBe(false);
+    expect(reduce(introState, context, { type: 'start-prediction' })).toEqual(
+      introState,
+    );
+    expect(reduce(introState, context, { type: 'continue-forward' })).toEqual(
+      introState,
+    );
+  });
+
+  it('blocks discard and latest-load replacement while a save is in flight', () => {
+    const originalPrediction = validPrediction();
+    const latestPrediction: FixturePrediction = {
+      ...validPrediction(),
+      halfTimeLeader: 'draw',
+      team1: {
+        ...validPrediction().team1,
+        tries: 1,
+      },
+    };
+    const originalEntry = predictionEntry({
+      prediction: originalPrediction,
+      revision: 1,
+      ruleset: defaultRuleset,
+    });
+    const latestEntry = predictionEntry({
+      prediction: latestPrediction,
+      revision: 2,
+      ruleset: defaultRuleset,
+    });
+    const originalContext = contextForRuleset(defaultRuleset, {
+      currentEntry: originalEntry,
+    });
+    const latestContext = contextForRuleset(defaultRuleset, {
+      currentEntry: latestEntry,
+    });
+    let state = initialSession(originalContext, {
+      expectedRevision: 1,
+      form: formFromPrediction(originalPrediction, defaultRuleset),
+    });
+
+    state = reduce(state, originalContext, {
+      stepId: 'tries',
+      type: 'edit-step',
+    });
+    state = reduce(state, originalContext, {
+      field: 'tries',
+      side: 'team1',
+      type: 'change-team-field',
+      value: '5',
+    });
+    state = {
+      ...state,
+      feedback: {
+        code: 'prediction-conflict',
+        kind: 'error',
+        message: 'Conflict.',
+      },
+      isDiscardConfirmOpen: true,
+      isSubmitting: true,
+    };
+
+    const pendingView = derivePredictionSessionState(state, latestContext);
+
+    expect(pendingView.navigation.canRequestDiscard).toBe(false);
+    expect(pendingView.isDiscardConfirmOpen).toBe(false);
+    expect(reduce(state, latestContext, { type: 'request-discard' })).toEqual(
+      state,
+    );
+    expect(
+      reduce(state, latestContext, { type: 'load-latest-saved-prediction' }),
+    ).toEqual(state);
+
+    const cancelled = reduce(state, latestContext, { type: 'cancel-discard' });
+
+    expect(cancelled.isDiscardConfirmOpen).toBe(false);
+    expect(cancelled.form.team1.tries).toBe('5');
+    expect(cancelled.editSession.expectedRevision).toBe(1);
+
+    state = {
+      ...state,
+      isDiscardConfirmOpen: false,
+      isSubmitting: false,
+    };
+
+    const conflictRecovered = reduce(state, latestContext, {
+      type: 'request-discard',
+    });
+
+    expect(conflictRecovered.form.team1.tries).toBe('1');
+    expect(conflictRecovered.editSession.expectedRevision).toBe(2);
+    expect(conflictRecovered.feedback?.message).toBe(
+      'Latest saved prediction loaded. Unsaved values were replaced.',
+    );
+
+    state = {
+      ...state,
+      feedback: null,
+    };
+
+    const requested = reduce(state, latestContext, { type: 'request-discard' });
+    expect(requested.isDiscardConfirmOpen).toBe(true);
+
+    const confirmed = reduce(requested, latestContext, {
+      type: 'load-latest-saved-prediction',
+    });
+
+    expect(confirmed.form.team1.tries).toBe('1');
+    expect(confirmed.editSession.expectedRevision).toBe(2);
+  });
+
+  it('allows internal submit completion for the same session after context becomes read-only', () => {
+    const editableContext = contextForRuleset(defaultRuleset);
+    const readOnlyContext = {
+      ...editableContext,
+      isReadOnly: true,
+    };
+    const sessionKey = predictionSessionKey({
+      fixtureId: editableContext.fixtureId,
+      userId: editableContext.userId,
+    });
+    let state = initialSession(editableContext, {
+      form: formFromPrediction(validPrediction(), defaultRuleset),
+    });
+
+    state = {
+      ...state,
+      location: { kind: 'review' },
+    };
+    state = reduce(state, editableContext, {
+      sessionKey,
+      type: 'submit-start',
+    });
+
+    expect(state.isSubmitting).toBe(true);
+
+    state = reduce(state, readOnlyContext, {
+      result: {
+        fixtureId: editableContext.fixtureId,
+        predictionId: 'prediction-1',
+        revision: 4,
+        status: 'created',
+      },
+      sessionKey,
+      type: 'submit-success',
+    });
+    state = reduce(state, readOnlyContext, {
+      sessionKey,
+      type: 'submit-finish',
+    });
+
+    expect(state.editSession.expectedRevision).toBe(4);
+    expect(state.feedback?.message).toBe('Prediction saved.');
+    expect(state.isSubmitting).toBe(false);
+    expect(
+      derivePredictionSessionState(state, readOnlyContext).isReadOnly,
+    ).toBe(true);
   });
 });

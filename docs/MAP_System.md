@@ -208,9 +208,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
 - `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
 - `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
-- `imports/ui/predictions/predictionSession.ts` - CCPP-009A editable
-  prediction session owner, renderer-facing state/actions, navigation guards,
-  message variant ownership, revision capture, discard/conflict handling, and
+- `imports/ui/predictions/predictionSession.ts` - CCPP-009A/009A1 editable
+  prediction session owner, renderer-facing state/actions, navigation and
+  read-only command guards, message variant ownership, revision capture,
+  discard/conflict handling, symmetrical mounted-owner lifecycle, and duplicate
   submission guard.
 - `imports/ui/predictions/standardPredictionState.ts` - CCPP-007 standard
   prediction form state helpers, score derivation adapters, result consistency,
@@ -246,9 +247,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A/008A standard
   sequence, custom step ordering, message catalog, ruleset-aware copy, and
   state-helper unit tests.
-- `tests/unit/prediction-session.test.ts` - CCPP-009A shared prediction session
-  state/action contract, renderer-consumer replacement, revision preservation,
-  duplicate submit state, and stale response isolation tests.
+- `tests/unit/prediction-session.test.ts` - CCPP-009A/009A1 shared prediction
+  session reducer/derivation contract, read-only guard, discard/reload guard,
+  revision preservation, duplicate submit state, and stale response isolation
+  tests.
+- `tests/unit/prediction-session-hook.test.ts` - CCPP-009A1 React DOM
+  `usePredictionSession(...)` lifecycle, Strict Mode effect replay,
+  presentation replacement, duplicate transport, read-only context update, and
+  disposed-owner stale completion tests.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,

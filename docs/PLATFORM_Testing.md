@@ -53,7 +53,7 @@ Runner: Vitest.
 
 Current implementation: locally verified for CCPP-003A.
 
-Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation.
+Vitest runs fast TypeScript unit tests without starting Meteor, MongoDB, or a browser. Use it for framework-independent domain logic such as route resolution, browser-test target safety, and scoring/prediction validation. CCPP-009A1 also uses a per-file `jsdom` environment for real React DOM hook/component lifecycle tests; those tests still mock the Meteor transport boundary with controlled promises and are not live Meteor integration tests.
 
 Test locations and naming:
 
@@ -93,11 +93,18 @@ Current unit test files:
   Half-Time Leader wording/display labels, team-name interpolation, first-try
   constraints, conversion clamping, custom step ordering/progress, custom Review
   edit destinations, and score/result consistency helpers.
-- `tests/unit/prediction-session.test.ts` - CCPP-009A shared prediction session
-  contract tests for answer updates, Back/Continue preservation, custom answer
-  stable IDs, blank custom Number handling, navigation guards, message variant
-  stability, renderer-consumer replacement, reactive revision preservation,
-  duplicate submit state, and stale response isolation.
+- `tests/unit/prediction-session.test.ts` - CCPP-009A/009A1 shared
+  prediction session reducer/derivation contract tests for answer updates,
+  Back/Continue preservation, custom answer stable IDs, blank custom Number
+  handling, navigation guards, read-only command guards, discard/reload guards
+  during submission, internal completion after read-only context changes,
+  message variant stability, reactive revision preservation, duplicate submit
+  state, and stale response isolation.
+- `tests/unit/prediction-session-hook.test.ts` - CCPP-009A1 real React DOM
+  `usePredictionSession(...)` lifecycle tests using `jsdom`, React Strict Mode,
+  replaceable keyed consumers below one session owner, controlled submit
+  promises, duplicate-submit transport assertions, read-only context updates,
+  and disposed-owner stale completion isolation.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,

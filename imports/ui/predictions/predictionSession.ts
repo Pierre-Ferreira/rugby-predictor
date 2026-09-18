@@ -145,6 +145,7 @@ export interface PredictionSessionInput {
   readonly initialForm: PredictionFormState;
   readonly isReadOnly: boolean;
   readonly ruleset: RulesetSnapshot;
+  readonly submitPredictionMethod?: PredictionMethodCaller;
   readonly userId: string;
 }
 
@@ -208,6 +209,11 @@ export type PredictionSessionAction =
       readonly sessionKey: string;
       readonly type: 'submit-success';
     };
+
+export type PredictionMethodCaller = <TResult>(
+  methodName: string,
+  input: unknown,
+) => Promise<TResult>;
 
 export const predictionSessionKey = ({
   fixtureId,
@@ -348,25 +354,31 @@ const goToLocation = (
 const loadLatestSavedPredictionState = (
   state: PredictionSessionLocalState,
   context: PredictionSessionReducerContext,
-): PredictionSessionLocalState => ({
-  ...state,
-  conversionAdjustmentNotice: null,
-  editSession: {
-    expectedRevision: context.currentEntry?.revision ?? null,
-    fixtureId: context.fixtureId,
-    userId: context.userId,
-  },
-  feedback: {
-    kind: 'success',
-    message: context.currentEntry
-      ? 'Latest saved prediction loaded. Unsaved values were replaced.'
-      : 'Blank prediction form loaded. Unsaved values were replaced.',
-  },
-  form: persistedPredictionForm(context.currentEntry, context.ruleset),
-  isDiscardConfirmOpen: false,
-  isEditingFromReview: false,
-  location: context.currentEntry ? { kind: 'review' } : { kind: 'intro' },
-});
+): PredictionSessionLocalState => {
+  if (context.isReadOnly || state.isSubmitting) {
+    return state;
+  }
+
+  return {
+    ...state,
+    conversionAdjustmentNotice: null,
+    editSession: {
+      expectedRevision: context.currentEntry?.revision ?? null,
+      fixtureId: context.fixtureId,
+      userId: context.userId,
+    },
+    feedback: {
+      kind: 'success',
+      message: context.currentEntry
+        ? 'Latest saved prediction loaded. Unsaved values were replaced.'
+        : 'Blank prediction form loaded. Unsaved values were replaced.',
+    },
+    form: persistedPredictionForm(context.currentEntry, context.ruleset),
+    isDiscardConfirmOpen: false,
+    isEditingFromReview: false,
+    location: context.currentEntry ? { kind: 'review' } : { kind: 'intro' },
+  };
+};
 
 export const derivePredictionSessionState = (
   state: PredictionSessionLocalState,
@@ -395,12 +407,13 @@ export const derivePredictionSessionState = (
       : null;
   const currentStep = currentStepState(state, context);
   const canContinue =
-    state.location.kind === 'intro'
+    !context.isReadOnly &&
+    (state.location.kind === 'intro'
       ? true
       : state.location.kind === 'step'
         ? visibleConsistencyIssue === null &&
           currentStep?.validationMessage === null
-        : false;
+        : false);
   const continueLabel =
     currentStep &&
     isFinalPredictionStep(context.activeSteps, currentStep.step.id)
@@ -423,7 +436,11 @@ export const derivePredictionSessionState = (
     fixture: context.fixture,
     form: state.form,
     hasUnsavedChanges,
-    isDiscardConfirmOpen: state.isDiscardConfirmOpen && hasUnsavedChanges,
+    isDiscardConfirmOpen:
+      state.isDiscardConfirmOpen &&
+      !context.isReadOnly &&
+      !state.isSubmitting &&
+      hasUnsavedChanges,
     isEditingFromReview: state.isEditingFromReview,
     isPredictionConflict,
     isReadOnly: context.isReadOnly,
@@ -432,10 +449,13 @@ export const derivePredictionSessionState = (
     messageSelection: state.messageSelection,
     navigation: {
       canContinue,
-      canGoBack: state.location.kind !== 'intro',
+      canGoBack: !context.isReadOnly && state.location.kind !== 'intro',
       canRequestDiscard:
-        !state.isSubmitting && (isPredictionConflict || hasUnsavedChanges),
+        !context.isReadOnly &&
+        !state.isSubmitting &&
+        (isPredictionConflict || hasUnsavedChanges),
       canReturnToReview:
+        !context.isReadOnly &&
         state.location.kind === 'step' &&
         state.isEditingFromReview &&
         canContinue,
@@ -467,6 +487,10 @@ export const reducePredictionSessionState = (
       };
 
     case 'change-custom-answer':
+      if (context.isReadOnly) {
+        return state;
+      }
+
       if (!customQuestionById(context.ruleset, action.questionId)) {
         return state;
       }
@@ -484,6 +508,10 @@ export const reducePredictionSessionState = (
       };
 
     case 'change-team-field': {
+      if (context.isReadOnly) {
+        return state;
+      }
+
       const result = setTeamPredictionField(
         state.form,
         action.side,
@@ -502,6 +530,10 @@ export const reducePredictionSessionState = (
     }
 
     case 'continue-forward': {
+      if (context.isReadOnly) {
+        return state;
+      }
+
       const derived = derivePredictionSessionState(state, context);
 
       if (state.location.kind === 'intro') {
@@ -528,6 +560,10 @@ export const reducePredictionSessionState = (
     }
 
     case 'edit-step':
+      if (context.isReadOnly) {
+        return state;
+      }
+
       if (!context.activeSteps.some((step) => step.id === action.stepId)) {
         return state;
       }
@@ -541,6 +577,10 @@ export const reducePredictionSessionState = (
       };
 
     case 'go-back':
+      if (context.isReadOnly) {
+        return state;
+      }
+
       if (state.location.kind === 'step') {
         return goToLocation(
           state,
@@ -569,6 +609,10 @@ export const reducePredictionSessionState = (
 
     case 'request-discard': {
       const derived = derivePredictionSessionState(state, context);
+
+      if (!derived.navigation.canRequestDiscard) {
+        return state;
+      }
 
       if (derived.isPredictionConflict) {
         return loadLatestSavedPredictionState(state, context);
@@ -600,6 +644,10 @@ export const reducePredictionSessionState = (
     }
 
     case 'select-built-in-choice': {
+      if (context.isReadOnly) {
+        return state;
+      }
+
       const next = {
         ...state.form,
         [action.field]: action.value,
@@ -616,6 +664,10 @@ export const reducePredictionSessionState = (
     }
 
     case 'start-prediction': {
+      if (context.isReadOnly) {
+        return state;
+      }
+
       const firstStepId = firstPredictionStepId(context.activeSteps);
 
       return {
@@ -696,7 +748,7 @@ const codeFromError = (error: unknown): string | undefined =>
     ? String((error as { readonly error?: unknown }).error ?? '')
     : undefined;
 
-const callPredictionMethod = async <TResult>(
+const callPredictionMethod: PredictionMethodCaller = async <TResult>(
   methodName: string,
   input: unknown,
 ): Promise<TResult> => {
@@ -749,6 +801,9 @@ export const usePredictionSession = (
   );
   const localStateRef = useRef(localState);
   const isMountedRef = useRef(true);
+  const methodCallerRef = useRef<PredictionMethodCaller>(
+    input.submitPredictionMethod ?? callPredictionMethod,
+  );
   const submitInFlightRef = useRef(false);
 
   useEffect(() => {
@@ -759,12 +814,18 @@ export const usePredictionSession = (
     localStateRef.current = localState;
   }, [localState]);
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
       isMountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
+
+  useEffect(() => {
+    methodCallerRef.current =
+      input.submitPredictionMethod ?? callPredictionMethod;
+  }, [input.submitPredictionMethod]);
 
   const state = useMemo(
     () => derivePredictionSessionState(localState, context),
@@ -812,7 +873,7 @@ export const usePredictionSession = (
         latestContext.ruleset,
         latestContext.fixture,
       );
-      const result = await callPredictionMethod<PredictionMutationResult>(
+      const result = await methodCallerRef.current<PredictionMutationResult>(
         PREDICTION_METHODS.submit,
         {
           ...(latestState.editSession.expectedRevision === null

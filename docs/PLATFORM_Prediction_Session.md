@@ -3,13 +3,16 @@
 ## Purpose
 
 CCPP-009A extracts the editable prediction session above the replaceable
-presentation subtree. Standard React remains the only normal player-facing
-renderer in this milestone, but it now consumes a renderer-facing session
-contract instead of owning prediction answers, navigation, revision capture, and
-submission behavior inside the page component.
+presentation subtree. CCPP-009A1 tightens that extracted session's lifecycle,
+command guards, and hook-level verification. Standard React remains the only
+normal player-facing renderer in this milestone, but it consumes a
+renderer-facing session contract instead of owning prediction answers,
+navigation, revision capture, and submission behavior inside the page
+component.
 
 No Kaplay runtime, canvas, renderer picker, animation preference, fallback
-machinery, sprite loading, or runtime mode switching is implemented in 009A.
+machinery, sprite loading, or runtime mode switching is implemented in 009A or
+009A1.
 
 ## Ownership And Lifetime
 
@@ -32,6 +35,12 @@ Changing or remounting a presentation consumer does not recreate the session
 because the mutable state is held in `usePredictionSession(...)` above the
 renderer component. Account or fixture replacement creates a new keyed session
 and isolates previous answers.
+
+The hook's mounted-owner guard is symmetrical: effect setup marks the owner
+active, and cleanup marks it disposed. This preserves React Strict Mode effect
+replay while still preventing async completion handlers from updating a disposed
+account/fixture owner. A presentation consumer unmount below the owner does not
+dispose the session or clear an in-flight submit lock.
 
 ## Initialization
 
@@ -105,6 +114,13 @@ Continue or Return to Review button and the corresponding command use the same
 availability calculation, so a renderer cannot bypass custom-answer validation
 or known result/score consistency guards by calling the action directly.
 
+Read-only context is also enforced at the shared command boundary. When the
+current session context is read-only, direct commands cannot change built-in or
+custom answers, start or advance editable flow, navigate from Review into an
+editable step, return to Review from an editable step, submit, discard, or load
+latest saved data into the editable local form. Harmless dismissal commands such
+as cancelling a discard dialog can still clear local UI state.
+
 ## Answer State
 
 There is one mutable local answer state:
@@ -137,6 +153,16 @@ session key; responses for an old account/fixture session are ignored by the
 client. Ignoring a stale UI response is only client-side isolation and does not
 cancel a write the server has already accepted.
 
+Internal submit completion actions remain allowed for the same still-active
+session even if reactive context becomes read-only after the request was
+accepted. A successful response can update the captured revision and clear
+submitting state; the locked player-facing display remains based on persisted
+entry data.
+
+The default submit transport is the existing Meteor method wrapper. Unit hook
+tests may inject a controlled `submitPredictionMethod` promise boundary so they
+can exercise real React state, effects, and actions without calling Meteor.
+
 ## Discard And Conflict Recovery
 
 Normal saved edit behavior remains:
@@ -150,6 +176,11 @@ Normal saved edit behavior remains:
 Conflict recovery keeps `Load latest saved prediction` direct and explicit. It
 replaces local values from persisted data and captures the latest persisted
 revision without creating a prediction revision.
+
+Discard and latest-load replacement are blocked while a save is in flight. The
+shared replacement helper refuses to replace local answers when
+`isSubmitting=true`, so direct confirmation, direct reload, and the conflict
+branch cannot become destructive bypasses during an accepted pending save.
 
 Dirty comparison includes built-in and custom answers and excludes sequence
 location, message variation, feedback, and future animation state.
@@ -179,6 +210,10 @@ duplicate submission logic, or independent business validation.
 Renderer replacement preserves answers, location, message variants, captured
 revision, conflict state, and submission state because those values are owned by
 the shared session above the renderer subtree.
+
+009A1 verifies that behavior with a real React DOM harness: the owner remains
+mounted while a keyed consumer below it is replaced, replacement sends no save
+request, and a pending request completes into the surviving owner exactly once.
 
 ## Renderer-Local State
 

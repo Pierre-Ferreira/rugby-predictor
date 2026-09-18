@@ -253,6 +253,15 @@ that session contract while preserving the accepted player-facing experience.
 CCPP-009A does not implement Kaplay, canvas rendering, renderer switching,
 animation preferences, or fallback machinery.
 
+CCPP-009A1 corrects the extracted session lifecycle and command guards. React
+effect replay no longer suppresses legitimate save completion for the surviving
+account/fixture owner, while disposed owners still ignore obsolete responses.
+When context becomes read-only, direct renderer commands cannot mutate answers,
+enter editable steps, submit, discard, or load saved data into dirty local
+state. A save accepted before lock can still finish for the same active session
+and clear its submitting state; the visible locked display remains based on the
+persisted prediction entry.
+
 ## Deferred Decisions
 
 - Permanent lock policy after rescheduling.
