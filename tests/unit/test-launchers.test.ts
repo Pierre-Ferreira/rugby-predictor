@@ -144,6 +144,216 @@ describe('test launcher environment', () => {
     ).toEqual([503, 502, 501, 500]);
   });
 
+  it('fails closed when the original root identity was missing', async () => {
+    const rows = parseProcessTable(`
+      500 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts
+      501 500 meteor run --port 127.0.0.1:3200 --settings tests/settings/playwright-settings.json
+    `);
+    const identities = new Map<number, SyntheticIdentity | Error | null>([
+      [500, identity(500)],
+      [501, identity(501)],
+    ]);
+    const tracker = createOwnedTestProcessTracker({
+      rootIdentity: null,
+      rootPid: 500,
+      runId: 'rr-e2e-current',
+    });
+    const signalCalls: Array<{
+      readonly pid: number;
+      readonly signal: string;
+    }> = [];
+
+    const discovery = recordOwnedTestProcessTree({
+      identityLookup: createIdentityLookup(identities),
+      processRows: rows,
+      tracker,
+    });
+    const cleanup = await cleanupOwnedTestProcesses({
+      graceMs: 0,
+      identityLookup: createIdentityLookup(identities),
+      signalProcess: (pid, signal) => {
+        signalCalls.push({ pid, signal: String(signal) });
+      },
+      sleep: async () => {},
+      tracker,
+    });
+
+    expect(discovery.recorded).toEqual([]);
+    expect(discovery.skipped).toEqual([
+      { pid: 500, reason: 'root-identity-unverified' },
+    ]);
+    expect(ownedTestProcessRecords(tracker)).toEqual([]);
+    expect(signalCalls).toEqual([]);
+    expect(cleanup.term.skipped).toEqual([
+      { pid: 500, reason: 'root-identity-unverified', signal: 'SIGTERM' },
+    ]);
+    expect(cleanup.kill.sent).toEqual([]);
+  });
+
+  it('keeps an unverified root unowned across repeated scans', async () => {
+    const rows = parseProcessTable(`
+      510 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts
+      511 510 meteor run --port 127.0.0.1:3200 --settings tests/settings/playwright-settings.json
+    `);
+    const identities = new Map<number, SyntheticIdentity | Error | null>([
+      [510, null],
+      [511, identity(511)],
+    ]);
+    const tracker = createOwnedTestProcessTracker({
+      rootIdentity: null,
+      rootPid: 510,
+      runId: 'rr-e2e-current',
+    });
+    const signalCalls: Array<{
+      readonly pid: number;
+      readonly signal: string;
+    }> = [];
+
+    const firstDiscovery = recordOwnedTestProcessTree({
+      identityLookup: createIdentityLookup(identities),
+      processRows: rows,
+      tracker,
+    });
+
+    identities.set(510, identity(510));
+
+    const secondDiscovery = recordOwnedTestProcessTree({
+      identityLookup: createIdentityLookup(identities),
+      processRows: rows,
+      tracker,
+    });
+    const cleanup = await cleanupOwnedTestProcesses({
+      graceMs: 0,
+      identityLookup: createIdentityLookup(identities),
+      signalProcess: (pid, signal) => {
+        signalCalls.push({ pid, signal: String(signal) });
+      },
+      sleep: async () => {},
+      tracker,
+    });
+
+    expect(firstDiscovery.recorded).toEqual([]);
+    expect(secondDiscovery.recorded).toEqual([]);
+    expect(secondDiscovery.skipped).toEqual([
+      { pid: 510, reason: 'root-identity-unverified' },
+    ]);
+    expect(ownedTestProcessRecords(tracker)).toEqual([]);
+    expect(signalCalls).toEqual([]);
+    expect(cleanup.term.skipped).toEqual([
+      { pid: 510, reason: 'root-identity-unverified', signal: 'SIGTERM' },
+    ]);
+  });
+
+  it.each([
+    ['absent', null],
+    ['malformed', { pid: 520, startId: '' }],
+    ['pid-mismatched', identity(999)],
+  ])(
+    'does not trust a later PID-only lookup after %s initial root identity',
+    async (_caseName, rootIdentity) => {
+      const rows = parseProcessTable(`
+        520 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts
+        521 520 meteor run --port 127.0.0.1:3200 --settings tests/settings/playwright-settings.json
+      `);
+      const identities = new Map<number, SyntheticIdentity | Error | null>([
+        [520, identity(520)],
+        [521, identity(521)],
+      ]);
+      const tracker = createOwnedTestProcessTracker({
+        rootIdentity,
+        rootPid: 520,
+        runId: 'rr-e2e-current',
+      });
+      const signalCalls: Array<{
+        readonly pid: number;
+        readonly signal: string;
+      }> = [];
+
+      const discovery = recordOwnedTestProcessTree({
+        identityLookup: createIdentityLookup(identities),
+        processRows: rows,
+        tracker,
+      });
+      const cleanup = await cleanupOwnedTestProcesses({
+        graceMs: 0,
+        identityLookup: createIdentityLookup(identities),
+        signalProcess: (pid, signal) => {
+          signalCalls.push({ pid, signal: String(signal) });
+        },
+        sleep: async () => {},
+        tracker,
+      });
+
+      expect(discovery.recorded).toEqual([]);
+      expect(discovery.skipped).toEqual([
+        { pid: 520, reason: 'root-identity-unverified' },
+      ]);
+      expect(ownedTestProcessRecords(tracker)).toEqual([]);
+      expect(signalCalls).toEqual([]);
+      expect(cleanup.term.skipped).toEqual([
+        { pid: 520, reason: 'root-identity-unverified', signal: 'SIGTERM' },
+      ]);
+    },
+  );
+
+  it('keeps verified-root discovery and cleanup working as a positive control', async () => {
+    const rows = parseProcessTable(`
+      530 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts
+      531 530 meteor run --port 127.0.0.1:3200 --settings tests/settings/playwright-settings.json
+      532 531 rspack serve --env devServerPort=3202
+    `);
+    const identities = new Map<number, SyntheticIdentity | Error | null>([
+      [530, identity(530)],
+      [531, identity(531)],
+      [532, identity(532)],
+    ]);
+    const tracker = createOwnedTestProcessTracker({
+      rootIdentity: identity(530),
+      rootPid: 530,
+      runId: 'rr-e2e-current',
+    });
+    const signalCalls: Array<{
+      readonly pid: number;
+      readonly signal: string;
+    }> = [];
+
+    const discovery = recordOwnedTestProcessTree({
+      identityLookup: createIdentityLookup(identities),
+      processRows: rows,
+      tracker,
+    });
+    const cleanup = await cleanupOwnedTestProcesses({
+      graceMs: 0,
+      identityLookup: createIdentityLookup(identities),
+      signalProcess: (pid, signal) => {
+        signalCalls.push({ pid, signal: String(signal) });
+      },
+      sleep: async () => {},
+      tracker,
+    });
+
+    expect(discovery.discovered).toEqual([532, 531]);
+    expect(discovery.recorded).toEqual([532, 531, 530]);
+    expect(signalCalls).toEqual([
+      { pid: 532, signal: 'SIGTERM' },
+      { pid: 531, signal: 'SIGTERM' },
+      { pid: 530, signal: 'SIGTERM' },
+      { pid: 532, signal: 'SIGKILL' },
+      { pid: 531, signal: 'SIGKILL' },
+      { pid: 530, signal: 'SIGKILL' },
+    ]);
+    expect(cleanup.term.sent).toEqual([
+      { pid: 532, signal: 'SIGTERM', status: 'sent' },
+      { pid: 531, signal: 'SIGTERM', status: 'sent' },
+      { pid: 530, signal: 'SIGTERM', status: 'sent' },
+    ]);
+    expect(cleanup.kill.sent).toEqual([
+      { pid: 532, signal: 'SIGKILL', status: 'sent' },
+      { pid: 531, signal: 'SIGKILL', status: 'sent' },
+      { pid: 530, signal: 'SIGKILL', status: 'sent' },
+    ]);
+  });
+
   it('signals only verified owned records and skips exited or changed identities', async () => {
     const rows = parseProcessTable(`
       500 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts

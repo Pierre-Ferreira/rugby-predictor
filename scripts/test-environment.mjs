@@ -114,6 +114,7 @@ export const parseProcessTable = (stdout) =>
  * @typedef {{
  *   cleanupStarted: boolean;
  *   readonly records: Map<number, OwnedProcessRecord>;
+ *   readonly rootIdentityVerified: boolean;
  *   readonly rootPid: number | null;
  *   readonly runId: string;
  * }} OwnedProcessTracker
@@ -240,6 +241,7 @@ export const createOwnedTestProcessTracker = ({
   const tracker = {
     cleanupStarted: false,
     records: new Map(),
+    rootIdentityVerified: false,
     rootPid: Number.isInteger(Number(rootPid)) ? Number(rootPid) : null,
     runId,
   };
@@ -250,7 +252,7 @@ export const createOwnedTestProcessTracker = ({
     normalizedRootIdentity &&
     normalizedRootIdentity.pid === tracker.rootPid
   ) {
-    upsertOwnedProcessRecord({
+    tracker.rootIdentityVerified = upsertOwnedProcessRecord({
       command: normalizedRootIdentity.command ?? '',
       origin: 'spawned-root',
       pid: tracker.rootPid,
@@ -310,32 +312,12 @@ export const recordOwnedTestProcessTree = ({
   }
 
   const rootPid = tracker.rootPid;
-  const rootRow = rootPid === null ? null : rowsByPid.get(rootPid);
 
-  if (rootPid !== null && rootRow && !tracker.records.has(rootPid)) {
-    let rootIdentity = null;
-
-    try {
-      rootIdentity = normalizeProcessIdentity(identityLookup(rootPid));
-    } catch (error) {
-      skipped.push({
-        pid: rootPid,
-        reason: `identity-unavailable:${toErrorMessage(error)}`,
-      });
-    }
-
-    if (rootIdentity && rootIdentity.pid === rootPid) {
-      upsertOwnedProcessRecord({
-        command: rootRow.command,
-        origin: 'spawned-root',
-        pid: rootPid,
-        ppid: rootRow.ppid,
-        runId: tracker.runId,
-        startId: rootIdentity.startId,
-        tracker,
-        verifiedAt: now(),
-      });
-    }
+  if (rootPid !== null && !tracker.rootIdentityVerified) {
+    skipped.push({
+      pid: rootPid,
+      reason: 'root-identity-unverified',
+    });
   }
 
   const rootRecord =
@@ -526,6 +508,22 @@ export const cleanupOwnedTestProcesses = async ({
   }
 
   tracker.cleanupStarted = true;
+
+  if (tracker.rootPid !== null && !tracker.rootIdentityVerified) {
+    const term = emptySignalResults();
+
+    term.skipped.push({
+      pid: tracker.rootPid,
+      reason: 'root-identity-unverified',
+      signal: 'SIGTERM',
+    });
+
+    return {
+      alreadyStarted: false,
+      kill: emptySignalResults(),
+      term,
+    };
+  }
 
   const termAttempt = signalVerifiedProcessRecords({
     identityLookup,

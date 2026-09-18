@@ -168,6 +168,16 @@ their lineage to an already owned process is visible and their `/proc` start
 identity can be read. Repository paths, `.meteor/local-playwright`, familiar
 settings files, and port substrings are not cleanup authority.
 
+If the spawned Playwright root process did not have a verified `/proc` start
+identity when the tracker was created, the tracker remains unverified for the
+rest of the run. Later process-table scans must not create a root ownership
+record from the numeric PID, discover apparent descendants from that PID, or use
+matching command text, repository paths, ports, liveness, or later identity
+lookups as substitute proof. Discovery and cleanup report
+`root-identity-unverified`; automatic cleanup sends no SIGTERM or SIGKILL for
+that root or apparent children. This fail-closed path is distinct from a root
+whose original identity was verified and then exited or changed.
+
 Before sending SIGTERM, cleanup revalidates that the PID still has the recorded
 start identity. After the grace period, SIGKILL is considered only for records
 that were sent SIGTERM and still revalidate. Already-exited processes, changed
