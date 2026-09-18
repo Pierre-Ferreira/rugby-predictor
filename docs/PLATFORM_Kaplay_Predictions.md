@@ -6,7 +6,9 @@ CCPP-009B adds a bounded development/test preview of the Kaplay prediction
 runtime. CCPP-009B4 makes the already-built Match Result surface available
 automatically in ordinary local development. The preview covers one real screen
 only: the Match Result step. CCPP-009C adds the first prepared Rooster shove
-visual foundation to that same screen.
+visual foundation to that same screen. CCPP-009C1 corrects that screen's
+contact-to-push continuity, full-character exit projection, compact readability
+projection, and intended browser evidence path.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
@@ -57,8 +59,9 @@ bundler.
   Kaplay and owns context setup, canvas drawing, input hit testing, error
   hooks, visibility pause, and teardown.
 - `imports/ui/predictions/kaplay/matchResultMotion.ts` owns the 009C
-  framework-independent Match Result layout, hit testing, rooster shove timing,
-  rejected-choice offset projection, and generated atlas constants.
+  framework-independent Match Result layout, hit testing, readable compact text
+  projection, rooster shove timing, transformed Rooster bounds, rejected-choice
+  offset projection, and generated atlas constants.
 - `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json` is the
   generated source-side copy of the prepared Rooster atlas manifest.
 
@@ -173,6 +176,19 @@ The preview renders:
 - `You picked ...` feedback;
 - shared Back, Continue, and Return-to-Review controls where applicable;
 - a visible semantic DOM radio bridge for keyboard and assistive technology.
+
+The Match Result shove is intentionally short at `0.76` seconds. Push movement
+starts from the actual contact endpoint, so the Rooster and rejected group do
+not jump backward at the contact-to-push boundary. The exit calculation uses the
+layout stage, manifest contact anchor, sprite scale, rejected-group geometry,
+and offscreen margin; full transformed Rooster bounds and rejected-card bounds
+are projected clear before the effect expires.
+
+Compact Match Result layout is scale-aware rather than a simple desktop shrink.
+The runtime projects text blocks, line wrapping, card bounds, focus bounds, and
+hit rectangles from the same geometry. At 360 px and 390 px portrait-style
+canvas widths in unit coverage, selectable card heights project to at least
+44 CSS px and primary labels to at least 16 CSS px.
 
 Intro, Tries, Conversions, Penalty Kicks, Drop Goals, Cards, First Try,
 Highest-Scoring Half, Half-Time Leader, custom questions, Review, and locked
@@ -344,12 +360,20 @@ semantic DOM bridge, and Standard-only paths use visible radio controls. The
 executed test cases, so the final 009C audit records that browser verification
 limitation separately from prior preserved browser evidence.
 
+CCPP-009C1 further updates the browser spec so canvas selection targets the
+runtime's actual projected choice rectangles and the canvas recorder waits for
+recording start plus finalized media output. The bounded 009C1 browser batches
+on 2026-09-18 also exited before executable test cases and produced no fresh
+recordings or screenshots; see
+`docs/AUDIT_009C1_Shove_Exit_Mobile_Evidence.md`.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
 - Rooster artwork and a first-pass Match Result shove are included only for the
-  009C visual foundation. The final integrated browser recording evidence is
-  incomplete and must not be treated as full visual acceptance.
+  009C visual foundation. CCPP-009C1 corrects the pure/runtime geometry, but
+  fresh integrated browser recording evidence remains blocked and must not be
+  treated as full visual acceptance.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

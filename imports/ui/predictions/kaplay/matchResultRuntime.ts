@@ -21,6 +21,7 @@ import {
   type ShoveEffect,
   type ShoveProjection,
   type MotionRect,
+  type ProjectedTextBlock,
 } from './matchResultMotion';
 
 export const KAPLAY_INITIALIZATION_TIMEOUT_MS = 10_000;
@@ -78,9 +79,29 @@ export interface KaplayPreviewTestControls {
   readonly motionTimeScale?: number;
 }
 
+export interface KaplayMatchResultDebugLayout {
+  readonly choices: readonly {
+    readonly hitTestable: boolean;
+    readonly isRejected: boolean;
+    readonly isSelected: boolean;
+    readonly label: string;
+    readonly labelCssFontSize: number;
+    readonly labelLines: readonly string[];
+    readonly rect: MotionRect;
+    readonly targetCssHeight: number;
+    readonly value: MatchResultChoiceValue;
+  }[];
+  readonly displayScale: number;
+  readonly isCompact: boolean;
+  readonly rejectedGroup: MotionRect | null;
+  readonly selectedChoice: MotionRect | null;
+  readonly stage: MotionRect;
+}
+
 declare global {
   interface Window {
     __RUGBY_ROOSTER_KAPLAY_IMPORT_COUNT__?: number;
+    __RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__?: KaplayMatchResultDebugLayout;
     __RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__?: KaplayPreviewTestControls;
   }
 }
@@ -152,11 +173,13 @@ export const createKaplayMatchResultRuntime = async ({
   motionTimeScale = 1,
   onFailure,
   onSelect,
+  testControlsEnabled = false,
 }: KaplayMatchResultRuntimeInput & {
   readonly failOnNextPointer?: boolean;
   readonly failRequiredSpriteLoad?: boolean;
   readonly kaplay: KaplayFunction;
   readonly motionTimeScale?: number;
+  readonly testControlsEnabled?: boolean;
 }): Promise<KaplayMatchResultRuntimeHandle> => {
   let snapshot = initialSnapshot;
   let disposed = false;
@@ -303,7 +326,13 @@ export const createKaplayMatchResultRuntime = async ({
     eventControllers.push(
       k.onDraw(() => {
         try {
-          drawScene(k, snapshot, activeEffect, canvas);
+          drawScene(
+            k,
+            snapshot,
+            activeEffect,
+            canvas,
+            testControlsEnabled === true,
+          );
         } catch (error) {
           fail(errorFromUnknown(error, 'Kaplay preview drawing failed.'));
         }
@@ -404,6 +433,7 @@ const drawScene = (
   snapshot: MatchResultRuntimeSnapshot,
   activeEffect: ShoveEffect | null,
   canvas: HTMLCanvasElement,
+  testControlsEnabled: boolean,
 ) => {
   const layout = projectMatchResultLayout(
     snapshot,
@@ -433,16 +463,18 @@ const drawScene = (
 
     drawChoiceCard(k, {
       focused: snapshot.focusedValue === projectedChoice.choice.value,
-      pickedLabel:
-        projectedChoice.isSelected && snapshot.pickedLabel
-          ? 'You picked'
-          : null,
+      labelBlock: offsetTextBlock(projectedChoice.labelBlock, offsetX),
+      pickedBlock: projectedChoice.pickedBlock
+        ? offsetTextBlock(projectedChoice.pickedBlock, offsetX)
+        : null,
       rect: {
         ...projectedChoice.rect,
         x: projectedChoice.rect.x + offsetX,
       },
       selected: projectedChoice.isSelected,
-      text: projectedChoice.choice.label,
+      selectionIndicator: projectedChoice.selectionIndicator
+        ? offsetRect(projectedChoice.selectionIndicator, offsetX)
+        : null,
       tone: projectedChoice.isRejected ? 'rejected' : 'primary',
     });
   }
@@ -450,7 +482,41 @@ const drawScene = (
   if (shoveProjection) {
     drawRooster(k, shoveProjection);
   }
+
+  if (testControlsEnabled) {
+    window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__ = {
+      choices: layout.choices.map((choice) => ({
+        hitTestable: choice.hitTestable,
+        isRejected: choice.isRejected,
+        isSelected: choice.isSelected,
+        label: choice.choice.label,
+        labelCssFontSize: choice.labelBlock.fontSize * layout.displayScale,
+        labelLines: choice.labelBlock.lines,
+        rect: choice.rect,
+        targetCssHeight: choice.rect.height * layout.displayScale,
+        value: choice.choice.value,
+      })),
+      displayScale: layout.displayScale,
+      isCompact: layout.isCompact,
+      rejectedGroup: layout.rejectedGroup,
+      selectedChoice: layout.selectedChoice?.rect ?? null,
+      stage: layout.stage,
+    };
+  }
 };
+
+const offsetRect = (rect: MotionRect, offsetX: number): MotionRect => ({
+  ...rect,
+  x: rect.x + offsetX,
+});
+
+const offsetTextBlock = (
+  block: ProjectedTextBlock,
+  offsetX: number,
+): ProjectedTextBlock => ({
+  ...block,
+  rect: offsetRect(block.rect, offsetX),
+});
 
 const drawStageBackdrop = (k: KAPLAYCtx, rect: MotionRect) => {
   k.drawRect({
@@ -483,17 +549,19 @@ const drawChoiceCard = (
   k: KAPLAYCtx,
   {
     focused,
-    pickedLabel,
+    labelBlock,
+    pickedBlock,
     rect,
     selected,
-    text,
+    selectionIndicator,
     tone,
   }: {
     readonly focused: boolean;
-    readonly pickedLabel: string | null;
+    readonly labelBlock: ProjectedTextBlock;
+    readonly pickedBlock: ProjectedTextBlock | null;
     readonly rect: MotionRect;
     readonly selected: boolean;
-    readonly text: string;
+    readonly selectionIndicator: MotionRect | null;
     readonly tone: 'primary' | 'rejected';
   },
 ) => {
@@ -521,33 +589,25 @@ const drawChoiceCard = (
     width: rect.width,
   });
 
-  if (pickedLabel) {
+  if (pickedBlock) {
     drawTextBlock(k, {
+      block: pickedBlock,
       color: k.rgb(255, 230, 180),
-      size: 18,
-      text: pickedLabel,
-      width: rect.width - 44,
-      x: rect.x + 28,
-      y: rect.y + 18,
     });
   }
 
   drawTextBlock(k, {
+    block: labelBlock,
     color: textColor,
-    size: selected ? labelSize(text, 30, 22) : labelSize(text, 25, 18),
-    text,
-    width: rect.width - 56,
-    x: rect.x + 28,
-    y: rect.y + (pickedLabel ? 48 : rect.height / 2 - 14),
   });
 
-  if (selected) {
+  if (selected && selectionIndicator) {
     k.drawRect({
       color: k.rgb(249, 196, 64),
-      height: 14,
-      pos: k.vec2(rect.x + rect.width - 58, rect.y + rect.height / 2 - 7),
+      height: selectionIndicator.height,
+      pos: k.vec2(selectionIndicator.x, selectionIndicator.y),
       radius: 6,
-      width: 30,
+      width: selectionIndicator.width,
     });
   }
 };
@@ -569,32 +629,26 @@ const drawRooster = (k: KAPLAYCtx, projection: ShoveProjection) => {
   });
 };
 
-const labelSize = (text: string, normalSize: number, smallSize: number) =>
-  text.length > 30 ? smallSize : normalSize;
-
 const drawTextBlock = (
   k: KAPLAYCtx,
   {
+    block,
     color,
-    size,
-    text,
-    width,
-    x,
-    y,
   }: {
+    readonly block: ProjectedTextBlock;
     readonly color: ReturnType<KAPLAYCtx['rgb']>;
-    readonly size: number;
-    readonly text: string;
-    readonly width?: number;
-    readonly x: number;
-    readonly y: number;
   },
 ) => {
-  k.drawText({
-    color,
-    pos: k.vec2(x, y) as Vec2,
-    size,
-    text,
-    width,
+  block.lines.forEach((line, index) => {
+    k.drawText({
+      color,
+      pos: k.vec2(
+        block.rect.x,
+        block.rect.y + index * block.lineHeight,
+      ) as Vec2,
+      size: block.fontSize,
+      text: line,
+      width: block.rect.width,
+    });
   });
 };

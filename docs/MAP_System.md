@@ -104,6 +104,10 @@
   evidence.
 - `docs/AUDIT_009C_Visual_Foundation_Rooster_Shove.md` - CCPP-009C
   supplied-art availability blocker, inspected files, and next action.
+- `docs/AUDIT_009C1_Shove_Exit_Mobile_Evidence.md` - CCPP-009C1
+  contact-to-push continuity, full-character exit, compact readability
+  correction, verification, blocked browser evidence, and review archive
+  evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -148,6 +152,9 @@
   and packaging.
 - `docs/TEMP_009C_Resume.md` - temporary CCPP-009C checkpoint for the
   supplied-art availability blocker before visual foundation implementation.
+- `docs/TEMP_009C1_Resume.md` - temporary CCPP-009C1 checkpoint for shove
+  continuity, full exit, mobile readability, browser evidence attempts, and
+  packaging handoff.
 
 ## Application Entry Points
 

@@ -61,6 +61,13 @@ CCPP-008B adds admin match-result and prediction-question settlement in
 settlements, including custom Void, but it still does not persist player Rugby
 Rooster scores or leaderboards.
 
+CCPP-009C1 corrects the development-only Kaplay Match Result presentation
+without changing prediction rules or saved data. The Rooster shove now keeps
+contact-to-push motion continuous in the pure projection, calculates exit from
+full transformed character/card bounds, and uses compact scale-aware choice
+geometry so team/Draw labels remain readable on narrow canvases. The Standard
+prediction flow and shared answer ownership remain authoritative.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.

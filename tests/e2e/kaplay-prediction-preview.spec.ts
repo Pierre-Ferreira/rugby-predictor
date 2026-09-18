@@ -229,7 +229,7 @@ const markStage = (
 
 const evidenceScreenshotPath = (name: string) => {
   if (!evidenceDir) {
-    return `test-results/ccpp009c/${name}`;
+    return `test-results/ccpp009c1/${name}`;
   }
 
   const screenshotDir = join(evidenceDir, 'browser-screenshots');
@@ -240,8 +240,8 @@ const evidenceScreenshotPath = (name: string) => {
 
 const evidenceArtifactPath = (name: string) => {
   if (!evidenceDir) {
-    mkdirSync('test-results/ccpp009c', { recursive: true });
-    return `test-results/ccpp009c/${name}`;
+    mkdirSync('test-results/ccpp009c1', { recursive: true });
+    return `test-results/ccpp009c1/${name}`;
   }
 
   const artifactDir = join(evidenceDir, 'browser-artifacts');
@@ -251,7 +251,7 @@ const evidenceArtifactPath = (name: string) => {
 };
 
 const uniqueEmail = (label: string) =>
-  `ccpp009b-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  `ccpp009c1-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
 
 const uniqueLabel = (label: string) =>
   `${label} ${Date.now().toString(36)}${Math.random().toString(16).slice(2, 6)}`;
@@ -548,6 +548,22 @@ const waitForKaplayReady = async (page: Page) => {
   markStage(page, 'kaplay-ready:success');
 };
 
+const waitForKaplayDebugLayout = async (page: Page) => {
+  await page.waitForFunction(
+    () => {
+      const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+
+      return (
+        Boolean(layout) &&
+        Array.isArray(layout?.choices) &&
+        layout.choices.length > 0
+      );
+    },
+    undefined,
+    { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
+  );
+};
+
 const retryIfAnimationFailureIsVisible = async (page: Page) => {
   const retryButton = page.getByRole('button', { name: 'Retry animations' });
 
@@ -570,18 +586,109 @@ const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
     throw new Error('Kaplay canvas is not visible.');
   }
 
-  const nextGameHeight = 520;
-  const isCompact = box.width < 560;
-  const choiceStartY = isCompact ? 82 : 88;
-  const choiceHeight = isCompact ? 74 : 78;
-  const choiceGap = isCompact ? 13 : 15;
-  const choiceCenterY =
-    choiceStartY + choiceHeight / 2 + choiceIndex * (choiceHeight + choiceGap);
+  await waitForKaplayDebugLayout(page);
+  const choice = await page.evaluate((index) => {
+    const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+    const projectedChoice = layout?.choices[index];
+
+    if (!layout || !projectedChoice) {
+      throw new Error('Kaplay choice layout is not available.');
+    }
+
+    if (!projectedChoice.hitTestable) {
+      throw new Error('Kaplay choice layout is not currently hit-testable.');
+    }
+
+    return {
+      centerX: projectedChoice.rect.x + projectedChoice.rect.width / 2,
+      centerY: projectedChoice.rect.y + projectedChoice.rect.height / 2,
+      stageHeight: layout.stage.height,
+      stageWidth: layout.stage.width,
+    };
+  }, choiceIndex);
 
   await canvas.click({
     position: {
-      x: box.width / 2,
-      y: (choiceCenterY / nextGameHeight) * box.height,
+      x: (choice.centerX / choice.stageWidth) * box.width,
+      y: (choice.centerY / choice.stageHeight) * box.height,
+    },
+  });
+};
+
+const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
+  await waitForKaplayDebugLayout(page);
+  await page.waitForFunction(
+    () => {
+      const canvas = document.querySelector<HTMLCanvasElement>(
+        '[data-testid="kaplay-match-result-canvas"]',
+      );
+      const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+
+      if (!canvas || !layout) {
+        return false;
+      }
+
+      return (
+        Math.abs(
+          layout.displayScale -
+            canvas.getBoundingClientRect().width / layout.stage.width,
+        ) < 0.01
+      );
+    },
+    undefined,
+    { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
+  );
+  const canvas = page.getByTestId('kaplay-match-result-canvas');
+  const box = await canvas.boundingBox();
+
+  if (!box) {
+    throw new Error('Kaplay canvas is not visible for layout evidence.');
+  }
+
+  const layout = await page.evaluate(() => {
+    const currentLayout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+
+    if (!currentLayout) {
+      throw new Error('Kaplay layout evidence is not available.');
+    }
+
+    return currentLayout;
+  });
+
+  return {
+    canvasCss: {
+      height: box.height,
+      width: box.width,
+    },
+    label,
+    layout,
+    measuredAt: utcNow(),
+    viewport: page.viewportSize(),
+  };
+};
+
+const writeEvidenceJson = (name: string, value: unknown) => {
+  writeFileSync(
+    evidenceArtifactPath(name),
+    `${JSON.stringify(value, null, 2)}\n`,
+  );
+};
+
+const screenshotCanvasCrop = async (page: Page, name: string) => {
+  const canvas = page.getByTestId('kaplay-match-result-canvas');
+  const box = await canvas.boundingBox();
+
+  if (!box) {
+    throw new Error('Kaplay canvas is not visible for crop evidence.');
+  }
+
+  await page.screenshot({
+    path: evidenceScreenshotPath(name),
+    clip: {
+      height: box.height,
+      width: box.width,
+      x: box.x,
+      y: box.y,
     },
   });
 };
@@ -602,6 +709,16 @@ const startCanvasRecording = async (page: Page) => {
     const stream = canvas.captureStream(60);
     const chunks: Blob[] = [];
     const recorder = new MediaRecorder(stream, { mimeType });
+    const started = new Promise<void>((resolve, reject) => {
+      recorder.addEventListener(
+        'error',
+        () => {
+          reject(new Error('Kaplay canvas recording failed to start.'));
+        },
+        { once: true },
+      );
+      recorder.addEventListener('start', () => resolve(), { once: true });
+    });
     const finished = new Promise<{
       readonly base64: string;
       readonly mimeType: string;
@@ -637,16 +754,39 @@ const startCanvasRecording = async (page: Page) => {
             readonly mimeType: string;
           }>;
           readonly recorder: MediaRecorder;
+          readonly started: Promise<void>;
           readonly stream: MediaStream;
         };
       }
     ).__RUGBY_ROOSTER_CANVAS_RECORDING__ = {
       finished,
       recorder,
+      started,
       stream,
     };
 
-    recorder.start();
+    recorder.start(100);
+  });
+
+  await page.evaluate(() => {
+    const holder = (
+      window as unknown as {
+        __RUGBY_ROOSTER_CANVAS_RECORDING__?: {
+          readonly recorder: MediaRecorder;
+          readonly started: Promise<void>;
+        };
+      }
+    ).__RUGBY_ROOSTER_CANVAS_RECORDING__;
+
+    if (!holder) {
+      throw new Error('No Kaplay canvas recording was created.');
+    }
+
+    return holder.started.then(() => {
+      if (holder.recorder.state !== 'recording') {
+        throw new Error('Kaplay canvas recorder is not recording.');
+      }
+    });
   });
 };
 
@@ -665,6 +805,7 @@ const stopCanvasRecording = async (page: Page, name: string) => {
                 readonly mimeType: string;
               }>;
               readonly recorder: MediaRecorder;
+              readonly started: Promise<void>;
               readonly stream: MediaStream;
             };
           }
@@ -675,18 +816,26 @@ const stopCanvasRecording = async (page: Page, name: string) => {
           return;
         }
 
-        holder.finished.then(resolve, reject);
-        holder.recorder.stop();
-        holder.stream.getTracks().forEach((track) => track.stop());
-        delete (
-          window as unknown as {
-            __RUGBY_ROOSTER_CANVAS_RECORDING__?: unknown;
-          }
-        ).__RUGBY_ROOSTER_CANVAS_RECORDING__;
+        holder.finished.then(resolve, reject).finally(() => {
+          holder.stream.getTracks().forEach((track) => track.stop());
+          delete (
+            window as unknown as {
+              __RUGBY_ROOSTER_CANVAS_RECORDING__?: unknown;
+            }
+          ).__RUGBY_ROOSTER_CANVAS_RECORDING__;
+        });
+
+        if (holder.recorder.state === 'recording') {
+          holder.recorder.requestData();
+          holder.recorder.stop();
+        } else {
+          reject(new Error('Kaplay canvas recorder was not recording.'));
+        }
       }),
   );
 
   expect(result.mimeType).toContain('video/webm');
+  expect(Buffer.from(result.base64, 'base64').byteLength).toBeGreaterThan(0);
   writeFileSync(
     evidenceArtifactPath(name),
     Buffer.from(result.base64, 'base64'),
@@ -904,12 +1053,13 @@ test.describe('Kaplay prediction preview', () => {
 
     markStage(page, 'default-access:canvas-choice-click');
     await startCanvasRecording(page);
+    await page.waitForTimeout(300);
     await clickCanvasChoice(page, 1);
-    await page.waitForTimeout(950);
-    await stopCanvasRecording(page, 'match-result-shove-normal-speed.webm');
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
     );
+    await page.waitForTimeout(2_000);
+    await stopCanvasRecording(page, 'match-result-shove-normal-speed.webm');
     await expect(
       page.getByRole('radio', { name: team2, exact: true }),
     ).toHaveAttribute('aria-checked', 'true');
@@ -982,6 +1132,33 @@ test.describe('Kaplay prediction preview', () => {
     await expect(page.getByText('Step 2 of 9')).toBeVisible();
   });
 
+  test('preserves the selected answer when switched Off during an active shove', async ({
+    page,
+  }) => {
+    const { team2 } = await createPredictionAtMatchResult(
+      page,
+      'kaplay-off-during-shove',
+    );
+
+    await waitForKaplayReady(page);
+    markStage(page, 'off-during-shove:canvas-choice-click');
+    await clickCanvasChoice(page, 1);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team2}`,
+    );
+
+    markStage(page, 'off-during-shove:animations-off');
+    await animationsButton(page, 'Off').click();
+    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
+    await expect(
+      page.getByRole('radio', { exact: true, name: team2 }),
+    ).toBeChecked();
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('standard-after-interruption.png'),
+    });
+  });
+
   test('captures a slowed browser review of the same shove motion', async ({
     page,
   }) => {
@@ -997,12 +1174,13 @@ test.describe('Kaplay prediction preview', () => {
 
     markStage(page, 'slow-review:recording-start');
     await startCanvasRecording(page);
+    await page.waitForTimeout(300);
     await clickCanvasChoice(page, 0);
-    await page.waitForTimeout(3_200);
-    await stopCanvasRecording(page, 'match-result-shove-slow-review.webm');
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       'You picked',
     );
+    await page.waitForTimeout(4_200);
+    await stopCanvasRecording(page, 'match-result-shove-slow-review.webm');
 
     await page.evaluate(() => {
       window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {};
@@ -1039,10 +1217,51 @@ test.describe('Kaplay prediction preview', () => {
     markStage(page, 'reduced-motion:emulate-no-preference');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await waitForKaplayReady(page);
+    const mobile390 = await collectKaplayLayoutEvidence(page, '390px viewport');
     await page.screenshot({
       fullPage: true,
-      path: evidenceScreenshotPath('narrow-match-result-preview.png'),
+      path: evidenceScreenshotPath('mobile-390-match-result-preview.png'),
     });
+    markStage(page, 'reduced-motion:mobile-390-measured', {
+      canvasCss: mobile390.canvasCss,
+      choices: mobile390.layout.choices.map((choice) => ({
+        label: choice.label,
+        labelCssFontSize: choice.labelCssFontSize,
+        targetCssHeight: choice.targetCssHeight,
+      })),
+    });
+
+    await page.setViewportSize({ height: 760, width: 360 });
+    const mobile360 = await collectKaplayLayoutEvidence(page, '360px viewport');
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('mobile-360-match-result-preview.png'),
+    });
+    await screenshotCanvasCrop(page, 'mobile-360-choice-area-crop.png');
+    writeEvidenceJson('mobile-layout-measurements.json', {
+      measurements: [mobile390, mobile360],
+    });
+    markStage(page, 'reduced-motion:mobile-360-measured', {
+      canvasCss: mobile360.canvasCss,
+      choices: mobile360.layout.choices.map((choice) => ({
+        label: choice.label,
+        labelCssFontSize: choice.labelCssFontSize,
+        targetCssHeight: choice.targetCssHeight,
+      })),
+    });
+
+    for (const measurement of [mobile390, mobile360]) {
+      for (const choice of measurement.layout.choices) {
+        expect(choice.labelCssFontSize).toBeGreaterThanOrEqual(16);
+        expect(choice.targetCssHeight).toBeGreaterThanOrEqual(44);
+      }
+    }
+
+    markStage(page, 'reduced-motion:mobile-canvas-choice-click');
+    await clickCanvasChoice(page, 0);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team1}`,
+    );
 
     markStage(page, 'reduced-motion:emulate-reduce');
     await page.emulateMedia({ reducedMotion: 'reduce' });

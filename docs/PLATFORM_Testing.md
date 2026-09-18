@@ -293,6 +293,17 @@ The current browser suite covers:
   without recreating the ready runtime until the attempt actually ends.
   Browser paths distinguish canvas pointer input, keyboard accessibility input,
   and visible Standard radio input.
+- CCPP-009C1 extends the Match Result motion tests for contact-to-push
+  continuity, nondecreasing Rooster/rejected-card movement, stable hand/group
+  contact, full transformed Rooster exit, rejected-group exit, compact
+  360/390-style displayed text and target sizes, long-name wrapping, selected
+  and rejected bounds separation, and projected hit testing. The browser spec
+  was also updated to use the runtime's actual projected choice rectangles,
+  finalized canvas recording blobs, 360/390 mobile measurement evidence, and an
+  Off-during-motion Standard preservation scenario. The bounded 009C1 browser
+  launches on 2026-09-18 both exited before Playwright executed test cases, so
+  they produced no successful browser coverage, screenshots, recordings, or
+  mobile measurement JSON.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

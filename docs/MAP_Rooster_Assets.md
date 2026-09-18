@@ -19,6 +19,10 @@ transparent frames, a KAPLAY sprite atlas, a public manifest, a source-side
 generated manifest, and review evidence. Current quality notes and verification
 limitations belong in `docs/AUDIT_009C_Visual_Foundation_Rooster_Shove.md`.
 
+CCPP-009C1 reused this asset set unchanged while correcting motion/layout
+projection. No source images, prepared frames, atlas pixels, manifest anchors,
+source hashes, or preparation outputs changed.
+
 Inspected locations:
 
 - `public/`
