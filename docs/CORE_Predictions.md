@@ -189,6 +189,12 @@ submitted, the server returns a conflict and the browser offers an explicit
 `Load latest saved prediction` action that intentionally replaces unsaved values
 with the saved entry.
 
+When a saved entry or save acknowledgement arrives slightly after the editable
+session initializes, the browser may reconcile only the untouched initial state
+or the just-submitted local form. It must not replace answers after the player
+has started editing, and it must not silently advance the captured revision from
+later reactive updates.
+
 In the normal editable Review state, the explicit replacement action is labelled
 `Discard changes`. It is disabled while the form matches the currently loaded
 persisted prediction. When built-in answers or custom Number/Choice answers have

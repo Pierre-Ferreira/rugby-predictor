@@ -420,6 +420,77 @@ describe('prediction session contract', () => {
     expect(state.editSession.expectedRevision).toBe(2);
   });
 
+  it('adopts a saved entry that arrives after untouched blank initialization', () => {
+    const savedPrediction = validPrediction();
+    const savedEntry = predictionEntry({
+      prediction: savedPrediction,
+      revision: 3,
+      ruleset: defaultRuleset,
+    });
+    const initialContext = contextForRuleset(defaultRuleset);
+    const savedContext = contextForRuleset(defaultRuleset, {
+      currentEntry: savedEntry,
+    });
+    let state = initialSession(initialContext);
+
+    expect(state.location).toEqual({ kind: 'intro' });
+    expect(state.editSession.expectedRevision).toBeNull();
+
+    state = reduce(state, savedContext, {
+      type: 'adopt-arrived-saved-entry',
+    });
+
+    expect(state.location).toEqual({ kind: 'review' });
+    expect(state.editSession.expectedRevision).toBe(3);
+    expect(state.form).toEqual(
+      formFromPrediction(savedPrediction, defaultRuleset),
+    );
+
+    const latestEntry = predictionEntry({
+      prediction: {
+        ...savedPrediction,
+        halfTimeLeader: 'draw',
+      },
+      revision: 4,
+      ruleset: defaultRuleset,
+    });
+    const latestContext = contextForRuleset(defaultRuleset, {
+      currentEntry: latestEntry,
+    });
+
+    expect(
+      reduce(state, latestContext, {
+        type: 'adopt-arrived-saved-entry',
+      }),
+    ).toEqual(state);
+  });
+
+  it('does not adopt a late saved entry after the blank session is edited', () => {
+    const savedEntry = predictionEntry({
+      prediction: validPrediction(),
+      revision: 3,
+      ruleset: defaultRuleset,
+    });
+    const initialContext = contextForRuleset(defaultRuleset);
+    const savedContext = contextForRuleset(defaultRuleset, {
+      currentEntry: savedEntry,
+    });
+    let state = initialSession(initialContext);
+
+    state = reduce(state, initialContext, { type: 'start-prediction' });
+    state = reduce(state, initialContext, {
+      field: 'matchResult',
+      type: 'select-built-in-choice',
+      value: 'team2',
+    });
+
+    expect(
+      reduce(state, savedContext, {
+        type: 'adopt-arrived-saved-entry',
+      }),
+    ).toEqual(state);
+  });
+
   it('guards duplicate submit state and ignores stale async responses for another session key', () => {
     const context = contextForRuleset(defaultRuleset);
     let state = initialSession(context);
@@ -466,6 +537,42 @@ describe('prediction session contract', () => {
 
     expect(accepted.editSession.expectedRevision).toBe(1);
     expect(accepted.feedback?.message).toBe('Prediction saved.');
+  });
+
+  it('treats a successful create as locally persisted until the entry publication catches up', () => {
+    const context = contextForRuleset(defaultRuleset);
+    const sessionKey = predictionSessionKey({
+      fixtureId: context.fixtureId,
+      userId: context.userId,
+    });
+    let state = initialSession(context);
+
+    state = {
+      ...state,
+      form: formFromPrediction(validPrediction(), defaultRuleset),
+      location: { kind: 'review' },
+    };
+
+    const beforeSubmitView = derivePredictionSessionState(state, context);
+
+    expect(beforeSubmitView.hasUnsavedChanges).toBe(true);
+
+    state = reduce(state, context, {
+      result: {
+        fixtureId: context.fixtureId,
+        predictionId: 'prediction-1',
+        revision: 1,
+        status: 'created',
+      },
+      sessionKey,
+      type: 'submit-success',
+    });
+
+    const afterSubmitView = derivePredictionSessionState(state, context);
+
+    expect(afterSubmitView.editSession.expectedRevision).toBe(1);
+    expect(afterSubmitView.hasUnsavedChanges).toBe(false);
+    expect(afterSubmitView.navigation.canRequestDiscard).toBe(false);
   });
 
   it('keeps read-only availability and direct edit commands aligned', () => {

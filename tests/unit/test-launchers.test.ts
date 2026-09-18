@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest';
 import {
   assertNoInheritedMongoConnection,
   buildMeteorManagedTestDatabaseId,
+  collectOwnedTestProcessIds,
   createIsolatedTestEnvironment,
   deriveMeteorManagedMongoPort,
   deriveRspackDevServerPort,
+  parseProcessTable,
   parseLoopbackPort,
 } from '../../scripts/test-environment.mjs';
 
@@ -66,5 +68,30 @@ describe('test launcher environment', () => {
     expect(() => deriveMeteorManagedMongoPort(65535)).toThrow(
       /Meteor-managed MongoDB/,
     );
+  });
+
+  it('collects only isolated run-owned process trees for cleanup', () => {
+    const rows = parseProcessTable(`
+      100 1 npm exec rspack serve --env devServerPort=3202 --env projectConfigPath=/home/pierreferreira/Desktop/rugby-predictor/rspack.config.ts
+      101 100 sh -c "rspack" serve
+      102 101 rspack-node
+      200 1 /bin/sh -c meteor run --port 127.0.0.1:3200 --settings tests/settings/playwright-settings.json
+      201 200 /home/pierreferreira/Desktop/rugby-predictor/.meteor/local-playwright/build/main.js
+      300 1 meteor run --port 127.0.0.1:3000 --settings config/local/development.settings.json
+      400 1 npm exec rspack serve --env devServerPort=3002 --env projectConfigPath=/home/pierreferreira/Desktop/rugby-predictor/rspack.config.ts
+      500 1 node scripts/run-playwright-tests.mjs kaplay-prediction-preview.spec.ts
+    `);
+
+    expect(
+      collectOwnedTestProcessIds({
+        appPort: '3200',
+        cwd: '/home/pierreferreira/Desktop/rugby-predictor',
+        excludedPids: [500],
+        localDir: '.meteor/local-playwright',
+        mongoPort: '3201',
+        processRows: rows,
+        rspackDevServerPort: '3202',
+      }),
+    ).toEqual([201, 200, 102, 101, 100]);
   });
 });

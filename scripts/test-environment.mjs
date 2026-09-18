@@ -59,6 +59,100 @@ export const deriveMeteorManagedMongoPort = (port) => {
   return mongoPort;
 };
 
+/**
+ * @typedef {{
+ *   readonly command: string;
+ *   readonly pid: number;
+ *   readonly ppid: number;
+ * }} ProcessTableRow
+ */
+
+/**
+ * @param {string} stdout
+ * @returns {ProcessTableRow[]}
+ */
+export const parseProcessTable = (stdout) =>
+  stdout
+    .split('\n')
+    .map((line) => {
+      const match = line.trim().match(/^(\d+)\s+(\d+)\s+(.+)$/);
+
+      if (!match) {
+        return null;
+      }
+
+      return {
+        command: match[3],
+        pid: Number(match[1]),
+        ppid: Number(match[2]),
+      };
+    })
+    .filter(Boolean);
+
+/**
+ * @param {{
+ *   readonly appPort: number | string;
+ *   readonly cwd: string;
+ *   readonly excludedPids?: readonly number[];
+ *   readonly localDir: string;
+ *   readonly mongoPort: number | string;
+ *   readonly processRows: readonly ProcessTableRow[];
+ *   readonly rspackDevServerPort: number | string;
+ * }} input
+ * @returns {number[]}
+ */
+export const collectOwnedTestProcessIds = ({
+  appPort,
+  cwd,
+  excludedPids = [],
+  localDir,
+  mongoPort,
+  processRows,
+  rspackDevServerPort,
+}) => {
+  const excluded = new Set(excludedPids);
+  const byParent = new Map();
+  const seedPids = new Set();
+
+  for (const row of processRows) {
+    if (!byParent.has(row.ppid)) {
+      byParent.set(row.ppid, []);
+    }
+
+    byParent.get(row.ppid).push(row);
+
+    const command = row.command;
+    const isOwnedSeed =
+      command.includes(localDir) ||
+      (command.includes(cwd) &&
+        command.includes(`devServerPort=${rspackDevServerPort}`)) ||
+      (command.includes(`127.0.0.1:${appPort}`) &&
+        command.includes('tests/settings/playwright-settings.json')) ||
+      (command.includes(`--port ${mongoPort}`) && command.includes(localDir));
+
+    if (isOwnedSeed && !excluded.has(row.pid)) {
+      seedPids.add(row.pid);
+    }
+  }
+
+  const owned = new Set(seedPids);
+  const queue = [...seedPids];
+
+  while (queue.length > 0) {
+    const parentPid = queue.shift();
+    const children = byParent.get(parentPid) ?? [];
+
+    for (const child of children) {
+      if (!owned.has(child.pid) && !excluded.has(child.pid)) {
+        owned.add(child.pid);
+        queue.push(child.pid);
+      }
+    }
+  }
+
+  return [...owned].sort((a, b) => b - a);
+};
+
 export const createIsolatedTestEnvironment = ({
   env = process.env,
   kind,

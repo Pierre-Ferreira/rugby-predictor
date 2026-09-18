@@ -1,13 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
+import { join } from 'node:path';
 import { resolvePlaywrightTarget } from './tests/support/playwright-target';
 
 const { baseURL, shouldStartWebServer, testPort } = resolvePlaywrightTarget();
 const rspackDevServerPort =
   process.env.RSPACK_DEVSERVER_PORT ?? String(testPort + 2);
+const evidenceDir = process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR;
 
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: false,
+  outputDir: evidenceDir
+    ? join(evidenceDir, 'playwright-test-results')
+    : undefined,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
@@ -38,7 +43,10 @@ export default defineConfig({
           RUGBY_ROOSTER_TEST_RUN_ID:
             process.env.RUGBY_ROOSTER_TEST_RUN_ID ?? '',
         },
+        name: 'meteor-playwright',
         reuseExistingServer: false,
+        stderr: 'pipe',
+        stdout: evidenceDir ? 'pipe' : 'ignore',
         timeout: 300_000,
         url: baseURL,
       }

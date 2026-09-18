@@ -159,6 +159,7 @@ export interface PredictionSessionLocalState {
   readonly isSubmitting: boolean;
   readonly location: PredictionSequenceLocation;
   readonly messageSelection: PredictionMessageVariantSelection;
+  readonly persistedForm: PredictionFormState;
   readonly sessionKey: string;
 }
 
@@ -173,6 +174,7 @@ export interface PredictionSessionReducerContext {
 }
 
 export type PredictionSessionAction =
+  | { readonly type: 'adopt-arrived-saved-entry' }
   | { readonly type: 'cancel-discard' }
   | {
       readonly field: PredictionChoiceFieldName;
@@ -267,6 +269,7 @@ export const createInitialPredictionSessionState = ({
     builtInMessageIds(activeSteps),
     random,
   ),
+  persistedForm: initialForm,
   sessionKey: predictionSessionKey({ fixtureId, userId }),
 });
 
@@ -359,6 +362,11 @@ const loadLatestSavedPredictionState = (
     return state;
   }
 
+  const persistedForm = persistedPredictionForm(
+    context.currentEntry,
+    context.ruleset,
+  );
+
   return {
     ...state,
     conversionAdjustmentNotice: null,
@@ -373,10 +381,54 @@ const loadLatestSavedPredictionState = (
         ? 'Latest saved prediction loaded. Unsaved values were replaced.'
         : 'Blank prediction form loaded. Unsaved values were replaced.',
     },
-    form: persistedPredictionForm(context.currentEntry, context.ruleset),
+    form: persistedForm,
     isDiscardConfirmOpen: false,
     isEditingFromReview: false,
     location: context.currentEntry ? { kind: 'review' } : { kind: 'intro' },
+    persistedForm,
+  };
+};
+
+const adoptArrivedSavedEntryState = (
+  state: PredictionSessionLocalState,
+  context: PredictionSessionReducerContext,
+): PredictionSessionLocalState => {
+  const currentEntry = context.currentEntry;
+  const hasUntouchedBlankForm =
+    predictionFormsEqual(state.form, emptyFormForRuleset(context.ruleset)) ||
+    predictionFormsEqual(
+      state.form,
+      persistedPredictionForm(null, context.ruleset),
+    );
+
+  if (!currentEntry || state.editSession.expectedRevision !== null) {
+    return state;
+  }
+
+  if (
+    state.location.kind !== 'intro' ||
+    state.isSubmitting ||
+    state.isEditingFromReview ||
+    state.isDiscardConfirmOpen ||
+    state.feedback ||
+    !hasUntouchedBlankForm
+  ) {
+    return state;
+  }
+
+  const persistedForm = persistedPredictionForm(currentEntry, context.ruleset);
+
+  return {
+    ...state,
+    conversionAdjustmentNotice: null,
+    editSession: {
+      expectedRevision: currentEntry.revision,
+      fixtureId: context.fixtureId,
+      userId: context.userId,
+    },
+    form: persistedForm,
+    location: { kind: 'review' },
+    persistedForm,
   };
 };
 
@@ -384,10 +436,9 @@ export const derivePredictionSessionState = (
   state: PredictionSessionLocalState,
   context: PredictionSessionReducerContext,
 ): PredictionSessionRendererState => {
-  const persistedForm = persistedPredictionForm(
-    context.currentEntry,
-    context.ruleset,
-  );
+  const persistedForm = context.currentEntry
+    ? persistedPredictionForm(context.currentEntry, context.ruleset)
+    : state.persistedForm;
   const hasUnsavedChanges = !predictionFormsEqual(state.form, persistedForm);
   const isPredictionConflict = state.feedback?.code === 'prediction-conflict';
   const savedEntryChanged = Boolean(
@@ -480,6 +531,9 @@ export const reducePredictionSessionState = (
   }
 
   switch (action.type) {
+    case 'adopt-arrived-saved-entry':
+      return adoptArrivedSavedEntryState(state, context);
+
     case 'cancel-discard':
       return {
         ...state,
@@ -720,6 +774,7 @@ export const reducePredictionSessionState = (
         },
         isDiscardConfirmOpen: false,
         location: { kind: 'review' },
+        persistedForm: state.form,
       };
   }
 };
@@ -826,6 +881,12 @@ export const usePredictionSession = (
     methodCallerRef.current =
       input.submitPredictionMethod ?? callPredictionMethod;
   }, [input.submitPredictionMethod]);
+
+  useEffect(() => {
+    if (input.currentEntry) {
+      dispatch({ type: 'adopt-arrived-saved-entry' });
+    }
+  }, [input.currentEntry]);
 
   const state = useMemo(
     () => derivePredictionSessionState(localState, context),

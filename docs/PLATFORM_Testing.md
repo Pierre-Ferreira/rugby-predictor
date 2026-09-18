@@ -158,6 +158,15 @@ loopback, and derives `RSPACK_DEVSERVER_PORT` as the app port plus 2. The manage
 web server starts Meteor with `--port 127.0.0.1:<port>` and does not reuse an
 existing server.
 
+When `RUGBY_ROOSTER_E2E_EVIDENCE_DIR` is set, the Playwright launcher writes
+sanitized launch metadata, safe environment fields, Playwright stdout/stderr,
+process/listener snapshots, and process events to that directory. Evidence mode
+also performs a bounded post-close cleanup for isolated run-owned Meteor/Rspack
+child processes discovered through the test local directory, exact test
+settings/app port, Rspack dev-server port, and their descendants. It preserves
+the Playwright exit code and logs before cleanup and must not target unrelated
+developer listeners such as a normal app on 3000/3001/3002.
+
 During isolated E2E client-development builds whose run id begins with
 `rr-e2e-`, `rspack.config.ts` disables only Rspack HMR/live reload. It does not
 override `Meteor.isTest`, `Meteor.isDevelopment`, or `Meteor.isProduction`.
@@ -247,9 +256,10 @@ The current browser suite covers:
   be cancelled, runtime callback failure and graphics-context loss fall back to
   Standard, keyboard selection works through the DOM bridge, the disabled
   preview gate cannot be overridden by stored On, and a dirty saved-prediction
-  scenario with custom Number and Choice answers exercises same-session runtime
-  failure before explicit revised save. Current pass/fail status for the dirty
-  scenario is recorded in the CCPP-009B1 audit.
+  scenario with custom Number and Choice answers exercises saved-entry revisit,
+  same-session runtime failure, dirty answer preservation, and explicit revised
+  save. CCPP-009B3 records the isolated-script-delivery evidence and current
+  pass/fail history for that focused file.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

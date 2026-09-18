@@ -775,6 +775,83 @@ describe('prediction session hook lifecycle', () => {
     expect(transport.calls).toHaveLength(0);
   });
 
+  it('hydrates from a saved entry that arrives after an untouched blank hook mount', async () => {
+    const transport = createControlledTransport();
+    const blankInput = sessionInput({
+      currentEntry: null,
+      submitPredictionMethod: transport.caller,
+    });
+    const entry = predictionEntry({
+      prediction: validPrediction(),
+      revision: 7,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: blankInput,
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    expect(harness.session().state.location).toEqual({ kind: 'intro' });
+    expect(harness.session().state.editSession.expectedRevision).toBeNull();
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: entry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.location).toEqual({ kind: 'review' });
+    expect(harness.session().state.editSession.expectedRevision).toBe(7);
+    expect(harness.session().state.form).toEqual(
+      formFromPrediction(validPrediction(), defaultRuleset),
+    );
+  });
+
+  it('keeps edited blank hook state when a saved entry arrives late', async () => {
+    const transport = createControlledTransport();
+    const blankInput = sessionInput({
+      currentEntry: null,
+      submitPredictionMethod: transport.caller,
+    });
+    const entry = predictionEntry({
+      prediction: validPrediction(),
+      revision: 7,
+      ruleset: defaultRuleset,
+    });
+    const harness = await createSessionHarness({
+      consumerKey: 'standard-a',
+      input: blankInput,
+      ownerKey: 'user-1:fixture-1',
+    });
+
+    await runAction(harness, (session) => {
+      session.actions.startPrediction();
+      session.actions.selectBuiltInChoice('matchResult', 'team2');
+    });
+
+    expect(harness.session().state.location).toEqual({
+      kind: 'step',
+      stepId: 'match-result',
+    });
+    expect(harness.session().state.form.matchResult).toBe('team2');
+
+    await harness.rerender({
+      input: sessionInput({
+        currentEntry: entry,
+        submitPredictionMethod: transport.caller,
+      }),
+    });
+
+    expect(harness.session().state.location).toEqual({
+      kind: 'step',
+      stepId: 'match-result',
+    });
+    expect(harness.session().state.form.matchResult).toBe('team2');
+    expect(harness.session().state.editSession.expectedRevision).toBeNull();
+  });
+
   it('isolates stale completion from a disposed owner while the replacement session is submitting', async () => {
     const transport = createControlledTransport();
     const entryA = predictionEntry({

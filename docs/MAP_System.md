@@ -93,6 +93,9 @@
   update fallback corrections, HMR/navigation test-boundary review, preserved
   browser failure evidence, verification, limitations, and review archive
   evidence.
+- `docs/AUDIT_009B3_Isolated_Script_Delivery.md` - CCPP-009B3 isolated
+  script-delivery evidence, saved-entry revisit readiness correction, launcher
+  cleanup, verification, limitations, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -128,6 +131,9 @@
   packaging.
 - `docs/TEMP_009B2_Resume.md` - temporary CCPP-009B2 checkpoint for runtime
   adoption fallback, reload diagnosis, evidence preservation, verification,
+  documentation, and packaging.
+- `docs/TEMP_009B3_Resume.md` - temporary CCPP-009B3 checkpoint for isolated
+  script-delivery evidence, saved-entry revisit diagnosis, verification,
   documentation, and packaging.
 
 ## Application Entry Points
@@ -273,15 +279,19 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `rspack.config.ts` - Meteor Rspack configuration, TypeScript checker plugin, local dev-server host settings, and isolated-E2E Rspack HMR/live-reload suppression gate.
 - `.github/workflows/verification.yml` - GitHub Actions verification workflow.
 - `scripts/check-project-invariants.mjs` - durable Rugby Rooster project-invariant checks.
-- `scripts/test-environment.mjs` - isolated local test environment builder shared by integration and Playwright launchers.
+- `scripts/test-environment.mjs` - isolated local test environment builder and
+  process-ownership helpers shared by integration and Playwright launchers.
 - `scripts/run-integration-tests.mjs` - Meteor full-app integration-test launcher with loopback binding and inherited Mongo variable rejection.
-- `scripts/run-playwright-tests.mjs` - Playwright launcher with isolated test run IDs and Meteor-managed local test environment variables.
+- `scripts/run-playwright-tests.mjs` - Playwright launcher with isolated test
+  run IDs, Meteor-managed local test environment variables, optional evidence
+  capture, and bounded run-owned child-process cleanup.
 - `tests/unit/routes.test.ts` - route resolution unit tests.
 - `tests/unit/auth-helpers.test.ts` - auth helper unit tests.
 - `tests/unit/auth-config.test.ts` - auth runtime configuration tests.
 - `tests/unit/postmark-email.test.ts` - Postmark email adapter unit tests.
 - `tests/unit/test-database-identity.test.ts` - isolated test MongoDB endpoint/database identity comparison tests.
-- `tests/unit/test-launchers.test.ts` - isolated test launcher environment tests.
+- `tests/unit/test-launchers.test.ts` - isolated test launcher environment and
+  process-ownership selection tests.
 - `tests/unit/playwright-target.test.ts` - regression tests for safe browser-test target resolution.
 - `tests/unit/scoring-engine.test.ts` - CCPP-003 scoring-engine unit tests.
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.

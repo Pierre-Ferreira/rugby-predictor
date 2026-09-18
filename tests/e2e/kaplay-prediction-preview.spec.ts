@@ -1,4 +1,7 @@
-import { expect, type Page, test } from '@playwright/test';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+import { expect, type Page, test, type TestInfo } from '@playwright/test';
 
 import { TEST_AUTH_METHODS } from '../../imports/shared/auth/methods';
 import { TEST_FIXTURE_METHODS } from '../../imports/shared/fixtures';
@@ -10,6 +13,230 @@ import {
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const animationPreferenceStorageKey = 'rugby-rooster:prediction-animations';
+const evidenceDir = process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR;
+const evidenceCollectors = new WeakMap<Page, BrowserEvidenceCollector>();
+
+type BrowserEvidenceEntry = Record<string, unknown>;
+
+interface BrowserEvidenceCollector {
+  readonly mark: (label: string, details?: BrowserEvidenceEntry) => void;
+  readonly write: () => Promise<void>;
+}
+
+const utcNow = () => new Date().toISOString();
+
+const truncateText = (value: string, maxLength = 1_000) =>
+  value.length > maxLength
+    ? `${value.slice(0, maxLength)}...[truncated]`
+    : value;
+
+const sanitizeUrl = (rawUrl: string | null | undefined) => {
+  if (!rawUrl) {
+    return null;
+  }
+
+  try {
+    const url = new URL(rawUrl);
+    const path = url.pathname.replace(
+      /\/sockjs\/[^/]+\/[^/]+/g,
+      '/sockjs/[server]/[session]',
+    );
+    const query = url.search ? '?[query]' : '';
+
+    return `${url.protocol}//${url.host}${path}${query}`;
+  } catch {
+    return rawUrl.replace(
+      /\/sockjs\/[^/\s]+\/[^/\s]+/g,
+      '/sockjs/[server]/[session]',
+    );
+  }
+};
+
+const sanitizeText = (value: string) =>
+  truncateText(
+    value
+      .replace(/https?:\/\/[^\s'")]+/g, (match) => sanitizeUrl(match) ?? match)
+      .replace(/wss?:\/\/[^\s'")]+/g, (match) => sanitizeUrl(match) ?? match),
+  );
+
+const safeFileSegment = (value: string) =>
+  value
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+    .slice(0, 120);
+
+const isRelevantErrorResponse = (url: string, status: number) =>
+  status >= 400 &&
+  (url.includes('/__rspack__/') ||
+    url.includes('/build-chunks') ||
+    url.includes('/sockjs/'));
+
+const installBrowserEvidence = (
+  page: Page,
+  testInfo: TestInfo,
+): BrowserEvidenceCollector => {
+  const requests: BrowserEvidenceEntry[] = [];
+  const responses: BrowserEvidenceEntry[] = [];
+  const failedRequests: BrowserEvidenceEntry[] = [];
+  const consoleMessages: BrowserEvidenceEntry[] = [];
+  const pageErrors: BrowserEvidenceEntry[] = [];
+  const navigations: BrowserEvidenceEntry[] = [];
+  const stages: BrowserEvidenceEntry[] = [];
+  const responseBodyExcerpts: BrowserEvidenceEntry[] = [];
+  const pendingResponseReads: Promise<void>[] = [];
+
+  const collector: BrowserEvidenceCollector = {
+    mark: (label, details = {}) => {
+      stages.push({
+        details,
+        label,
+        time: utcNow(),
+      });
+    },
+    write: async () => {
+      await Promise.allSettled(pendingResponseReads);
+
+      if (!evidenceDir) {
+        return;
+      }
+
+      const browserDir = join(evidenceDir, 'browser');
+      mkdirSync(browserDir, { recursive: true });
+      writeFileSync(
+        join(
+          browserDir,
+          `${safeFileSegment(testInfo.titlePath.join(' '))}-retry-${testInfo.retry}.json`,
+        ),
+        `${JSON.stringify(
+          {
+            consoleMessages,
+            failedRequests,
+            navigations,
+            pageErrors,
+            requests,
+            responseBodyExcerpts,
+            responses,
+            stages,
+            status: testInfo.status,
+            test: testInfo.titlePath,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    },
+  };
+
+  page.on('request', (request) => {
+    requests.push({
+      method: request.method(),
+      redirectedFrom: sanitizeUrl(request.redirectedFrom()?.url()),
+      resourceType: request.resourceType(),
+      time: utcNow(),
+      url: sanitizeUrl(request.url()),
+    });
+  });
+
+  page.on('response', (response) => {
+    const request = response.request();
+    const entry = {
+      method: request.method(),
+      redirectedFrom: sanitizeUrl(request.redirectedFrom()?.url()),
+      redirectedTo: sanitizeUrl(request.redirectedTo()?.url()),
+      resourceType: request.resourceType(),
+      status: response.status(),
+      statusText: response.statusText(),
+      time: utcNow(),
+      url: sanitizeUrl(response.url()),
+    };
+
+    responses.push(entry);
+
+    if (isRelevantErrorResponse(response.url(), response.status())) {
+      pendingResponseReads.push(
+        response
+          .text()
+          .then((body) => {
+            responseBodyExcerpts.push({
+              body: truncateText(body, 500),
+              status: response.status(),
+              time: utcNow(),
+              url: sanitizeUrl(response.url()),
+            });
+          })
+          .catch((error: unknown) => {
+            responseBodyExcerpts.push({
+              error: errorMessage(error),
+              status: response.status(),
+              time: utcNow(),
+              url: sanitizeUrl(response.url()),
+            });
+          }),
+      );
+    }
+  });
+
+  page.on('requestfailed', (request) => {
+    failedRequests.push({
+      failure: request.failure()?.errorText ?? null,
+      method: request.method(),
+      resourceType: request.resourceType(),
+      time: utcNow(),
+      url: sanitizeUrl(request.url()),
+    });
+  });
+
+  page.on('console', (message) => {
+    consoleMessages.push({
+      location: {
+        column: message.location().columnNumber,
+        line: message.location().lineNumber,
+        url: sanitizeUrl(message.location().url),
+      },
+      text: sanitizeText(message.text()),
+      time: utcNow(),
+      type: message.type(),
+    });
+  });
+
+  page.on('pageerror', (error) => {
+    pageErrors.push({
+      message: sanitizeText(error.message),
+      time: utcNow(),
+    });
+  });
+
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      navigations.push({
+        time: utcNow(),
+        url: sanitizeUrl(frame.url()),
+      });
+    }
+  });
+
+  return collector;
+};
+
+const markStage = (
+  page: Page,
+  label: string,
+  details?: BrowserEvidenceEntry,
+) => {
+  evidenceCollectors.get(page)?.mark(label, details);
+};
+
+const evidenceScreenshotPath = (name: string) => {
+  if (!evidenceDir) {
+    return `test-results/ccpp009b/${name}`;
+  }
+
+  const screenshotDir = join(evidenceDir, 'browser-screenshots');
+  mkdirSync(screenshotDir, { recursive: true });
+
+  return join(screenshotDir, name);
+};
 
 const uniqueEmail = (label: string) =>
   `ccpp009b-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
@@ -297,11 +524,13 @@ const animationsButton = (page: Page, name: 'Off' | 'On') =>
   page.getByRole('button', { exact: true, name });
 
 const waitForKaplayReady = async (page: Page) => {
+  markStage(page, 'kaplay-ready:wait-start');
   await expect(page.getByTestId('kaplay-match-result-stage')).toBeVisible({
     timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
   });
   await expect(page.getByText('Loading animation preview.')).toHaveCount(0);
   await expect(page.getByTestId('kaplay-match-result-canvas')).toBeVisible();
+  markStage(page, 'kaplay-ready:success');
 };
 
 const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
@@ -445,10 +674,22 @@ const createMainFrameNavigationProbe = (page: Page) => {
 test.describe('Kaplay prediction preview', () => {
   test.describe.configure({ timeout: 60_000 });
 
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    if (evidenceDir) {
+      evidenceCollectors.set(page, installBrowserEvidence(page, testInfo));
+      markStage(page, 'beforeEach:evidence-installed');
+    }
+
     await blockMeteorHmrHotCodePush(page);
+    markStage(page, 'beforeEach:hmr-websocket-route-installed');
     await resetTestData(page);
+    markStage(page, 'beforeEach:test-data-reset');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
+    markStage(page, 'beforeEach:reduced-motion-no-preference');
+  });
+
+  test.afterEach(async ({ page }) => {
+    await evidenceCollectors.get(page)?.write();
   });
 
   test('renders a real Match Result canvas choice and hands off to Standard', async ({
@@ -465,13 +706,15 @@ test.describe('Kaplay prediction preview', () => {
       )
       .toBe(0);
 
+    markStage(page, 'real-canvas:animations-on');
     await animationsButton(page, 'On').click();
     await waitForKaplayReady(page);
     await page.screenshot({
       fullPage: true,
-      path: 'test-results/ccpp009b/desktop-match-result-preview.png',
+      path: evidenceScreenshotPath('desktop-match-result-preview.png'),
     });
 
+    markStage(page, 'real-canvas:canvas-choice-click');
     await clickCanvasChoice(page, 1);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
@@ -481,20 +724,23 @@ test.describe('Kaplay prediction preview', () => {
     ).toHaveAttribute('aria-checked', 'true');
     await page.screenshot({
       fullPage: true,
-      path: 'test-results/ccpp009b/desktop-match-result-selected.png',
+      path: evidenceScreenshotPath('desktop-match-result-selected.png'),
     });
 
+    markStage(page, 'real-canvas:animations-off');
     await animationsButton(page, 'Off').click();
     await expect(
       page.getByRole('radio', { name: team2, exact: true }),
     ).toBeChecked();
 
+    markStage(page, 'real-canvas:animations-on-again');
     await animationsButton(page, 'On').click();
     await waitForKaplayReady(page);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
     );
 
+    markStage(page, 'real-canvas:continue-to-standard-step');
     await continueButton(page).click();
     await expect(page.getByText('Step 2 of 9')).toBeVisible();
     await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
@@ -526,13 +772,15 @@ test.describe('Kaplay prediction preview', () => {
       )
       .toBe(0);
 
+    markStage(page, 'reduced-motion:animations-on');
     await animationsButton(page, 'On').click();
     await waitForKaplayReady(page);
     await page.screenshot({
       fullPage: true,
-      path: 'test-results/ccpp009b/narrow-match-result-preview.png',
+      path: evidenceScreenshotPath('narrow-match-result-preview.png'),
     });
 
+    markStage(page, 'reduced-motion:emulate-reduce');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await expect(
       page.getByText('Your device/browser preference keeps animations off.'),
@@ -556,6 +804,7 @@ test.describe('Kaplay prediction preview', () => {
         delayInitializationMs: 250,
       };
     });
+    markStage(page, 'controlled-failure:delayed-initialization-armed');
     await animationsButton(page, 'On').click();
     await expect(
       page.getByText('Loading animation preview.').first(),
@@ -564,6 +813,7 @@ test.describe('Kaplay prediction preview', () => {
       .getByRole('button', { name: 'Continue without animations' })
       .first()
       .click();
+    markStage(page, 'controlled-failure:continue-without-animations');
     await expect(
       page.getByRole('radio', { name: team1, exact: true }),
     ).toBeVisible();
@@ -573,14 +823,17 @@ test.describe('Kaplay prediction preview', () => {
     await gotoLocal(page, predictionPath(fixtureId));
     await startPrediction(page);
     await expect(page.getByText('Step 1 of 9')).toBeVisible();
+    markStage(page, 'controlled-failure:revisited-match-result');
 
     await page.evaluate(() => {
       window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {
         failOnNextPointer: true,
       };
     });
+    markStage(page, 'controlled-failure:pointer-failure-armed');
     await animationsButton(page, 'On').click();
     await waitForKaplayReady(page);
+    markStage(page, 'controlled-failure:canvas-choice-click');
     await clickCanvasChoice(page, 0);
     await expect(
       page.getByText(
@@ -589,14 +842,16 @@ test.describe('Kaplay prediction preview', () => {
     ).toBeVisible();
     await page.screenshot({
       fullPage: true,
-      path: 'test-results/ccpp009b/standard-after-fallback.png',
+      path: evidenceScreenshotPath('standard-after-fallback.png'),
     });
 
     await page.evaluate(() => {
       window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {};
     });
+    markStage(page, 'controlled-failure:retry-animations');
     await page.getByRole('button', { name: 'Retry animations' }).click();
     await waitForKaplayReady(page);
+    markStage(page, 'controlled-failure:dispatch-webglcontextlost');
     await page
       .getByTestId('kaplay-match-result-canvas')
       .dispatchEvent('webglcontextlost', {
@@ -649,6 +904,9 @@ test.describe('Kaplay prediction preview', () => {
       'player-band': 'forwards',
       'scrum-pressure': 4,
     });
+    markStage(page, 'dirty-session:saved-entry-created', {
+      savedRevision,
+    });
 
     await gotoLocal(page, predictionPath(fixtureId));
     await expect(saveRevisedPredictionButton(page)).toBeVisible({
@@ -687,6 +945,7 @@ test.describe('Kaplay prediction preview', () => {
     await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText(
       'Backs',
     );
+    markStage(page, 'dirty-session:unsaved-review-edits-ready');
 
     await reviewSection(page, 'MATCH RESULT')
       .getByRole('button', { name: 'Edit' })
@@ -702,16 +961,19 @@ test.describe('Kaplay prediction preview', () => {
     const navigationProbe = createMainFrameNavigationProbe(page);
 
     navigationProbe.arm();
+    markStage(page, 'dirty-session:protected-segment-armed');
     await animationsButton(page, 'On').click();
     await expect(
       page.getByRole('button', { name: 'Return to Review' }),
     ).toBeVisible();
     await waitForKaplayReady(page);
+    markStage(page, 'dirty-session:canvas-choice-click');
     await clickCanvasChoice(page, 0);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team1}`,
     );
 
+    markStage(page, 'dirty-session:dispatch-webglcontextlost');
     await page
       .getByTestId('kaplay-match-result-canvas')
       .dispatchEvent('webglcontextlost', {
@@ -744,6 +1006,7 @@ test.describe('Kaplay prediction preview', () => {
       'player-band': 'forwards',
       'scrum-pressure': 4,
     });
+    markStage(page, 'dirty-session:persisted-entry-unchanged-after-failure');
 
     await animationsButton(page, 'Off').click();
     await page.getByRole('button', { name: 'Return to Review' }).click();
@@ -755,6 +1018,7 @@ test.describe('Kaplay prediction preview', () => {
       'Backs',
     );
 
+    markStage(page, 'dirty-session:explicit-save-revised-prediction');
     await saveRevisedPredictionButton(page).click();
     await expect(page.getByRole('status')).toContainText('Prediction updated.');
 
@@ -808,7 +1072,9 @@ test.describe('Kaplay prediction preview', () => {
     await gotoLocal(page, predictionPath(fixtureId));
     await startPrediction(page);
     await expect(page.getByText('Step 1 of 9')).toBeVisible();
+    markStage(page, 'keyboard:stored-on-gate-restored');
     await waitForKaplayReady(page);
+    markStage(page, 'keyboard:dom-radio-space');
     await page.getByRole('radio', { name: team2, exact: true }).focus();
     await page.keyboard.press('Space');
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(

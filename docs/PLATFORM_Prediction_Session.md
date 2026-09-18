@@ -56,6 +56,13 @@ entry or an empty ruleset-based form into `PredictionFormState` and initialize
 the session. This avoids starting from a temporary empty publication result and
 then overwriting a player who has begun editing.
 
+If a saved entry arrives just after an otherwise blank Intro session has been
+initialized, the session may adopt it only while the local form is still
+untouched, no revision has been captured, no save is in flight, and the player
+has not started editing. That late initial adoption moves the player to Review
+with the saved entry's revision. It does not run for ordinary reactive revision
+updates, after user edits begin, or after a revision is already captured.
+
 Existing saved entries start at Review. New entries start at Intro. Message
 variant selection happens once during session initialization and is retained
 through ordinary form edits, Back/Continue navigation, Review edits, and
@@ -146,6 +153,13 @@ not silently replace dirty answers or advance the captured expected revision.
 Successful saves update the captured revision from the server response. Stale
 conflicts preserve local answers and expose the accepted explicit
 `Load latest saved prediction` path.
+
+Successful saves also mark the submitted local form as the local persisted
+baseline until the current-entry publication catches up. This prevents the
+Review from showing a just-saved form as dirty merely because the method
+acknowledgement arrived before the saved-entry subscription update. When a
+published current entry is available, it remains the authoritative comparison
+source.
 
 The submit command has a narrow in-flight guard so repeated activation in the
 same session cannot issue duplicate submissions. Async responses include the

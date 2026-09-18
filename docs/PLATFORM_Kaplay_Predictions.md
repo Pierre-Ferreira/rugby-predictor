@@ -231,6 +231,15 @@ ready-state snapshot updates. In both cases the host disposes the runtime,
 falls back to Standard at the same session location, and preserves the current
 prediction answers in the shared session.
 
+CCPP-009B3 verifies the focused Kaplay preview file with isolated evidence
+capture. The historical preview/vendor/SockJS 503 responses did not reproduce
+in the preserved baseline, so their root cause remains unconfirmed. The failure
+that did reproduce was a saved-entry revisit boundary before the dirty Kaplay
+segment: the server helper observed the saved row, but the browser initialized
+from Intro before the current-entry subscription state was usable. The
+correction lives in the shared prediction session rather than the Kaplay
+runtime.
+
 ## Cleanup And Runtime Safety
 
 Each runtime generation owns its canvas listeners, document visibility listener,
