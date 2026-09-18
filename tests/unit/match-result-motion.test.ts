@@ -4,6 +4,9 @@ import {
   advanceShoveEffect,
   choiceAtPoint,
   createShoveEffect,
+  MATCH_RESULT_MIN_CHOICE_CSS_HEIGHT,
+  MATCH_RESULT_PRIMARY_LABEL_CSS_FONT_SIZE,
+  MATCH_RESULT_SCENE_HEIGHT,
   ROOSTER_SHOVE_CONTACT_SECONDS,
   ROOSTER_SHOVE_PUSH_START_SECONDS,
   projectMatchResultLayout,
@@ -11,6 +14,8 @@ import {
   ROOSTER_SHOVE_DURATION_SECONDS,
   ROOSTER_SHOVE_MANIFEST,
   type MatchResultMotionSnapshot,
+  type MotionRect,
+  type ProjectedChoice,
 } from '../../imports/ui/predictions/kaplay/matchResultMotion';
 
 const snapshot = ({
@@ -57,23 +62,31 @@ const snapshot = ({
 const longNameSnapshot = ({
   choicePresentation = 'choices',
   focusedValue = null,
+  labels = {
+    team1: 'Cape Town Very Long Club Name ccpp009c2a XV',
+    team2: 'Johannesburg Equally Long Club Name ccpp009c2b XV',
+  },
   selectionEffectId = 1,
   selected = null,
 }: {
   readonly choicePresentation?: MatchResultMotionSnapshot['choicePresentation'];
   readonly focusedValue?: MatchResultMotionSnapshot['focusedValue'];
+  readonly labels?: {
+    readonly team1: string;
+    readonly team2: string;
+  };
   readonly selectionEffectId?: number;
   readonly selected?: 'draw' | 'team1' | 'team2' | null;
 } = {}): MatchResultMotionSnapshot => ({
   choicePresentation,
   choices: [
     {
-      label: 'Cape Town Very Long Club Name XV',
+      label: labels.team1,
       selected: selected === 'team1',
       value: 'team1',
     },
     {
-      label: 'Johannesburg Equally Long Club Name XV',
+      label: labels.team2,
       selected: selected === 'team2',
       value: 'team2',
     },
@@ -86,14 +99,25 @@ const longNameSnapshot = ({
   focusedValue,
   pickedLabel:
     selected === 'team2'
-      ? 'Johannesburg Equally Long Club Name XV'
+      ? labels.team2
       : selected === 'draw'
         ? 'Draw'
         : selected
-          ? 'Cape Town Very Long Club Name XV'
+          ? labels.team1
           : null,
   selectionEffectId,
 });
+
+const maximumNameSnapshot = (
+  options: Parameters<typeof longNameSnapshot>[0] = {},
+) =>
+  longNameSnapshot({
+    ...options,
+    labels: {
+      team1: `Cape Town ${'A'.repeat(70)}`,
+      team2: `Johannesburg ${'B'.repeat(67)}`,
+    },
+  });
 
 const shoveAt = (
   elapsedSeconds: number,
@@ -135,6 +159,81 @@ const rejectedGroupLeft = (
 
 const stageRight = (layout: ReturnType<typeof projectMatchResultLayout>) =>
   layout.stage.x + layout.stage.width;
+
+const rectBottom = (rect: MotionRect) => rect.y + rect.height;
+const rectRight = (rect: MotionRect) => rect.x + rect.width;
+
+const expectRectInside = (inner: MotionRect, outer: MotionRect) => {
+  expect(inner.x).toBeGreaterThanOrEqual(outer.x);
+  expect(inner.y).toBeGreaterThanOrEqual(outer.y);
+  expect(rectRight(inner)).toBeLessThanOrEqual(rectRight(outer));
+  expect(rectBottom(inner)).toBeLessThanOrEqual(rectBottom(outer));
+};
+
+const rectsOverlap = (first: MotionRect, second: MotionRect) =>
+  first.x < rectRight(second) &&
+  rectRight(first) > second.x &&
+  first.y < rectBottom(second) &&
+  rectBottom(first) > second.y;
+
+const expectChoicesDoNotOverlap = (choices: readonly ProjectedChoice[]) => {
+  choices.forEach((choice, index) => {
+    for (
+      let comparisonIndex = index + 1;
+      comparisonIndex < choices.length;
+      comparisonIndex += 1
+    ) {
+      expect(
+        rectsOverlap(choice.rect, choices[comparisonIndex].rect),
+      ).toBe(false);
+    }
+  });
+};
+
+const expectChoiceContentContained = (choice: ProjectedChoice) => {
+  expectRectInside(choice.labelBlock.rect, choice.rect);
+
+  if (choice.pickedBlock) {
+    expectRectInside(choice.pickedBlock.rect, choice.rect);
+  }
+
+  if (choice.selectionIndicator) {
+    expectRectInside(choice.selectionIndicator, choice.rect);
+    expect(rectRight(choice.labelBlock.rect)).toBeLessThanOrEqual(
+      choice.selectionIndicator.x,
+    );
+  }
+};
+
+const expectLayoutStaticContentFits = (
+  layout: ReturnType<typeof projectMatchResultLayout>,
+) => {
+  expect(layout.contentBounds).not.toBeNull();
+
+  if (layout.contentBounds) {
+    expectRectInside(layout.contentBounds, layout.stage);
+  }
+
+  for (const choice of layout.choices) {
+    expectRectInside(choice.rect, layout.stage);
+    expectChoiceContentContained(choice);
+  }
+
+  expectChoicesDoNotOverlap(layout.choices);
+};
+
+const expectDisplayedReadableLabel = (choice: ProjectedChoice, scale: number) =>
+  expect(choice.labelBlock.fontSize * scale).toBeGreaterThanOrEqual(
+    MATCH_RESULT_PRIMARY_LABEL_CSS_FONT_SIZE - 0.01,
+  );
+
+const expectDisplayedSelectableHeight = (
+  choice: ProjectedChoice,
+  scale: number,
+) =>
+  expect(choice.rect.height * scale).toBeGreaterThanOrEqual(
+    MATCH_RESULT_MIN_CHOICE_CSS_HEIGHT - 0.01,
+  );
 
 describe('match result rooster motion assets', () => {
   it('keeps prepared frame rectangles inside the runtime atlas', () => {
@@ -346,24 +445,17 @@ describe('match result rooster shove projection', () => {
     },
   );
 
-  it.each([
-    ['360px portrait canvas area', 312],
-    ['390px portrait canvas area', 342],
-  ])(
-    'keeps compact choices readable and hit-testable for %s',
-    (_label, canvasWidth) => {
-      const state = longNameSnapshot();
-      const layout = projectMatchResultLayout(state, canvasWidth);
+  it.each([272, 282, 300, 312, 342, 720])(
+    'keeps initial choices readable, contained and hit-testable at %ipx canvas width',
+    (canvasWidth) => {
+      const layout = projectMatchResultLayout(longNameSnapshot(), canvasWidth);
 
-      expect(layout.isCompact).toBe(true);
+      expect(layout.isCompact).toBe(canvasWidth < 560);
+      expectLayoutStaticContentFits(layout);
 
       for (const choice of layout.choices) {
-        expect(choice.rect.height * layout.displayScale).toBeGreaterThanOrEqual(
-          44,
-        );
-        expect(
-          choice.labelBlock.fontSize * layout.displayScale,
-        ).toBeGreaterThanOrEqual(16);
+        expectDisplayedSelectableHeight(choice, layout.displayScale);
+        expectDisplayedReadableLabel(choice, layout.displayScale);
         expect(
           choiceAtPoint(layout, {
             x: choice.rect.x + choice.rect.width / 2,
@@ -372,48 +464,124 @@ describe('match result rooster shove projection', () => {
         ).toBe(choice.choice.value);
       }
 
-      expect(layout.choices[0].labelBlock.lines.length).toBeGreaterThan(1);
-      expect(layout.choices[1].labelBlock.lines.length).toBeGreaterThan(1);
-      expect(
-        Math.max(
-          ...layout.choices.map((choice) => choice.rect.y + choice.rect.height),
-        ),
-      ).toBeLessThanOrEqual(layout.stage.height);
+      if (layout.isCompact) {
+        expect(layout.stage.height).toBeGreaterThan(MATCH_RESULT_SCENE_HEIGHT);
+        expect(layout.choices[0].labelBlock.lines.length).toBeGreaterThan(1);
+        expect(layout.choices[1].labelBlock.lines.length).toBeGreaterThan(1);
+      }
     },
   );
 
-  it('keeps selected, rejected and indicator bounds separated in compact layout', () => {
+  it.each([
+    ['Team 1 selected', 'team1'],
+    ['Team 2 selected', 'team2'],
+    ['Draw selected', 'draw'],
+  ] as const)(
+    'keeps %s compact selected and rejected arrangements contained',
+    (_label, selected) => {
+      for (const canvasWidth of [272, 282, 300, 312, 342]) {
+        const layout = projectMatchResultLayout(
+          longNameSnapshot({
+            choicePresentation: 'selected',
+            focusedValue: selected,
+            selected,
+          }),
+          canvasWidth,
+        );
+        const selectedChoice = layout.selectedChoice;
+
+        expect(layout.isCompact).toBe(true);
+        expect(selectedChoice).not.toBeNull();
+        expect(layout.rejectedGroup).not.toBeNull();
+        expectLayoutStaticContentFits(layout);
+
+        if (!selectedChoice || !layout.rejectedGroup) {
+          continue;
+        }
+
+        expect(rectBottom(selectedChoice.rect)).toBeLessThan(
+          layout.rejectedGroup.y,
+        );
+        expectRectInside(layout.rejectedGroup, layout.stage);
+
+        for (const choice of layout.choices) {
+          expectDisplayedReadableLabel(choice, layout.displayScale);
+        }
+
+        for (const choice of layout.choices.filter(
+          (projectedChoice) => projectedChoice.hitTestable,
+        )) {
+          expect(
+            choiceAtPoint(layout, {
+              x: choice.rect.x + choice.rect.width / 2,
+              y: choice.rect.y + choice.rect.height / 2,
+            })?.value,
+          ).toBe(choice.choice.value);
+        }
+
+        expect(
+          choiceAtPoint(layout, {
+            x: selectedChoice.rect.x + selectedChoice.rect.width / 2,
+            y: selectedChoice.rect.y + selectedChoice.rect.height / 2,
+          }),
+        ).toBeNull();
+      }
+    },
+  );
+
+  it('reserves compact stage height for Draw with both long team names rejected', () => {
     const layout = projectMatchResultLayout(
       longNameSnapshot({
         choicePresentation: 'selected',
-        focusedValue: 'team1',
-        selected: 'team1',
+        selected: 'draw',
       }),
-      312,
+      272,
     );
-    const selected = layout.selectedChoice;
 
-    expect(selected).not.toBeNull();
     expect(layout.rejectedGroup).not.toBeNull();
+    expect(layout.stage.height).toBeGreaterThan(MATCH_RESULT_SCENE_HEIGHT);
+    expectLayoutStaticContentFits(layout);
+  });
 
-    if (!selected || !layout.rejectedGroup || !selected.selectionIndicator) {
-      return;
-    }
+  it.each([272, 300, 342])(
+    'keeps maximum-length valid team labels inside compact layout at %ipx',
+    (canvasWidth) => {
+      for (const selected of [null, 'team1', 'team2', 'draw'] as const) {
+        const layout = projectMatchResultLayout(
+          maximumNameSnapshot({
+            choicePresentation: selected ? 'selected' : 'choices',
+            selected,
+          }),
+          canvasWidth,
+        );
 
-    expect(selected.rect.y + selected.rect.height).toBeLessThan(
-      layout.rejectedGroup.y,
-    );
-    expect(
-      selected.labelBlock.rect.x + selected.labelBlock.rect.width,
-    ).toBeLessThan(selected.selectionIndicator.x);
+        expectLayoutStaticContentFits(layout);
 
-    for (const choice of layout.choices.filter((choice) => choice.isRejected)) {
-      expect(choice.rect.y).toBeGreaterThan(
-        selected.rect.y + selected.rect.height,
-      );
-      expect(
-        choice.labelBlock.fontSize * layout.displayScale,
-      ).toBeGreaterThanOrEqual(16);
+        for (const choice of layout.choices) {
+          expectDisplayedReadableLabel(choice, layout.displayScale);
+          expectDisplayedSelectableHeight(choice, layout.displayScale);
+        }
+      }
+    },
+  );
+
+  it('maps restored choices at projected centers after a compact resize', () => {
+    const restored = longNameSnapshot({ choicePresentation: 'choices' });
+    const beforeResize = projectMatchResultLayout(restored, 342);
+    const afterResize = projectMatchResultLayout(restored, 272);
+
+    expectLayoutStaticContentFits(beforeResize);
+    expectLayoutStaticContentFits(afterResize);
+
+    for (const layout of [beforeResize, afterResize]) {
+      for (const choice of layout.choices) {
+        expect(
+          choiceAtPoint(layout, {
+            x: choice.rect.x + choice.rect.width / 2,
+            y: choice.rect.y + choice.rect.height / 2,
+          })?.value,
+        ).toBe(choice.choice.value);
+      }
     }
   });
 

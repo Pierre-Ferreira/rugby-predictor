@@ -10,7 +10,6 @@ import {
   choiceAtPoint,
   createShoveEffect,
   advanceShoveEffect,
-  MATCH_RESULT_SCENE_HEIGHT,
   MATCH_RESULT_SCENE_WIDTH,
   projectMatchResultLayout,
   projectShoveMotion,
@@ -91,6 +90,7 @@ export interface KaplayMatchResultDebugLayout {
     readonly targetCssHeight: number;
     readonly value: MatchResultChoiceValue;
   }[];
+  readonly contentBounds: MotionRect | null;
   readonly displayScale: number;
   readonly isCompact: boolean;
   readonly rejectedGroup: MotionRect | null;
@@ -189,6 +189,10 @@ export const createKaplayMatchResultRuntime = async ({
   let pointerShouldFail = failOnNextPointer;
   const eventControllers: KEventController[] = [];
   const abortController = new AbortController();
+  const initialLayout = projectMatchResultLayout(
+    initialSnapshot,
+    measuredCanvasCssWidth(canvas),
+  );
 
   const k = kaplay({
     background: [246, 244, 237],
@@ -197,14 +201,14 @@ export const createKaplayMatchResultRuntime = async ({
     focus: false,
     font: 'sans-serif',
     global: false,
-    height: MATCH_RESULT_SCENE_HEIGHT,
+    height: initialLayout.stage.height,
     letterbox: true,
     loadingScreen: false,
     maxFPS: 45,
     pixelDensity: conservativePixelDensity(),
     stretch: true,
     touchToMouse: false,
-    width: MATCH_RESULT_SCENE_WIDTH,
+    width: initialLayout.stage.width,
   } satisfies KAPLAYOpt);
 
   const dispose = () => {
@@ -259,11 +263,11 @@ export const createKaplayMatchResultRuntime = async ({
             throw new Error('Controlled Kaplay pointer failure.');
           }
 
-          const pointer = pointerPositionInGame(canvas, event);
           const layout = projectMatchResultLayout(
             snapshot,
-            canvas.getBoundingClientRect().width,
+            measuredCanvasCssWidth(canvas),
           );
+          const pointer = pointerPositionInGame(canvas, event, layout.stage);
           const choice = choiceAtPoint(layout, pointer);
 
           if (choice) {
@@ -384,6 +388,12 @@ const selectedChoiceValue = (
 ): MatchResultChoiceValue | null =>
   snapshot.choices.find((choice) => choice.selected)?.value ?? null;
 
+const measuredCanvasCssWidth = (canvas: HTMLCanvasElement): number => {
+  const rect = canvas.getBoundingClientRect();
+
+  return rect.width > 0 ? rect.width : MATCH_RESULT_SCENE_WIDTH;
+};
+
 const loadRequiredRoosterAtlas = async (
   k: KAPLAYCtx,
   failRequiredSpriteLoad: boolean,
@@ -419,12 +429,13 @@ const waitForKaplayAsset = <TValue>(asset: Asset<TValue>): Promise<TValue> =>
 const pointerPositionInGame = (
   canvas: HTMLCanvasElement,
   event: PointerEvent,
+  stage: MotionRect,
 ): { readonly x: number; readonly y: number } => {
   const rect = canvas.getBoundingClientRect();
 
   return {
-    x: ((event.clientX - rect.left) / rect.width) * MATCH_RESULT_SCENE_WIDTH,
-    y: ((event.clientY - rect.top) / rect.height) * MATCH_RESULT_SCENE_HEIGHT,
+    x: ((event.clientX - rect.left) / rect.width) * stage.width,
+    y: ((event.clientY - rect.top) / rect.height) * stage.height,
   };
 };
 
@@ -437,7 +448,7 @@ const drawScene = (
 ) => {
   const layout = projectMatchResultLayout(
     snapshot,
-    canvas.getBoundingClientRect().width,
+    measuredCanvasCssWidth(canvas),
   );
   const shoveProjection = activeEffect
     ? projectShoveMotion(activeEffect, layout)
@@ -445,9 +456,9 @@ const drawScene = (
 
   k.drawRect({
     color: k.rgb(247, 244, 234),
-    height: MATCH_RESULT_SCENE_HEIGHT,
+    height: layout.stage.height,
     pos: k.vec2(0, 0),
-    width: MATCH_RESULT_SCENE_WIDTH,
+    width: layout.stage.width,
   });
 
   drawStageBackdrop(k, layout.stage);
@@ -496,6 +507,7 @@ const drawScene = (
         targetCssHeight: choice.rect.height * layout.displayScale,
         value: choice.choice.value,
       })),
+      contentBounds: layout.contentBounds,
       displayScale: layout.displayScale,
       isCompact: layout.isCompact,
       rejectedGroup: layout.rejectedGroup,
@@ -528,19 +540,19 @@ const drawStageBackdrop = (k: KAPLAYCtx, rect: MotionRect) => {
   k.drawRect({
     color: k.rgb(231, 237, 214),
     height: 112,
-    pos: k.vec2(0, MATCH_RESULT_SCENE_HEIGHT - 112),
-    width: MATCH_RESULT_SCENE_WIDTH,
+    pos: k.vec2(0, rect.height - 112),
+    width: rect.width,
   });
   k.drawRect({
     color: k.rgb(196, 214, 171),
     height: 5,
-    pos: k.vec2(0, MATCH_RESULT_SCENE_HEIGHT - 114),
-    width: MATCH_RESULT_SCENE_WIDTH,
+    pos: k.vec2(0, rect.height - 114),
+    width: rect.width,
   });
   k.drawLine({
     color: k.rgb(212, 204, 184),
-    p1: k.vec2(62, 416),
-    p2: k.vec2(654, 398),
+    p1: k.vec2(62, rect.height - 104),
+    p2: k.vec2(654, rect.height - 122),
     width: 3,
   });
 };

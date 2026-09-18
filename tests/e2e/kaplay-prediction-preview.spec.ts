@@ -10,6 +10,7 @@ import {
   TEST_PREDICTION_METHODS,
   type PredictionEntryDocument,
 } from '../../imports/shared/predictions';
+import type { KaplayMatchResultDebugLayout } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const animationPreferenceStorageKey = 'rugby-rooster:prediction-animations';
@@ -229,7 +230,7 @@ const markStage = (
 
 const evidenceScreenshotPath = (name: string) => {
   if (!evidenceDir) {
-    return `test-results/ccpp009c1/${name}`;
+    return `test-results/ccpp009c2/${name}`;
   }
 
   const screenshotDir = join(evidenceDir, 'browser-screenshots');
@@ -240,8 +241,8 @@ const evidenceScreenshotPath = (name: string) => {
 
 const evidenceArtifactPath = (name: string) => {
   if (!evidenceDir) {
-    mkdirSync('test-results/ccpp009c1', { recursive: true });
-    return `test-results/ccpp009c1/${name}`;
+    mkdirSync('test-results/ccpp009c2', { recursive: true });
+    return `test-results/ccpp009c2/${name}`;
   }
 
   const artifactDir = join(evidenceDir, 'browser-artifacts');
@@ -251,7 +252,7 @@ const evidenceArtifactPath = (name: string) => {
 };
 
 const uniqueEmail = (label: string) =>
-  `ccpp009c1-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  `ccpp009c2-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
 
 const uniqueLabel = (label: string) =>
   `${label} ${Date.now().toString(36)}${Math.random().toString(16).slice(2, 6)}`;
@@ -1192,15 +1193,25 @@ test.describe('Kaplay prediction preview', () => {
   }) => {
     const longTeam1 = `${uniqueLabel('Cape Town Very Long Club Name')} XV`;
     const longTeam2 = `${uniqueLabel('Johannesburg Equally Long Club Name')} XV`;
+    const measurements: BrowserEvidenceEntry[] = [];
 
     await page.setViewportSize({ height: 760, width: 390 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    const { team1 } = await createPredictionAtMatchResult(
+    await createPredictionAtMatchResult(
       page,
       'kaplay-reduced-motion',
       {
         team1: longTeam1,
         team2: longTeam2,
+      },
+      {
+        beforeStart: async () => {
+          await page.evaluate(() => {
+            window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {
+              motionTimeScale: 0.25,
+            };
+          });
+        },
       },
     );
 
@@ -1217,51 +1228,125 @@ test.describe('Kaplay prediction preview', () => {
     markStage(page, 'reduced-motion:emulate-no-preference');
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await waitForKaplayReady(page);
-    const mobile390 = await collectKaplayLayoutEvidence(page, '390px viewport');
+    const mobile390Initial = await collectKaplayLayoutEvidence(
+      page,
+      '390px viewport initial choices',
+    );
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('mobile-390-match-result-preview.png'),
     });
+    await screenshotCanvasCrop(page, 'mobile-390-choice-area-crop.png');
     markStage(page, 'reduced-motion:mobile-390-measured', {
-      canvasCss: mobile390.canvasCss,
-      choices: mobile390.layout.choices.map((choice) => ({
+      canvasCss: mobile390Initial.canvasCss,
+      choices: mobile390Initial.layout.choices.map((choice) => ({
         label: choice.label,
         labelCssFontSize: choice.labelCssFontSize,
         targetCssHeight: choice.targetCssHeight,
       })),
     });
 
+    markStage(page, 'reduced-motion:mobile-390-draw-click');
+    await clickCanvasChoice(page, 2);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked Draw',
+    );
+    const mobile390DrawRejected = await collectKaplayLayoutEvidence(
+      page,
+      '390px viewport Draw rejected arrangement',
+    );
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('mobile-390-draw-rejected.png'),
+    });
+    await screenshotCanvasCrop(page, 'mobile-390-draw-rejected-crop.png');
+    await page.waitForTimeout(3_400);
+    const mobile390Settled = await collectKaplayLayoutEvidence(
+      page,
+      '390px viewport settled Draw',
+    );
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('mobile-390-draw-settled.png'),
+    });
+    measurements.push({
+      initial: mobile390Initial,
+      rejected: mobile390DrawRejected,
+      settled: mobile390Settled,
+      viewportWidth: 390,
+    });
+
+    await page.getByRole('button', { name: 'Change my selection' }).click();
     await page.setViewportSize({ height: 760, width: 360 });
-    const mobile360 = await collectKaplayLayoutEvidence(page, '360px viewport');
+    const mobile360Initial = await collectKaplayLayoutEvidence(
+      page,
+      '360px viewport initial choices',
+    );
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('mobile-360-match-result-preview.png'),
     });
     await screenshotCanvasCrop(page, 'mobile-360-choice-area-crop.png');
-    writeEvidenceJson('mobile-layout-measurements.json', {
-      measurements: [mobile390, mobile360],
-    });
     markStage(page, 'reduced-motion:mobile-360-measured', {
-      canvasCss: mobile360.canvasCss,
-      choices: mobile360.layout.choices.map((choice) => ({
+      canvasCss: mobile360Initial.canvasCss,
+      choices: mobile360Initial.layout.choices.map((choice) => ({
         label: choice.label,
         labelCssFontSize: choice.labelCssFontSize,
         targetCssHeight: choice.targetCssHeight,
       })),
     });
 
-    for (const measurement of [mobile390, mobile360]) {
-      for (const choice of measurement.layout.choices) {
-        expect(choice.labelCssFontSize).toBeGreaterThanOrEqual(16);
-        expect(choice.targetCssHeight).toBeGreaterThanOrEqual(44);
-      }
-    }
-
-    markStage(page, 'reduced-motion:mobile-canvas-choice-click');
+    markStage(page, 'reduced-motion:mobile-360-team1-click');
     await clickCanvasChoice(page, 0);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
-      `You picked ${team1}`,
+      `You picked ${longTeam1}`,
     );
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    markStage(page, 'reduced-motion:mobile-360-draw-click');
+    await clickCanvasChoice(page, 2);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked Draw',
+    );
+    const mobile360DrawRejected = await collectKaplayLayoutEvidence(
+      page,
+      '360px viewport Draw rejected arrangement',
+    );
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('mobile-360-draw-rejected.png'),
+    });
+    await screenshotCanvasCrop(page, 'mobile-360-draw-rejected-crop.png');
+    await page.waitForTimeout(3_400);
+    const mobile360Settled = await collectKaplayLayoutEvidence(
+      page,
+      '360px viewport settled Draw',
+    );
+    await page.screenshot({
+      fullPage: true,
+      path: evidenceScreenshotPath('mobile-360-draw-settled.png'),
+    });
+    measurements.push({
+      initial: mobile360Initial,
+      rejected: mobile360DrawRejected,
+      settled: mobile360Settled,
+      viewportWidth: 360,
+    });
+    writeEvidenceJson('mobile-layout-measurements.json', {
+      measurements,
+    });
+
+    for (const measurement of measurements) {
+      for (const phase of ['initial', 'rejected', 'settled'] as const) {
+        const phaseMeasurement = measurement[phase] as {
+          readonly layout: KaplayMatchResultDebugLayout;
+        };
+
+        for (const choice of phaseMeasurement.layout.choices) {
+          expect(choice.labelCssFontSize).toBeGreaterThanOrEqual(15.99);
+          expect(choice.targetCssHeight).toBeGreaterThanOrEqual(43.99);
+        }
+      }
+    }
 
     markStage(page, 'reduced-motion:emulate-reduce');
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -1270,8 +1355,11 @@ test.describe('Kaplay prediction preview', () => {
     ).toBeVisible();
     await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
     await expect(
-      page.getByRole('radio', { name: team1, exact: true }),
-    ).toBeVisible();
+      page.getByRole('radio', { name: 'Draw', exact: true }),
+    ).toBeChecked();
+    await page.evaluate(() => {
+      window.__RUGBY_ROOSTER_KAPLAY_PREVIEW_TEST__ = {};
+    });
   });
 
   test('recovers from delayed initialization, controlled failure and context loss', async ({

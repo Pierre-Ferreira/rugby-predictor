@@ -46,6 +46,7 @@ export interface ProjectedChoice {
 
 export interface MatchResultLayout {
   readonly choices: readonly ProjectedChoice[];
+  readonly contentBounds: MotionRect | null;
   readonly displayScale: number;
   readonly isCompact: boolean;
   readonly rejectedGroup: MotionRect | null;
@@ -76,6 +77,11 @@ export const MATCH_RESULT_SCENE_HEIGHT = 520;
 export const ROOSTER_SHOVE_DURATION_SECONDS = 0.76;
 export const ROOSTER_SHOVE_CONTACT_SECONDS = 0.34;
 export const ROOSTER_SHOVE_PUSH_START_SECONDS = 0.4;
+export const MATCH_RESULT_COMPACT_BREAKPOINT_WIDTH = 560;
+export const MATCH_RESULT_COMPACT_RESERVED_WIDTH = 272;
+export const MATCH_RESULT_MIN_CHOICE_CSS_HEIGHT = 44;
+export const MATCH_RESULT_PRIMARY_LABEL_CSS_FONT_SIZE = 16;
+export const MATCH_RESULT_PICKED_LABEL_CSS_FONT_SIZE = 14;
 
 export const ROOSTER_SHOVE_ATLAS_URL = roosterManifest.atlas.image;
 export const ROOSTER_SHOVE_SPRITE_NAME = roosterManifest.atlas.spriteName;
@@ -83,12 +89,12 @@ export const ROOSTER_SHOVE_ATLAS_DATA =
   roosterManifest.kaplayAtlas as SpriteAtlasData;
 export const ROOSTER_SHOVE_MANIFEST = roosterManifest;
 
-const stageRect: MotionRect = {
-  height: MATCH_RESULT_SCENE_HEIGHT,
+const stageRectWithHeight = (height: number): MotionRect => ({
+  height,
   width: MATCH_RESULT_SCENE_WIDTH,
   x: 0,
   y: 0,
-};
+});
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
@@ -221,17 +227,39 @@ const baseChoiceLabelFontSize = ({
   readonly text: string;
 }) => {
   if (isCompact) {
-    return readableFontSize(selected ? 38 : 37, 16, displayScale);
+    return readableFontSize(
+      selected ? 38 : 37,
+      MATCH_RESULT_PRIMARY_LABEL_CSS_FONT_SIZE,
+      displayScale,
+    );
   }
 
   return text.length > 30 ? (selected ? 22 : 18) : selected ? 30 : 25;
 };
 
 const pickedLabelFontSize = (isCompact: boolean, displayScale: number) =>
-  isCompact ? readableFontSize(30, 14, displayScale) : 18;
+  isCompact
+    ? readableFontSize(
+        30,
+        MATCH_RESULT_PICKED_LABEL_CSS_FONT_SIZE,
+        displayScale,
+      )
+    : 18;
 
 const choiceHorizontalPadding = (isCompact: boolean) => (isCompact ? 30 : 28);
 const choiceVerticalPadding = (isCompact: boolean) => (isCompact ? 18 : 14);
+
+const scaleAwareChoiceHeight = (
+  designHeight: number,
+  isCompact: boolean,
+  displayScale: number,
+) =>
+  isCompact
+    ? Math.max(
+        designHeight,
+        cssPixelsToScene(MATCH_RESULT_MIN_CHOICE_CSS_HEIGHT, displayScale),
+      )
+    : designHeight;
 
 const selectionIndicatorRect = (
   rect: MotionRect,
@@ -381,65 +409,111 @@ const projectChoice = ({
   };
 };
 
-export const projectMatchResultLayout = (
-  snapshot: MatchResultMotionSnapshot,
-  viewportWidth = MATCH_RESULT_SCENE_WIDTH,
-): MatchResultLayout => {
-  const isCompact = viewportWidth < 560;
-  const displayScale = displayScaleForViewport(viewportWidth);
-  const selectedValue = selectedValueFromSnapshot(snapshot);
+interface ProjectedArrangement {
+  readonly choices: readonly ProjectedChoice[];
+  readonly rejectedGroup: MotionRect | null;
+  readonly selectedChoice: ProjectedChoice | null;
+}
 
-  if (snapshot.choicePresentation === 'choices' || !selectedValue) {
-    const width = isCompact ? 608 : 584;
-    const baseHeight = isCompact ? 108 : 78;
-    const gap = isCompact ? 10 : 15;
-    let nextY = isCompact ? 42 : 88;
-    const choices = snapshot.choices.map((choice) => {
-      const projectedChoice = projectChoice({
-        baseHeight,
-        choice,
-        displayScale,
-        hitTestable: true,
-        isCompact,
-        isRejected: false,
-        pickedLabel: null,
-        rectWidth: width,
-        selected: choice.selected,
-        x: (MATCH_RESULT_SCENE_WIDTH - width) / 2,
-        y: nextY,
-      });
+const rectRight = (rect: MotionRect) => rect.x + rect.width;
+const rectBottom = (rect: MotionRect) => rect.y + rect.height;
 
-      nextY += projectedChoice.rect.height + gap;
-
-      return projectedChoice;
-    });
-
-    return {
-      choices,
-      displayScale,
-      isCompact,
-      rejectedGroup: null,
-      selectedChoice: null,
-      stage: stageRect,
-    };
+const unionRects = (rects: readonly MotionRect[]): MotionRect | null => {
+  if (rects.length === 0) {
+    return null;
   }
 
-  const selectedChoice = snapshot.choices.find(
-    (choice) => choice.value === selectedValue,
+  return rects.reduce<MotionRect>(
+    (bounds, rect) => ({
+      height: Math.max(rectBottom(bounds), rectBottom(rect)) -
+        Math.min(bounds.y, rect.y),
+      width: Math.max(rectRight(bounds), rectRight(rect)) -
+        Math.min(bounds.x, rect.x),
+      x: Math.min(bounds.x, rect.x),
+      y: Math.min(bounds.y, rect.y),
+    }),
+    rects[0],
   );
-  const rejectedChoices = snapshot.choices.filter(
+};
+
+const compactStageReservationWidth = (viewportWidth: number) =>
+  Math.min(viewportWidth, MATCH_RESULT_COMPACT_RESERVED_WIDTH);
+
+const projectInitialArrangement = ({
+  choices,
+  displayScale,
+  isCompact,
+}: {
+  readonly choices: readonly MatchResultMotionChoice[];
+  readonly displayScale: number;
+  readonly isCompact: boolean;
+}): ProjectedArrangement => {
+  const width = isCompact ? 608 : 584;
+  const baseHeight = scaleAwareChoiceHeight(
+    isCompact ? 108 : 78,
+    isCompact,
+    displayScale,
+  );
+  const gap = isCompact ? 10 : 15;
+  let nextY = isCompact ? 42 : 88;
+  const projections = choices.map((choice) => {
+    const projectedChoice = projectChoice({
+      baseHeight,
+      choice,
+      displayScale,
+      hitTestable: true,
+      isCompact,
+      isRejected: false,
+      pickedLabel: null,
+      rectWidth: width,
+      selected: choice.selected,
+      x: (MATCH_RESULT_SCENE_WIDTH - width) / 2,
+      y: nextY,
+    });
+
+    nextY += projectedChoice.rect.height + gap;
+
+    return projectedChoice;
+  });
+
+  return {
+    choices: projections,
+    rejectedGroup: null,
+    selectedChoice: null,
+  };
+};
+
+const projectSelectedArrangement = ({
+  choices,
+  displayScale,
+  isCompact,
+  pickedLabelVisible,
+  selectedValue,
+}: {
+  readonly choices: readonly MatchResultMotionChoice[];
+  readonly displayScale: number;
+  readonly isCompact: boolean;
+  readonly pickedLabelVisible: boolean;
+  readonly selectedValue: MatchResultChoiceValue;
+}): ProjectedArrangement => {
+  const selectedChoice = choices.find((choice) => choice.value === selectedValue);
+  const rejectedChoices = choices.filter(
     (choice) => choice.value !== selectedValue,
   );
   const selectedWidth = isCompact ? 608 : 584;
   const selectedProjection: ProjectedChoice | null = selectedChoice
     ? projectChoice({
-        baseHeight: isCompact ? 112 : 98,
+        baseHeight: scaleAwareChoiceHeight(
+          isCompact ? 112 : 98,
+          isCompact,
+          displayScale,
+        ),
         choice: selectedChoice,
         displayScale,
         hitTestable: false,
         isCompact,
         isRejected: false,
-        pickedLabel: snapshot.pickedLabel ? 'You picked' : null,
+        pickedLabel: pickedLabelVisible ? 'You picked' : null,
         rectWidth: selectedWidth,
         selected: true,
         x: (MATCH_RESULT_SCENE_WIDTH - selectedWidth) / 2,
@@ -458,7 +532,11 @@ export const projectMatchResultLayout = (
   let nextRejectedY = rejectedStartY;
   const rejectedProjections = rejectedChoices.map((choice) => {
     const projectedChoice = projectChoice({
-      baseHeight: isCompact ? 94 : 60,
+      baseHeight: scaleAwareChoiceHeight(
+        isCompact ? 94 : 60,
+        isCompact,
+        displayScale,
+      ),
       choice,
       displayScale,
       hitTestable: false,
@@ -475,36 +553,192 @@ export const projectMatchResultLayout = (
 
     return projectedChoice;
   });
-  const rejectedGroup =
-    rejectedProjections.length > 0
-      ? rejectedProjections.reduce<MotionRect>(
-          (group, projection) => ({
-            height:
-              Math.max(
-                group.y + group.height,
-                projection.rect.y + projection.rect.height,
-              ) - Math.min(group.y, projection.rect.y),
-            width:
-              Math.max(
-                group.x + group.width,
-                projection.rect.x + projection.rect.width,
-              ) - Math.min(group.x, projection.rect.x),
-            x: Math.min(group.x, projection.rect.x),
-            y: Math.min(group.y, projection.rect.y),
-          }),
-          rejectedProjections[0].rect,
-        )
-      : null;
+  const rejectedGroup = unionRects(
+    rejectedProjections.map((choice) => choice.rect),
+  );
 
   return {
     choices: selectedProjection
       ? [selectedProjection, ...rejectedProjections]
       : rejectedProjections,
-    displayScale,
-    isCompact,
     rejectedGroup,
     selectedChoice: selectedProjection,
-    stage: stageRect,
+  };
+};
+
+const selectedArrangementValues: readonly MatchResultChoiceValue[] = [
+  'team1',
+  'team2',
+  'draw',
+];
+
+const layoutDisplayScale = (viewportWidth: number) =>
+  displayScaleForViewport(viewportWidth);
+
+const projectArrangementsForStage = ({
+  choices,
+  displayScale,
+  isCompact,
+}: {
+  readonly choices: readonly MatchResultMotionChoice[];
+  readonly displayScale: number;
+  readonly isCompact: boolean;
+}) => [
+  projectInitialArrangement({ choices, displayScale, isCompact }),
+  ...selectedArrangementValues.map((selectedValue) =>
+    projectSelectedArrangement({
+      choices,
+      displayScale,
+      isCompact,
+      pickedLabelVisible: true,
+      selectedValue,
+    }),
+  ),
+];
+
+const compactChoiceBottomPadding = (isCompact: boolean) =>
+  isCompact ? 38 : 46;
+
+const roosterVisualMetrics = (isCompact: boolean) => {
+  const frame = ROOSTER_SHOVE_MANIFEST.frame;
+  const contactPoint = ROOSTER_SHOVE_MANIFEST.visualAnchors.contactPoint;
+  const frameAnchor = ROOSTER_SHOVE_MANIFEST.visualAnchors.frameAnchor;
+  const spriteHeight = isCompact ? 168 : 178;
+  const spriteWidth = (frame.width / frame.height) * spriteHeight;
+  const spriteScale = spriteHeight / frame.height;
+
+  return {
+    anchorOffsetY: frameAnchor.y * spriteScale,
+    contactOffsetX: contactPoint.x * spriteScale,
+    contactOffsetY: contactPoint.y * spriteScale,
+    spriteHeight,
+    spriteScale,
+    spriteWidth,
+  };
+};
+
+const roosterLaneGroundY = (
+  rejectedGroup: MotionRect,
+  isCompact: boolean,
+) => {
+  const metrics = roosterVisualMetrics(isCompact);
+  const baselineGroundY = isCompact ? 424 : 414;
+  const baselineContactY =
+    baselineGroundY - metrics.anchorOffsetY + metrics.contactOffsetY;
+  const groupContactY = Math.min(
+    rejectedGroup.y + Math.max(42, rejectedGroup.height - 42),
+    rejectedGroup.y + rejectedGroup.height * 0.74,
+  );
+  const contactY = Math.max(baselineContactY, groupContactY);
+
+  return contactY - metrics.contactOffsetY + metrics.anchorOffsetY;
+};
+
+const roosterLaneBounds = (
+  rejectedGroup: MotionRect,
+  isCompact: boolean,
+) => {
+  const metrics = roosterVisualMetrics(isCompact);
+  const groundY = roosterLaneGroundY(rejectedGroup, isCompact);
+  const top = groundY - metrics.anchorOffsetY - 4;
+  const bottom = groundY - metrics.anchorOffsetY + metrics.spriteHeight + 10;
+
+  return {
+    bottom,
+    groundY,
+    top,
+  };
+};
+
+const stageHeightForArrangement = (
+  arrangement: ProjectedArrangement,
+  isCompact: boolean,
+) => {
+  const contentBounds = unionRects(
+    arrangement.choices.map((choice) => choice.rect),
+  );
+  const choiceBottom = contentBounds
+    ? rectBottom(contentBounds) + compactChoiceBottomPadding(isCompact)
+    : MATCH_RESULT_SCENE_HEIGHT;
+  const laneBottom = arrangement.rejectedGroup
+    ? roosterLaneBounds(arrangement.rejectedGroup, isCompact).bottom +
+      (isCompact ? 22 : 28)
+    : MATCH_RESULT_SCENE_HEIGHT;
+
+  return Math.ceil(Math.max(MATCH_RESULT_SCENE_HEIGHT, choiceBottom, laneBottom));
+};
+
+const stageHeightForChoices = ({
+  choices,
+  isCompact,
+  viewportWidth,
+}: {
+  readonly choices: readonly MatchResultMotionChoice[];
+  readonly isCompact: boolean;
+  readonly viewportWidth: number;
+}) => {
+  const widths = isCompact
+    ? Array.from(
+        new Set([
+          viewportWidth,
+          compactStageReservationWidth(viewportWidth),
+        ]),
+      )
+    : [viewportWidth];
+
+  return Math.max(
+    ...widths.flatMap((width) =>
+      projectArrangementsForStage({
+        choices,
+        displayScale: layoutDisplayScale(width),
+        isCompact,
+      }).map((arrangement) =>
+        stageHeightForArrangement(arrangement, isCompact),
+      ),
+    ),
+  );
+};
+
+export const projectMatchResultLayout = (
+  snapshot: MatchResultMotionSnapshot,
+  viewportWidth = MATCH_RESULT_SCENE_WIDTH,
+): MatchResultLayout => {
+  const isCompact = viewportWidth < MATCH_RESULT_COMPACT_BREAKPOINT_WIDTH;
+  const displayScale = layoutDisplayScale(viewportWidth);
+  const selectedValue = selectedValueFromSnapshot(snapshot);
+  const stage = stageRectWithHeight(
+    stageHeightForChoices({
+      choices: snapshot.choices,
+      isCompact,
+      viewportWidth,
+    }),
+  );
+  const arrangement =
+    snapshot.choicePresentation === 'choices' || !selectedValue
+      ? projectInitialArrangement({
+          choices: snapshot.choices,
+          displayScale,
+          isCompact,
+        })
+      : projectSelectedArrangement({
+          choices: snapshot.choices,
+          displayScale,
+          isCompact,
+          pickedLabelVisible: Boolean(snapshot.pickedLabel),
+          selectedValue,
+        });
+  const contentBounds = unionRects(
+    arrangement.choices.map((choice) => choice.rect),
+  );
+
+  return {
+    choices: arrangement.choices,
+    contentBounds,
+    displayScale,
+    isCompact,
+    rejectedGroup: arrangement.rejectedGroup,
+    selectedChoice: arrangement.selectedChoice,
+    stage,
   };
 };
 
@@ -558,15 +792,12 @@ export const projectShoveMotion = (
     return null;
   }
 
-  const frame = ROOSTER_SHOVE_MANIFEST.frame;
-  const contactPoint = ROOSTER_SHOVE_MANIFEST.visualAnchors.contactPoint;
-  const frameAnchor = ROOSTER_SHOVE_MANIFEST.visualAnchors.frameAnchor;
-  const spriteHeight = layout.isCompact ? 168 : 178;
-  const spriteWidth = (frame.width / frame.height) * spriteHeight;
-  const spriteScale = spriteHeight / frame.height;
-  const contactOffsetX = contactPoint.x * spriteScale;
-  const anchorOffsetY = frameAnchor.y * spriteScale;
-  const laneGroundY = layout.isCompact ? 424 : 414;
+  const metrics = roosterVisualMetrics(layout.isCompact);
+  const spriteHeight = metrics.spriteHeight;
+  const spriteWidth = metrics.spriteWidth;
+  const contactOffsetX = metrics.contactOffsetX;
+  const anchorOffsetY = metrics.anchorOffsetY;
+  const laneGroundY = roosterLaneGroundY(group, layout.isCompact);
   const contactInsetX = 8;
   const contactNudgeX = 10;
   const entryStartX = -spriteWidth - 48;

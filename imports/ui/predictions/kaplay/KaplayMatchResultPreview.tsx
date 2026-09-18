@@ -10,6 +10,10 @@ import type {
   MatchResultChoiceValue,
   MatchResultRuntimeSnapshot,
 } from './matchResultRuntime';
+import {
+  MATCH_RESULT_SCENE_WIDTH,
+  projectMatchResultLayout,
+} from './matchResultMotion';
 import type { KaplayPreviewAttemptController } from './previewAttempt';
 
 export interface KaplayMatchResultPreviewProps {
@@ -86,6 +90,7 @@ export const KaplayMatchResultPreview = ({
   testControlsEnabled = false,
 }: KaplayMatchResultPreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasShellRef = useRef<HTMLDivElement | null>(null);
   const radioRefs = useRef<
     Partial<Record<MatchResultChoiceValue, HTMLInputElement | null>>
   >({});
@@ -99,6 +104,9 @@ export const KaplayMatchResultPreview = ({
   const [focusedValue, setFocusedValue] =
     useState<MatchResultChoiceValue | null>(null);
   const [selectionEffectId, setSelectionEffectId] = useState(0);
+  const [canvasCssWidth, setCanvasCssWidth] = useState(
+    MATCH_RESULT_SCENE_WIDTH,
+  );
   const choicesAreVisible = !selectedValue || choicesVisible;
   const snapshot = useMemo(
     () =>
@@ -111,6 +119,16 @@ export const KaplayMatchResultPreview = ({
   );
   const runtimeSnapshotRef = useRef(snapshot);
   const previousSessionKeyRef = useRef(sessionKey);
+  const projectedLayout = useMemo(
+    () => projectMatchResultLayout(snapshot, canvasCssWidth),
+    [canvasCssWidth, snapshot],
+  );
+  const canvasStyle = useMemo(
+    () => ({
+      aspectRatio: `${projectedLayout.stage.width} / ${projectedLayout.stage.height}`,
+    }),
+    [projectedLayout.stage.height, projectedLayout.stage.width],
+  );
 
   useEffect(() => {
     if (previousSessionKeyRef.current === sessionKey) {
@@ -135,6 +153,44 @@ export const KaplayMatchResultPreview = ({
     runtimeSnapshotRef.current = snapshot;
     attempt.updateSnapshot(snapshot);
   }, [attempt, snapshot]);
+
+  useEffect(() => {
+    const shell = canvasShellRef.current;
+
+    if (!shell) {
+      return undefined;
+    }
+
+    const updateWidth = () => {
+      const nextWidth = shell.getBoundingClientRect().width;
+
+      if (nextWidth <= 0) {
+        return;
+      }
+
+      setCanvasCssWidth((currentWidth) =>
+        Math.abs(currentWidth - nextWidth) >= 1 ? nextWidth : currentWidth,
+      );
+    };
+
+    updateWidth();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateWidth);
+
+      return () => {
+        window.removeEventListener('resize', updateWidth);
+      };
+    }
+
+    const observer = new ResizeObserver(() => updateWidth());
+
+    observer.observe(shell);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
   const selectChoice = useCallback(
     (value: MatchResultChoiceValue) => {
@@ -253,13 +309,17 @@ export const KaplayMatchResultPreview = ({
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-md border border-rooster-line bg-rooster-paper">
+      <div
+        className="overflow-hidden rounded-md border border-rooster-line bg-rooster-paper"
+        ref={canvasShellRef}
+      >
         <canvas
           aria-describedby={snapshot.helperText ? helperId : undefined}
           aria-labelledby={questionId}
-          className="block aspect-[18/13] w-full touch-manipulation"
+          className="block w-full touch-manipulation"
           data-testid="kaplay-match-result-canvas"
           ref={canvasRef}
+          style={canvasStyle}
         />
       </div>
 
