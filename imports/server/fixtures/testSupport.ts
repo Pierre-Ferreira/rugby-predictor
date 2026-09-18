@@ -13,6 +13,10 @@ import {
   type RulesetSnapshot,
 } from '/imports/shared/scoring';
 import {
+  buildConfiguredRulesetSnapshot,
+  type FixturePredictionQuestionConfig,
+} from '/imports/shared/predictionQuestions';
+import {
   areTestHelpersEnabled,
   assertVerifiedAuthTestEnvironment,
 } from '/imports/server/auth/settings';
@@ -71,7 +75,11 @@ const sanitizeCreatePublishedTestInput = (input: unknown) => {
     );
   }
 
-  const allowedKeys = new Set(['details', 'disabledBuiltInQuestionIds']);
+  const allowedKeys = new Set([
+    'details',
+    'disabledBuiltInQuestionIds',
+    'questionConfig',
+  ]);
   const unknownKeys = Object.keys(input).filter((key) => !allowedKeys.has(key));
 
   if (unknownKeys.length > 0) {
@@ -88,6 +96,8 @@ const sanitizeCreatePublishedTestInput = (input: unknown) => {
     disabledBuiltInQuestionIds: sanitizeDisabledBuiltInQuestionIds(
       input.disabledBuiltInQuestionIds,
     ),
+    questionConfig: input.questionConfig as
+      FixturePredictionQuestionConfig | undefined,
   };
 };
 
@@ -137,10 +147,12 @@ export const registerFixtureTestMethods = async () => {
     ) {
       const [input] = assertArgCount(args, 1);
       const testEnvironment = await assertVerifiedAuthTestEnvironment();
-      const { details, disabledBuiltInQuestionIds } =
+      const { details, disabledBuiltInQuestionIds, questionConfig } =
         sanitizeCreatePublishedTestInput(input);
       const rulesetSnapshot = disableBuiltInQuestions(
-        createDefaultFixtureRulesetSnapshot(),
+        questionConfig
+          ? buildConfiguredRulesetSnapshot(questionConfig)
+          : createDefaultFixtureRulesetSnapshot(),
         disabledBuiltInQuestionIds,
       );
       const now = new Date();

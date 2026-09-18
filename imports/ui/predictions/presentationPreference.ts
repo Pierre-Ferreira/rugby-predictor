@@ -13,6 +13,19 @@ export interface BrowserStorageLike {
   readonly setItem: (key: string, value: string) => void;
 }
 
+export const acquireAnimationPreferenceStorage =
+  (): BrowserStorageLike | null => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  };
+
 export const readAnimationPreference = (
   storage: BrowserStorageLike | null | undefined,
 ): AnimationPreference => {
@@ -45,29 +58,31 @@ export const writeAnimationPreference = (
 };
 
 export const useAnimationPreference = (
-  storage: BrowserStorageLike | null | undefined = window.localStorage,
+  storage?: BrowserStorageLike | null,
 ): readonly [
   AnimationPreference,
   (preference: AnimationPreference) => void,
 ] => {
+  const resolvedStorage =
+    storage === undefined ? acquireAnimationPreferenceStorage() : storage;
   const [preferenceState, setPreferenceState] = useState(() => ({
-    preference: readAnimationPreference(storage),
-    storage,
+    preference: readAnimationPreference(resolvedStorage),
+    storage: resolvedStorage,
   }));
   const preference =
-    preferenceState.storage === storage
+    preferenceState.storage === resolvedStorage
       ? preferenceState.preference
-      : readAnimationPreference(storage);
+      : readAnimationPreference(resolvedStorage);
 
   const setPreference = useCallback(
     (nextPreference: AnimationPreference) => {
       setPreferenceState({
         preference: nextPreference,
-        storage,
+        storage: resolvedStorage,
       });
-      writeAnimationPreference(nextPreference, storage);
+      writeAnimationPreference(nextPreference, resolvedStorage);
     },
-    [storage],
+    [resolvedStorage],
   );
 
   return [preference, setPreference] as const;

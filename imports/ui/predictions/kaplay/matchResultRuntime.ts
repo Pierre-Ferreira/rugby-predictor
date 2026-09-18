@@ -44,6 +44,7 @@ export interface KaplayMatchResultRuntimeInput {
 export type KaplayFunction = typeof import('kaplay').default;
 
 export interface KaplayMatchResultRuntimeFactoryInput extends KaplayMatchResultRuntimeInput {
+  readonly remainingInitializationMs?: number;
   readonly testControlsEnabled?: boolean;
 }
 
@@ -183,111 +184,122 @@ export const createKaplayMatchResultRuntime = async ({
     dispose();
   };
 
-  canvas.addEventListener(
-    'webglcontextlost',
-    (event) => {
-      event.preventDefault();
-      fail(new Error('Kaplay preview WebGL context lost.'));
-    },
-    { signal: abortController.signal },
-  );
-
-  canvas.addEventListener(
-    'pointerup',
-    (event) => {
-      if (disposed || failed || !isSelectionAllowed()) {
-        return;
-      }
-
-      try {
-        if (pointerShouldFail) {
-          pointerShouldFail = false;
-          throw new Error('Controlled Kaplay pointer failure.');
-        }
-
-        const pointer = pointerPositionInGame(canvas, event);
-        const choice = choiceAtPoint(k, snapshot, pointer);
-
-        if (choice) {
-          onSelect(choice.value);
-        }
-      } catch (error) {
-        fail(errorFromUnknown(error, 'Kaplay preview input failed.'));
-      }
-    },
-    { signal: abortController.signal },
-  );
-
-  document.addEventListener(
-    'visibilitychange',
-    () => {
-      const isHidden = document.visibilityState === 'hidden';
-
-      for (const controller of eventControllers) {
-        controller.paused = isHidden;
-      }
-    },
-    { signal: abortController.signal },
-  );
-
   try {
-    k.onError((error) => {
-      fail(errorFromUnknown(error, 'Kaplay preview runtime failed.'));
-    });
+    canvas.addEventListener(
+      'webglcontextlost',
+      (event) => {
+        event.preventDefault();
+        fail(new Error('Kaplay preview WebGL context lost.'));
+      },
+      { signal: abortController.signal },
+    );
 
-    k.onLoadError((name, asset) => {
-      const details =
-        asset.error instanceof Error
-          ? asset.error.message
-          : String(asset.error ?? 'unknown asset error');
+    canvas.addEventListener(
+      'pointerup',
+      (event) => {
+        if (disposed || failed || !isSelectionAllowed()) {
+          return;
+        }
 
-      fail(new Error(`Kaplay asset "${name}" failed to load: ${details}`));
-    });
+        try {
+          if (pointerShouldFail) {
+            pointerShouldFail = false;
+            throw new Error('Controlled Kaplay pointer failure.');
+          }
+
+          const pointer = pointerPositionInGame(canvas, event);
+          const choice = choiceAtPoint(k, snapshot, pointer);
+
+          if (choice) {
+            onSelect(choice.value);
+          }
+        } catch (error) {
+          fail(errorFromUnknown(error, 'Kaplay preview input failed.'));
+        }
+      },
+      { signal: abortController.signal },
+    );
+
+    document.addEventListener(
+      'visibilitychange',
+      () => {
+        const isHidden = document.visibilityState === 'hidden';
+
+        for (const controller of eventControllers) {
+          controller.paused = isHidden;
+        }
+      },
+      { signal: abortController.signal },
+    );
+
+    try {
+      k.onError((error) => {
+        fail(errorFromUnknown(error, 'Kaplay preview runtime failed.'));
+      });
+
+      k.onLoadError((name, asset) => {
+        const details =
+          asset.error instanceof Error
+            ? asset.error.message
+            : String(asset.error ?? 'unknown asset error');
+
+        fail(new Error(`Kaplay asset "${name}" failed to load: ${details}`));
+      });
+    } catch (error) {
+      const setupError = errorFromUnknown(
+        error,
+        'Kaplay preview error hooks failed.',
+      );
+
+      fail(setupError);
+      throw setupError;
+    }
+
+    eventControllers.push(
+      k.onUpdate(() => {
+        if (pulseValue > 0) {
+          pulseValue = Math.max(0, pulseValue - k.dt() * 3.5);
+        }
+      }),
+    );
+
+    eventControllers.push(
+      k.onDraw(() => {
+        try {
+          drawScene(k, snapshot, pulseValue);
+        } catch (error) {
+          fail(errorFromUnknown(error, 'Kaplay preview drawing failed.'));
+        }
+      }),
+    );
+
+    await nextAnimationFrame();
+
+    if (disposed || failed) {
+      throw new Error('Kaplay preview was disposed before it became ready.');
+    }
+
+    return {
+      dispose,
+      update: (nextSnapshot) => {
+        if (disposed || failed) {
+          return;
+        }
+
+        const nextSelectedValue = selectedChoiceValue(nextSnapshot);
+
+        if (nextSelectedValue !== lastSelectedValue) {
+          pulseValue = 1;
+          lastSelectedValue = nextSelectedValue;
+        }
+
+        snapshot = nextSnapshot;
+      },
+    };
   } catch (error) {
-    fail(errorFromUnknown(error, 'Kaplay preview error hooks failed.'));
+    dispose();
+    throw errorFromUnknown(error, 'Kaplay preview initialization failed.');
   }
-
-  eventControllers.push(
-    k.onUpdate(() => {
-      if (pulseValue > 0) {
-        pulseValue = Math.max(0, pulseValue - k.dt() * 3.5);
-      }
-    }),
-  );
-
-  eventControllers.push(
-    k.onDraw(() => {
-      try {
-        drawScene(k, snapshot, pulseValue);
-      } catch (error) {
-        fail(errorFromUnknown(error, 'Kaplay preview drawing failed.'));
-      }
-    }),
-  );
-
-  await nextAnimationFrame();
-
-  if (disposed || failed) {
-    throw new Error('Kaplay preview was disposed before it became ready.');
-  }
-
-  return {
-    dispose,
-    update: (nextSnapshot) => {
-      if (disposed || failed) {
-        return;
-      }
-
-      const nextSelectedValue = selectedChoiceValue(nextSnapshot);
-
-      if (nextSelectedValue !== lastSelectedValue) {
-        pulseValue = 1;
-        lastSelectedValue = nextSelectedValue;
-      }
-
-      snapshot = nextSnapshot;
-    },
-  };
 };
 
 const conservativePixelDensity = (): number =>

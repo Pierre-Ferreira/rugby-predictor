@@ -85,6 +85,10 @@
 - `docs/AUDIT_009B_Kaplay_Runtime_Fallback.md` - CCPP-009B Kaplay runtime,
   mode switching, safe fallback, one-screen Match Result preview, tests,
   limitations, and review archive evidence.
+- `docs/AUDIT_009B1_Initialization_Recovery_Storage.md` - CCPP-009B1 safe
+  storage acquisition, host-owned preview initialization/retry, late-handle
+  disposal, dirty-session preservation evidence, verification, limitations, and
+  review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -115,6 +119,9 @@
   lifecycle guard verification.
 - `docs/TEMP_009B_Resume.md` - temporary CCPP-009B checkpoint for Kaplay
   runtime, fallback, verification, documentation, and packaging.
+- `docs/TEMP_009B1_Resume.md` - temporary CCPP-009B1 checkpoint for
+  initialization recovery, storage safety, verification, documentation, and
+  packaging.
 
 ## Application Entry Points
 
@@ -220,7 +227,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   enabled-question deduction text, and Intro starting-points copy.
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
 - `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
-- `imports/server/predictions/testSupport.ts` - isolated prediction test reset helper.
+- `imports/server/predictions/testSupport.ts` - isolated prediction test reset
+  and signed-in current-entry observation helpers.
 - `imports/ui/predictions/predictionSession.ts` - CCPP-009A/009A1 editable
   prediction session owner, renderer-facing state/actions, navigation and
   read-only command guards, message variant ownership, revision capture,
@@ -229,17 +237,19 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/predictions/standardPredictionState.ts` - CCPP-007 standard
   prediction form state helpers, score derivation adapters, result consistency,
   and first-try constraints.
-- `imports/ui/predictions/PredictionPresentationHost.tsx` - CCPP-009B
+- `imports/ui/predictions/PredictionPresentationHost.tsx` - CCPP-009B/009B1
   Standard/Kaplay preview selection host, Animations control, reduced-motion
-  fallback, loading cancel, failure latch, and retry.
+  fallback, host-owned preview loader/attempt/deadline, loading cancel, failure
+  latch, retry, and late runtime disposal.
 - `imports/ui/predictions/presentationMode.ts` - CCPP-009B preview setting,
   supported-step, and effective-mode policy helpers.
-- `imports/ui/predictions/presentationPreference.ts` - CCPP-009B resilient
-  browser-storage preference helper for Animations On/Off.
+- `imports/ui/predictions/presentationPreference.ts` - CCPP-009B/009B1
+  resilient browser-storage preference helper for Animations On/Off, including
+  protected `window.localStorage` acquisition.
 - `imports/ui/predictions/reducedMotion.ts` - CCPP-009B reduced-motion media
   query helper.
-- `imports/ui/predictions/kaplay/` - CCPP-009B lazy Kaplay Match Result
-  preview component and runtime adapter.
+- `imports/ui/predictions/kaplay/` - CCPP-009B/009B1 lazy Kaplay Match Result
+  preview component, host attempt controller contract, and runtime adapter.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
   route host, shared session host, Standard renderer, Kaplay presentation host,
   Intro, numbered steps, Review/Edit UI, and read-only locked-entry UI that

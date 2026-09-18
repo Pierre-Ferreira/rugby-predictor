@@ -224,6 +224,12 @@ read-only context, account replacement, and fixture replacement all leave the
 shared session owner as the source of truth and render Standard or persisted
 read-only display as appropriate.
 
+CCPP-009B1 keeps preview module loading, runtime initialization, timeout,
+retry, and late-handle disposal below the same shared session owner. A renderer
+failure or retry does not replace local answers, message variants, Review edit
+context, dirty state, captured expected revision, conflict feedback, or
+submitting state, and renderer mode operations perform no prediction write.
+
 ## Renderer-Local State
 
 Presentation-only details remain renderer-local. Examples include hover state,

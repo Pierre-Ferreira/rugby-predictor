@@ -107,10 +107,13 @@ Current unit test files:
   and disposed-owner stale completion isolation.
 - `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B pure preview
   gate/effective-mode and animation preference storage tests.
-- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B real React DOM
-  presentation-host lifecycle tests using mocked runtime factories, controlled
-  initialization promises, timeout control, cleanup/disposal assertions,
-  failure latch/retry, and stale callback isolation.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B/009B1 real
+  React DOM presentation-host lifecycle tests using controlled preview loaders,
+  mocked runtime factories, controlled initialization promises, timeout control,
+  cleanup/disposal assertions, storage getter failure, unavailable persistence
+  retention, one end-to-end deadline, outer import retry, late completion and
+  rejection isolation, failure latch/retry, stale callback isolation, and Strict
+  Mode replay.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,
@@ -242,8 +245,16 @@ The current browser suite covers:
   state, Off/On switching preserves the answer, Continue hands off to the next
   Standard step, reduced motion stops the preview, delayed initialization can
   be cancelled, runtime callback failure and graphics-context loss fall back to
-  Standard, keyboard selection works through the DOM bridge, and the disabled
-  preview gate cannot be overridden by stored On.
+  Standard, keyboard selection works through the DOM bridge, the disabled
+  preview gate cannot be overridden by stored On, and a dirty saved-prediction
+  scenario with custom Number and Choice answers exercises same-session runtime
+  failure before explicit revised save. Current pass/fail status for the dirty
+  scenario is recorded in the CCPP-009B1 audit.
+
+Prediction browser tests use `test.predictions.currentUserEntry` only under the
+existing isolated-test helper gate to observe the signed-in current user's saved
+entry revision and prediction payload. It is not registered in production and
+does not expose private session state through a client global.
 
 Fixture browser setup creates a verified current-run admin with the existing
 test auth helpers and signs in with the isolated-only

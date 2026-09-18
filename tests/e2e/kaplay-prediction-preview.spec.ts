@@ -2,7 +2,11 @@ import { expect, type Page, test } from '@playwright/test';
 
 import { TEST_AUTH_METHODS } from '../../imports/shared/auth/methods';
 import { TEST_FIXTURE_METHODS } from '../../imports/shared/fixtures';
-import { TEST_PREDICTION_METHODS } from '../../imports/shared/predictions';
+import { defaultFixturePredictionQuestionConfig } from '../../imports/shared/predictionQuestions';
+import {
+  TEST_PREDICTION_METHODS,
+  type PredictionEntryDocument,
+} from '../../imports/shared/predictions';
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const animationPreferenceStorageKey = 'rugby-rooster:prediction-animations';
@@ -176,6 +180,65 @@ const createPublishedFixture = async (
     },
   );
 
+const createPublishedCustomFixture = async (
+  setupPage: Page,
+  details: {
+    readonly competitionDisplayName: string;
+    readonly scheduledKickoffAt: string;
+    readonly team1DisplayName: string;
+    readonly team2DisplayName: string;
+  },
+) => {
+  const defaultConfig = defaultFixturePredictionQuestionConfig();
+
+  return callMeteor<{ readonly fixtureId: string }>(
+    setupPage,
+    TEST_FIXTURE_METHODS.createPublished,
+    {
+      details,
+      questionConfig: {
+        ...defaultConfig,
+        optionalStandardQuestions: defaultConfig.optionalStandardQuestions.map(
+          (question) =>
+            question.id === 'first-try'
+              ? {
+                  ...question,
+                  enabled: false,
+                }
+              : question,
+        ),
+        customQuestions: [
+          {
+            answerType: 'number' as const,
+            banter: 'Set-piece heat check.',
+            countingDefinition:
+              'Scrum penalties awarded against Team 2 during regulation match time.',
+            deductionPerUnit: 25,
+            id: 'scrum-pressure',
+            max: 12,
+            min: 0,
+            order: 1,
+            prompt: 'How many scrum penalties will Team 2 concede?',
+          },
+          {
+            answerType: 'choice' as const,
+            countingDefinition:
+              'The official player of the match positional group announced after full-time.',
+            id: 'player-band',
+            incorrectDeduction: 75,
+            options: [
+              { id: 'backs', label: 'Backs' },
+              { id: 'forwards', label: 'Forwards' },
+            ],
+            order: 2,
+            prompt: 'Which group produces the player of the match?',
+          },
+        ],
+      },
+    },
+  );
+};
+
 const farFutureKickoff = () =>
   new Date(Date.UTC(2098, 5, 1, 12, 0, 0)).toISOString();
 
@@ -187,6 +250,25 @@ const startPrediction = async (page: Page) => {
 
 const continueButton = (page: Page) =>
   page.getByRole('button', { exact: true, name: 'Continue' });
+
+const chooseRadio = async (page: Page, name: string) => {
+  await page.getByRole('radio', { exact: true, name }).check();
+};
+
+const teamNumberInput = (page: Page, teamName: string, fieldName: string) =>
+  page.getByRole('spinbutton', { name: `${teamName} ${fieldName}` });
+
+const reviewSection = (page: Page, label: string) =>
+  page.getByRole('group', { name: `Review ${label}` });
+
+const expectStep = async (page: Page, current: number, total = 9) => {
+  await expect(page.getByText(`Step ${current} of ${total}`)).toBeVisible({
+    timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+  });
+};
+
+const saveRevisedPredictionButton = (page: Page) =>
+  page.getByRole('button', { name: 'Save revised prediction' });
 
 const animationsButton = (page: Page, name: 'Off' | 'On') =>
   page.getByRole('button', { exact: true, name });
@@ -251,6 +333,66 @@ const createPredictionAtMatchResult = async (
     team1,
     team2,
   };
+};
+
+const currentUserPredictionEntry = async (page: Page, fixtureId: string) =>
+  callMeteor<PredictionEntryDocument | null>(
+    page,
+    TEST_PREDICTION_METHODS.currentUserEntry,
+    fixtureId,
+  );
+
+const fillValidCustomSequentialPrediction = async (
+  page: Page,
+  teams: {
+    readonly team1: string;
+    readonly team2: string;
+  },
+  custom: {
+    readonly choiceLabel: string;
+    readonly numberPrompt: string;
+    readonly numberValue: string;
+  },
+) => {
+  await startPrediction(page);
+  await chooseRadio(page, teams.team1);
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'tries').fill('2');
+  await teamNumberInput(page, teams.team2, 'tries').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'conversions').fill('2');
+  await teamNumberInput(page, teams.team2, 'conversions').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'penalty kicks').fill('1');
+  await teamNumberInput(page, teams.team2, 'penalty kicks').fill('1');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'drop goals').fill('0');
+  await teamNumberInput(page, teams.team2, 'drop goals').fill('0');
+  await continueButton(page).click();
+
+  await teamNumberInput(page, teams.team1, 'yellow cards').fill('1');
+  await teamNumberInput(page, teams.team1, 'red cards').fill('0');
+  await teamNumberInput(page, teams.team2, 'yellow cards').fill('0');
+  await teamNumberInput(page, teams.team2, 'red cards').fill('0');
+  await continueButton(page).click();
+
+  await chooseRadio(page, 'Second Half');
+  await continueButton(page).click();
+
+  await chooseRadio(page, teams.team1);
+  await continueButton(page).click();
+
+  await page
+    .getByRole('spinbutton', { name: `${custom.numberPrompt} answer` })
+    .fill(custom.numberValue);
+  await continueButton(page).click();
+
+  await chooseRadio(page, custom.choiceLabel);
+  await page.getByRole('button', { name: 'Review predictions' }).click();
 };
 
 declare global {
@@ -424,6 +566,157 @@ test.describe('Kaplay prediction preview', () => {
         "Animations couldn't continue. Your answers have been kept.",
       ),
     ).toBeVisible();
+  });
+
+  test('preserves a dirty saved custom prediction through same-session runtime failure', async ({
+    page,
+  }) => {
+    const team1 = uniqueLabel('Springboks Dirty');
+    const team2 = uniqueLabel('All Blacks Dirty');
+    const numberPrompt = 'How many scrum penalties will Team 2 concede?';
+    const { fixtureId } = await createPublishedCustomFixture(page, {
+      competitionDisplayName: 'Dirty Preview Cup',
+      scheduledKickoffAt: farFutureKickoff(),
+      team1DisplayName: team1,
+      team2DisplayName: team2,
+    });
+
+    await loginAsPlayer(page, 'kaplay-dirty-session');
+    await gotoLocal(page, predictionPath(fixtureId));
+    await fillValidCustomSequentialPrediction(
+      page,
+      {
+        team1,
+        team2,
+      },
+      {
+        choiceLabel: 'Forwards',
+        numberPrompt,
+        numberValue: '4',
+      },
+    );
+    await page.getByRole('button', { name: 'Submit prediction' }).click();
+    await expect(page.getByRole('status')).toContainText('Prediction saved.');
+
+    const savedEntry = await currentUserPredictionEntry(page, fixtureId);
+    const savedRevision = savedEntry?.revision;
+
+    expect(savedRevision).toBeGreaterThan(0);
+    expect(savedEntry?.prediction.highestScoringHalf).toBe('second');
+    expect(savedEntry?.prediction.customAnswers).toMatchObject({
+      'player-band': 'forwards',
+      'scrum-pressure': 4,
+    });
+
+    await gotoLocal(page, predictionPath(fixtureId));
+    await expect(saveRevisedPredictionButton(page)).toBeVisible({
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    });
+
+    await reviewSection(page, 'OTHER PREDICTIONS')
+      .getByRole('button', { name: 'Edit highest-scoring half' })
+      .click();
+    await expectStep(page, 7, 10);
+    await chooseRadio(page, 'First Half');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+
+    await reviewSection(page, 'CUSTOM QUESTIONS')
+      .getByRole('button', { name: 'Edit custom question' })
+      .first()
+      .click();
+    await expectStep(page, 9, 10);
+    await page
+      .getByRole('spinbutton', { name: `${numberPrompt} answer` })
+      .fill('6');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+
+    await reviewSection(page, 'CUSTOM QUESTIONS')
+      .getByRole('button', { name: 'Edit custom question' })
+      .nth(1)
+      .click();
+    await expectStep(page, 10, 10);
+    await chooseRadio(page, 'Backs');
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'First half',
+    );
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText('6');
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText(
+      'Backs',
+    );
+
+    await reviewSection(page, 'MATCH RESULT')
+      .getByRole('button', { name: 'Edit' })
+      .click();
+    await expectStep(page, 1, 10);
+    await expect(
+      page.getByRole('button', { name: 'Return to Review' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('radio', { exact: true, name: team1 }),
+    ).toBeChecked();
+
+    await animationsButton(page, 'On').click();
+    await expect(
+      page.getByRole('button', { name: 'Return to Review' }),
+    ).toBeVisible();
+    await waitForKaplayReady(page);
+    await clickCanvasChoice(page, 0);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team1}`,
+    );
+
+    await page
+      .getByTestId('kaplay-match-result-canvas')
+      .dispatchEvent('webglcontextlost', {
+        bubbles: false,
+        cancelable: true,
+      });
+    await expect(
+      page.getByText(
+        "Animations couldn't continue. Your answers have been kept.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
+    await expectStep(page, 1, 10);
+    await expect(
+      page.getByRole('button', { name: 'Return to Review' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('radio', { exact: true, name: team1 }),
+    ).toBeChecked();
+
+    const entryAfterFailure = await currentUserPredictionEntry(page, fixtureId);
+
+    expect(entryAfterFailure?.revision).toBe(savedRevision);
+    expect(entryAfterFailure?.prediction.highestScoringHalf).toBe('second');
+    expect(entryAfterFailure?.prediction.customAnswers).toMatchObject({
+      'player-band': 'forwards',
+      'scrum-pressure': 4,
+    });
+
+    await animationsButton(page, 'Off').click();
+    await page.getByRole('button', { name: 'Return to Review' }).click();
+    await expect(reviewSection(page, 'OTHER PREDICTIONS')).toContainText(
+      'First half',
+    );
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText('6');
+    await expect(reviewSection(page, 'CUSTOM QUESTIONS')).toContainText(
+      'Backs',
+    );
+
+    await saveRevisedPredictionButton(page).click();
+    await expect(page.getByRole('status')).toContainText('Prediction updated.');
+
+    const revisedEntry = await currentUserPredictionEntry(page, fixtureId);
+
+    expect(revisedEntry?.revision).toBe((savedRevision ?? 0) + 1);
+    expect(revisedEntry?.prediction.highestScoringHalf).toBe('first');
+    expect(revisedEntry?.prediction.customAnswers).toMatchObject({
+      'player-band': 'backs',
+      'scrum-pressure': 6,
+    });
   });
 
   test('supports keyboard selection and preserves preference gate behavior locally', async ({

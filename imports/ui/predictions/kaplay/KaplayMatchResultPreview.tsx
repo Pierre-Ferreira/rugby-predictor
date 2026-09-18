@@ -7,29 +7,20 @@ import {
 } from 'react';
 
 import { matchResultLabel, teamDisplayName } from '../standardPredictionState';
-import {
-  supportsKaplayPredictionStep,
-  type KaplayRuntimeStatus,
-} from '../presentationMode';
+import { supportsKaplayPredictionStep } from '../presentationMode';
 import type {
   PredictionSessionActions,
   PredictionSessionRendererState,
 } from '../predictionSession';
-import {
-  createDefaultKaplayMatchResultRuntime,
-  KAPLAY_INITIALIZATION_TIMEOUT_MS,
-  type KaplayMatchResultRuntimeFactory,
-  type KaplayMatchResultRuntimeHandle,
-  type MatchResultChoiceValue,
-  type MatchResultRuntimeSnapshot,
+import type {
+  MatchResultChoiceValue,
+  MatchResultRuntimeSnapshot,
 } from './matchResultRuntime';
+import type { KaplayPreviewAttemptController } from './previewAttempt';
 
 export interface KaplayMatchResultPreviewProps {
   readonly actions: PredictionSessionActions;
-  readonly initializationTimeoutMs?: number;
-  readonly onRuntimeFailure: (error: Error) => void;
-  readonly onRuntimeStatusChange: (status: KaplayRuntimeStatus) => void;
-  readonly runtimeFactory?: KaplayMatchResultRuntimeFactory;
+  readonly attempt: KaplayPreviewAttemptController;
   readonly state: PredictionSessionRendererState;
   readonly testControlsEnabled?: boolean;
 }
@@ -78,49 +69,31 @@ const snapshotFromState = (
   };
 };
 
-const initializationTimeout = (durationMs: number): Promise<never> =>
-  new Promise((_, reject) => {
-    window.setTimeout(() => {
-      reject(new Error('Kaplay preview initialization timed out.'));
-    }, durationMs);
-  });
-
-const withInitializationTimeout = async (
-  createRuntime: Promise<KaplayMatchResultRuntimeHandle>,
-  durationMs: number,
-): Promise<KaplayMatchResultRuntimeHandle> =>
-  Promise.race([createRuntime, initializationTimeout(durationMs)]);
-
 export const KaplayMatchResultPreview = ({
   actions,
-  initializationTimeoutMs = KAPLAY_INITIALIZATION_TIMEOUT_MS,
-  onRuntimeFailure,
-  onRuntimeStatusChange,
-  runtimeFactory = createDefaultKaplayMatchResultRuntime,
+  attempt,
   state,
   testControlsEnabled = false,
 }: KaplayMatchResultPreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const stateRef = useRef(state);
-  const runtimeRef = useRef<KaplayMatchResultRuntimeHandle | null>(null);
-  const generationRef = useRef(0);
 
   useEffect(() => {
     stateRef.current = state;
-    runtimeRef.current?.update(snapshotFromState(state));
-  }, [state]);
+    attempt.updateSnapshot(snapshotFromState(state));
+  }, [attempt, state]);
 
   const selectChoice = useCallback(
     (value: MatchResultChoiceValue) => {
       const latestState = stateRef.current;
 
-      if (!supportsKaplayPredictionStep(latestState)) {
+      if (!attempt.isCurrent() || !supportsKaplayPredictionStep(latestState)) {
         return;
       }
 
       actions.selectBuiltInChoice('matchResult', value);
     },
-    [actions],
+    [actions, attempt],
   );
 
   useEffect(() => {
@@ -130,83 +103,43 @@ export const KaplayMatchResultPreview = ({
       return undefined;
     }
 
-    const generation = generationRef.current + 1;
-    generationRef.current = generation;
-    let isCurrentGeneration = true;
-    let localRuntime: KaplayMatchResultRuntimeHandle | null = null;
+    let isRuntimeMountActive = true;
+    const initialSnapshot = snapshotFromState(stateRef.current);
 
-    onRuntimeStatusChange('loading');
-
-    void withInitializationTimeout(
-      runtimeFactory({
-        canvas,
-        initialSnapshot: snapshotFromState(stateRef.current),
-        isSelectionAllowed: () =>
-          isCurrentGeneration &&
-          generationRef.current === generation &&
-          supportsKaplayPredictionStep(stateRef.current),
-        onFailure: (error) => {
-          if (!isCurrentGeneration || generationRef.current !== generation) {
-            return;
-          }
-
-          onRuntimeStatusChange('failed');
-          onRuntimeFailure(error);
-        },
-        onSelect: (value) => {
-          if (
-            !isCurrentGeneration ||
-            generationRef.current !== generation ||
-            !isMatchResultChoiceValue(value)
-          ) {
-            return;
-          }
-
-          selectChoice(value);
-        },
-        testControlsEnabled,
-      }),
-      initializationTimeoutMs,
-    )
-      .then((runtime) => {
-        if (!isCurrentGeneration || generationRef.current !== generation) {
-          runtime.dispose();
+    attempt.updateSnapshot(initialSnapshot);
+    const stopRuntime = attempt.startRuntime({
+      canvas,
+      initialSnapshot,
+      isSelectionAllowed: () =>
+        isRuntimeMountActive &&
+        attempt.isCurrent() &&
+        supportsKaplayPredictionStep(stateRef.current),
+      onFailure: (error) => {
+        if (!isRuntimeMountActive || !attempt.isCurrent()) {
           return;
         }
 
-        localRuntime = runtime;
-        runtimeRef.current = runtime;
-        runtime.update(snapshotFromState(stateRef.current));
-        onRuntimeStatusChange('ready');
-      })
-      .catch((error) => {
-        if (!isCurrentGeneration || generationRef.current !== generation) {
+        attempt.fail(error);
+      },
+      onSelect: (value) => {
+        if (
+          !isRuntimeMountActive ||
+          !attempt.isCurrent() ||
+          !isMatchResultChoiceValue(value)
+        ) {
           return;
         }
 
-        onRuntimeStatusChange('failed');
-        onRuntimeFailure(
-          error instanceof Error
-            ? error
-            : new Error('Kaplay preview initialization failed.'),
-        );
-      });
+        selectChoice(value);
+      },
+      testControlsEnabled,
+    });
 
     return () => {
-      isCurrentGeneration = false;
-      generationRef.current += 1;
-      runtimeRef.current = null;
-      localRuntime?.dispose();
-      onRuntimeStatusChange('idle');
+      isRuntimeMountActive = false;
+      stopRuntime();
     };
-  }, [
-    initializationTimeoutMs,
-    onRuntimeFailure,
-    onRuntimeStatusChange,
-    runtimeFactory,
-    selectChoice,
-    testControlsEnabled,
-  ]);
+  }, [attempt, selectChoice, testControlsEnabled]);
 
   const snapshot = useMemo(() => snapshotFromState(state), [state]);
   const questionId = 'kaplay-match-result-question';

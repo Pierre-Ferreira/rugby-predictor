@@ -37,7 +37,9 @@ bundler.
   subscriptions, read-only persisted display, feedback, and the shared session
   owner.
 - `imports/ui/predictions/PredictionPresentationHost.tsx` owns preview
-  preference/effective-mode switching below the shared session owner.
+  preference/effective-mode switching, the end-to-end preview attempt, the
+  outer preview-module loader, deadline, retry, failure latch, and late runtime
+  disposal below the shared session owner.
 - `imports/ui/predictions/presentationMode.ts` contains the pure preview gate,
   supported-step, and effective-mode projection.
 - `imports/ui/predictions/presentationPreference.ts` contains the resilient
@@ -45,7 +47,10 @@ bundler.
 - `imports/ui/predictions/reducedMotion.ts` observes
   `prefers-reduced-motion`.
 - `imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx` renders the
-  one-screen Match Result preview and semantic DOM bridge.
+  one-screen Match Result preview and semantic DOM bridge, and requests runtime
+  startup through a host-owned attempt controller.
+- `imports/ui/predictions/kaplay/previewAttempt.ts` contains the narrow
+  controller contract between the host attempt owner and the preview component.
 - `imports/ui/predictions/kaplay/matchResultRuntime.ts` dynamically imports
   Kaplay and owns context setup, canvas drawing, input hit testing, error
   hooks, visibility pause, and teardown.
@@ -132,9 +137,13 @@ Policy:
   runtime -> Kaplay preview.
 
 No stored preference defaults to Off. Explicit On/Off is retained in
-`localStorage` under `rugby-rooster:prediction-animations`. Storage exceptions,
-missing storage, and malformed values fall back to Off and never block
-prediction entry.
+`localStorage` under `rugby-rooster:prediction-animations`. Acquisition of
+`window.localStorage` itself is protected, so a throwing browser storage getter
+is treated as unavailable storage. Storage getter exceptions, missing storage,
+malformed values, `getItem` failures, and `setItem` failures fall back to Off
+or no-op persistence and never block prediction entry. If persistence is
+unavailable, the mounted UI still keeps the player's current On/Off choice in
+memory across rerenders.
 
 The stored preference never contains answers, revisions, account identifiers,
 fixture identifiers, tokens, or submission data.
@@ -167,6 +176,21 @@ not a runtime error.
 Initialization is bounded by
 `KAPLAY_INITIALIZATION_TIMEOUT_MS = 10_000`.
 
+CCPP-009B1 treats the complete path as one host-owned attempt:
+
+```text
+eligible preview attempt
+        -> preview module load
+        -> Kaplay runtime factory
+        -> ready usable scene
+```
+
+The host starts the deadline before the preview component import begins. The
+runtime factory receives only the remaining attempt lifetime as diagnostic
+input; it does not get a second full timeout after the outer module finishes
+loading. Ordinary rerenders and answer updates do not restart the attempt,
+extend its deadline, or recreate the runtime.
+
 While loading, the host keeps a DOM action available:
 
 `Continue without animations`
@@ -184,8 +208,8 @@ Failures handled through the same recovery path include:
 - KAPLAY `onLoadError`;
 - `webglcontextlost` on the owned canvas.
 
-Recovery disposes owned runtime resources, renders Standard at the same session
-location, and shows:
+Recovery disposes owned runtime resources, clears the attempt deadline, renders
+Standard at the same session location, and shows:
 
 `Animations couldn't continue. Your answers have been kept.`
 
@@ -193,6 +217,12 @@ The copy intentionally does not claim that answers were saved. The failure is
 latched for the current session until `Retry animations` or a deliberate On
 selection. Server validation errors, stale prediction conflicts, and failed
 saves are not treated as renderer failures.
+
+Explicit Retry starts a fresh host attempt and invokes the preview loader again.
+Successful module loads may still be cached by the browser/bundler. Re-invoking
+the loader is bounded recovery for recoverable loader failures; it does not
+promise recovery from permanently missing chunks, browser module-cache failures,
+or broken module evaluation. Standard remains usable when retry cannot recover.
 
 ## Cleanup And Runtime Safety
 
@@ -202,8 +232,20 @@ idempotent and calls `ctx.quit()` in addition to removing adapter-owned
 listeners/controllers.
 
 Late success or failure from an obsolete initialization attempt is ignored. If
-a late runtime handle is created after the generation was invalidated, it is
-disposed immediately.
+a late runtime handle is created after the attempt or runtime-start generation
+was invalidated, it is disposed immediately and never adopted as ready. Late
+rejection is handled without reviving a stale error panel or affecting a newer
+healthy retry attempt.
+
+The host clears an attempt's deadline timer on readiness, failure, cancellation,
+and disposal. A ready runtime remains owned by its attempt until Off,
+unsupported-step handoff, reduced motion, read-only transition, route/session
+departure, retry replacement, runtime failure, or unmount disposes it. Strict
+Mode setup/cleanup/re-setup invalidates obsolete runtime-start work without
+disposing the surviving runtime.
+
+If the runtime adapter throws after creating a Kaplay context but before
+returning a handle, it calls the same engine teardown path before rejecting.
 
 Pointer callbacks re-check the active generation and current session/step
 eligibility before dispatching. Touch is handled through pointer events with
@@ -227,18 +269,31 @@ redesign of every future animated scene.
 
 ## Test Coverage
 
-New unit coverage:
+Unit coverage:
 
 - `tests/unit/prediction-presentation-mode.test.ts`
 - `tests/unit/prediction-presentation-host.test.ts`
 
-New browser coverage:
+The presentation host tests use real React effects/state with controlled
+preview loaders, runtime promises, timers, and per-handle disposal counters.
+They cover storage acquisition failure, unavailable persistence retention,
+outer import timeout/retry, one shared deadline budget, late module/runtime
+resolution, late rejection, retry isolation, unmount disposal, timer cleanup,
+and Strict Mode replay.
+
+Browser coverage:
 
 - `tests/e2e/kaplay-prediction-preview.spec.ts`
 
 The browser spec uses the existing isolated auth/fixture helpers and runs only
 against local loopback. It does not send real email or perform broad database
-cleanup.
+cleanup. CCPP-009B1 adds a same-session dirty saved-prediction scenario intended
+to cover a real custom Number answer, custom Choice answer, actual Kaplay
+readiness, controlled graphics-context loss, Standard fallback at the same edit
+location, no automatic prediction write before explicit save, and a final
+revised save that advances the saved revision by one. Current run status for
+that scenario is recorded in the CCPP-009B1 audit rather than treated as a
+platform guarantee.
 
 Intentional screenshot evidence is written to `test-results/ccpp009b/`.
 

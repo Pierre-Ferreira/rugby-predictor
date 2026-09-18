@@ -1,11 +1,21 @@
 // @vitest-environment jsdom
 
-import { act, createElement, type ReactNode } from 'react';
+import {
+  StrictMode,
+  act,
+  createElement,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PredictionPresentationHost } from '../../imports/ui/predictions/PredictionPresentationHost';
+import {
+  PredictionPresentationHost,
+  type KaplayMatchResultPreviewLoader,
+} from '../../imports/ui/predictions/PredictionPresentationHost';
 import { KaplayMatchResultPreview } from '../../imports/ui/predictions/kaplay/KaplayMatchResultPreview';
+import type { KaplayMatchResultPreviewProps } from '../../imports/ui/predictions/kaplay/KaplayMatchResultPreview';
 import type {
   PredictionSessionActions,
   PredictionSessionRendererState,
@@ -13,7 +23,7 @@ import type {
 import type {
   KaplayMatchResultRuntimeFactory,
   KaplayMatchResultRuntimeHandle,
-  KaplayMatchResultRuntimeInput,
+  KaplayMatchResultRuntimeFactoryInput,
 } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
 
 (
@@ -28,12 +38,21 @@ interface Deferred<TValue> {
 
 interface RuntimeRequest {
   readonly deferred: Deferred<KaplayMatchResultRuntimeHandle>;
-  readonly input: KaplayMatchResultRuntimeInput;
+  readonly input: KaplayMatchResultRuntimeFactoryInput;
 }
 
 interface RuntimeController {
   readonly factory: KaplayMatchResultRuntimeFactory;
   readonly requests: RuntimeRequest[];
+}
+
+interface LoaderRequest {
+  readonly deferred: Deferred<ComponentType<KaplayMatchResultPreviewProps>>;
+}
+
+interface LoaderController {
+  readonly loader: KaplayMatchResultPreviewLoader;
+  readonly requests: LoaderRequest[];
 }
 
 interface MountedHost {
@@ -45,9 +64,15 @@ interface MountedHost {
 }
 
 const mountedHosts: MountedHost[] = [];
+const restoreStorageDescriptors: Array<() => void> = [];
 
 afterEach(async () => {
   vi.useRealTimers();
+
+  while (restoreStorageDescriptors.length > 0) {
+    restoreStorageDescriptors.pop()?.();
+  }
+
   window.localStorage.clear();
 
   while (mountedHosts.length > 0) {
@@ -93,10 +118,44 @@ const createRuntimeController = (): RuntimeController => {
   };
 };
 
+const createLoaderController = (): LoaderController => {
+  const requests: LoaderRequest[] = [];
+  const loader: KaplayMatchResultPreviewLoader = () => {
+    const deferred =
+      createDeferred<ComponentType<KaplayMatchResultPreviewProps>>();
+
+    requests.push({
+      deferred,
+    });
+
+    return deferred.promise;
+  };
+
+  return {
+    loader: vi.fn(loader),
+    requests,
+  };
+};
+
 const createRuntimeHandle = () => ({
   dispose: vi.fn(),
   update: vi.fn(),
 });
+
+const replaceLocalStorage = (descriptor: PropertyDescriptor) => {
+  const original = Object.getOwnPropertyDescriptor(window, 'localStorage');
+
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    ...descriptor,
+  });
+
+  restoreStorageDescriptors.push(() => {
+    if (original) {
+      Object.defineProperty(window, 'localStorage', original);
+    }
+  });
+};
 
 const emptyTeam = () => ({
   conversions: '0',
@@ -211,6 +270,16 @@ const renderStandard = (state: PredictionSessionRendererState): ReactNode =>
 
 const renderHost = async (
   state: PredictionSessionRendererState = rendererState(),
+  options: {
+    readonly initializationTimeoutMs?: number;
+    readonly previewComponent?: ComponentType<KaplayMatchResultPreviewProps> | null;
+    readonly previewLoader?: KaplayMatchResultPreviewLoader;
+    readonly previewSettings?: {
+      readonly enabled: boolean;
+      readonly testControls: boolean;
+    };
+    readonly strictMode?: boolean;
+  } = {},
 ): Promise<MountedHost> => {
   const actions = createActions();
   const container = document.createElement('div');
@@ -222,19 +291,25 @@ const renderHost = async (
 
   const paint = async () => {
     await act(async () => {
+      const host = createElement(PredictionPresentationHost, {
+        actions,
+        initializationTimeoutMs: options.initializationTimeoutMs ?? 25,
+        previewComponent:
+          options.previewComponent === undefined
+            ? KaplayMatchResultPreview
+            : (options.previewComponent ?? undefined),
+        previewLoader: options.previewLoader,
+        previewSettings: options.previewSettings ?? {
+          enabled: true,
+          testControls: false,
+        },
+        renderStandard: () => renderStandard(currentState),
+        runtimeFactory: controller.factory,
+        state: currentState,
+      });
+
       root.render(
-        createElement(PredictionPresentationHost, {
-          actions,
-          initializationTimeoutMs: 25,
-          previewComponent: KaplayMatchResultPreview,
-          previewSettings: {
-            enabled: true,
-            testControls: false,
-          },
-          renderStandard: () => renderStandard(currentState),
-          runtimeFactory: controller.factory,
-          state: currentState,
-        }),
+        options.strictMode ? createElement(StrictMode, null, host) : host,
       );
     });
   };
@@ -297,6 +372,76 @@ const clickButton = async (container: HTMLElement, text: string) => {
     buttonByText(container, text).click();
   });
 };
+
+describe('prediction animation preference storage safety', () => {
+  it('renders Standard with the preview disabled when localStorage getter throws', async () => {
+    replaceLocalStorage({
+      get: () => {
+        throw new Error('localStorage blocked');
+      },
+    });
+
+    const host = await renderHost(rendererState(), {
+      previewSettings: {
+        enabled: false,
+        testControls: false,
+      },
+    });
+
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+    expect(host.controller.factory).not.toHaveBeenCalled();
+  });
+
+  it('keeps enabled preview interaction safe when storage acquisition throws', async () => {
+    replaceLocalStorage({
+      get: () => {
+        throw new Error('localStorage blocked');
+      },
+    });
+
+    const host = await renderHost();
+
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request after unavailable storage',
+    );
+
+    expect(
+      buttonByText(host.container, 'On').getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
+
+  it('keeps an in-memory choice through rerenders when getItem and setItem fail', async () => {
+    replaceLocalStorage({
+      value: {
+        getItem: () => {
+          throw new Error('blocked read');
+        },
+        setItem: () => {
+          throw new Error('blocked write');
+        },
+      },
+    });
+
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request after failed persistence',
+    );
+
+    await host.rerender(rendererState({ matchResult: 'team2' }));
+
+    expect(host.controller.requests).toHaveLength(1);
+    expect(
+      buttonByText(host.container, 'On').getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
+});
 
 describe('prediction presentation host lifecycle', () => {
   it('defaults to Standard and setup/cleanup/re-setup owns one runtime', async () => {
@@ -420,5 +565,310 @@ describe('prediction presentation host lifecycle', () => {
       "Animations couldn't continue. Your answers have been kept.",
     );
     expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    const lateHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(lateHandle);
+      await Promise.resolve();
+    });
+
+    expect(lateHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(lateHandle.update).not.toHaveBeenCalled();
+  });
+
+  it('does not revive a timeout after switching Off before readiness', async () => {
+    vi.useFakeTimers();
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+    const request = host.controller.requests[0];
+
+    await clickButton(host.container, 'Off');
+
+    await act(async () => {
+      vi.advanceTimersByTime(30);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    const lateHandle = createRuntimeHandle();
+    await act(async () => {
+      request.deferred.resolve(lateHandle);
+      await Promise.resolve();
+    });
+
+    expect(lateHandle.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('handles late rejection after cancellation without stale failure UI', async () => {
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+    const request = host.controller.requests[0];
+
+    await clickButton(host.container, 'Off');
+
+    await act(async () => {
+      request.deferred.reject(new Error('late rejection'));
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+  });
+
+  it('keeps a retry attempt healthy when an older timed-out handle resolves', async () => {
+    vi.useFakeTimers();
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'first runtime request',
+    );
+    const firstRequest = host.controller.requests[0];
+
+    await act(async () => {
+      vi.advanceTimersByTime(26);
+      await Promise.resolve();
+    });
+
+    await clickButton(host.container, 'Retry animations');
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'retry runtime request',
+    );
+
+    const secondHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(secondHandle);
+      await Promise.resolve();
+    });
+
+    const lateFirstHandle = createRuntimeHandle();
+    await act(async () => {
+      firstRequest.deferred.resolve(lateFirstHandle);
+      await Promise.resolve();
+    });
+
+    expect(lateFirstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(secondHandle.dispose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      host.controller.requests[1].input.onSelect('team2');
+      firstRequest.input.onSelect('team1');
+    });
+
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledWith(
+      'matchResult',
+      'team2',
+    );
+  });
+
+  it('disposes a ready runtime once on unmount and clears its deadline', async () => {
+    vi.useFakeTimers();
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+
+    const handle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(handle);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(30);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+    expect(handle.dispose).not.toHaveBeenCalled();
+
+    await host.unmount();
+
+    await act(async () => {
+      vi.advanceTimersByTime(30);
+      await Promise.resolve();
+    });
+
+    expect(handle.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the surviving StrictMode setup healthy and disposes obsolete resources', async () => {
+    const host = await renderHost(rendererState(), {
+      strictMode: true,
+    });
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'StrictMode runtime replay',
+    );
+
+    const survivingHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(survivingHandle);
+      await Promise.resolve();
+    });
+
+    const obsoleteHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(obsoleteHandle);
+      await Promise.resolve();
+    });
+
+    expect(obsoleteHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(survivingHandle.dispose).not.toHaveBeenCalled();
+    expect(
+      host.container.querySelector('[data-testid="kaplay-match-result-stage"]'),
+    ).not.toBeNull();
+  });
+});
+
+describe('prediction presentation outer loader ownership', () => {
+  it('times out a never-resolving outer loader before preview mount', async () => {
+    vi.useFakeTimers();
+    const loader = createLoaderController();
+    const host = await renderHost(rendererState(), {
+      previewComponent: null,
+      previewLoader: loader.loader,
+    });
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => loader.requests.length === 1,
+      'outer loader request',
+    );
+
+    expect(host.controller.requests).toHaveLength(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(26);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).toContain(
+      "Animations couldn't continue. Your answers have been kept.",
+    );
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    await act(async () => {
+      loader.requests[0].deferred.resolve(KaplayMatchResultPreview);
+      await Promise.resolve();
+    });
+
+    expect(host.controller.requests).toHaveLength(0);
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+  });
+
+  it('invokes the outer loader again on explicit retry and can recover', async () => {
+    const loader = createLoaderController();
+    const host = await renderHost(rendererState(), {
+      previewComponent: null,
+      previewLoader: loader.loader,
+    });
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => loader.requests.length === 1,
+      'first loader request',
+    );
+
+    await act(async () => {
+      loader.requests[0].deferred.reject(new Error('recoverable load failure'));
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).toContain(
+      "Animations couldn't continue. Your answers have been kept.",
+    );
+
+    await clickButton(host.container, 'Retry animations');
+    await waitForCondition(
+      () => loader.requests.length === 2,
+      'retry loader request',
+    );
+
+    await act(async () => {
+      loader.requests[1].deferred.resolve(KaplayMatchResultPreview);
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request after recovered load',
+    );
+
+    const handle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(handle);
+      await Promise.resolve();
+    });
+
+    expect(
+      host.container.querySelector('[data-testid="kaplay-match-result-stage"]'),
+    ).not.toBeNull();
+    expect(loader.loader).toHaveBeenCalledTimes(2);
+  });
+
+  it('spends outer load time from the same end-to-end deadline', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-18T08:00:00.000Z'));
+    const loader = createLoaderController();
+    const host = await renderHost(rendererState(), {
+      initializationTimeoutMs: 100,
+      previewComponent: null,
+      previewLoader: loader.loader,
+    });
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => loader.requests.length === 1,
+      'outer loader request',
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(40);
+      loader.requests[0].deferred.resolve(KaplayMatchResultPreview);
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request after delayed load',
+    );
+
+    expect(host.controller.requests[0].input.remainingInitializationMs).toBe(
+      60,
+    );
+
+    await host.rerender(rendererState({ matchResult: 'team2' }));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+      await Promise.resolve();
+    });
+
+    expect(loader.loader).toHaveBeenCalledTimes(1);
+    expect(host.controller.requests).toHaveLength(1);
   });
 });

@@ -43,5 +43,43 @@ export const registerPredictionTestMethods = async () => {
 
       return true;
     },
+
+    [TEST_PREDICTION_METHODS.currentUserEntry]: async function currentUserEntry(
+      ...args: unknown[]
+    ) {
+      const [fixtureId] = assertArgCount(args, 1);
+
+      if (typeof fixtureId !== 'string' || fixtureId.trim().length === 0) {
+        throw new Meteor.Error(
+          'invalid-test-helper-call',
+          'Fixture id is required.',
+        );
+      }
+
+      if (!this.userId) {
+        throw new Meteor.Error(
+          'not-authorized',
+          'A signed-in test user is required.',
+        );
+      }
+
+      const testEnvironment = await assertVerifiedAuthTestEnvironment();
+
+      return Predictions.findOneAsync(
+        {
+          fixtureId,
+          userId: this.userId,
+          'rugbyRoosterTest.ownerRunId': testEnvironment.runId,
+        },
+        {
+          fields: {
+            fixtureId: 1,
+            prediction: 1,
+            revision: 1,
+            userId: 1,
+          },
+        },
+      );
+    },
   });
 };
