@@ -6,6 +6,11 @@ CCPP-009A inspected repository asset locations for existing Rooster artwork
 that could inform later Kaplay stages. This is an inventory only. No images were
 generated, downloaded, cropped, converted, or assembled into sprite atlases.
 
+CCPP-009C began with a required supplied-art check for the approved first-pass
+rooster shove prototype. The required source images were not present in the
+repository, searched local workspace paths, `/tmp`, or the previous CCPP-009B4
+review archive, so no runtime sprite preparation was started.
+
 Inspected locations:
 
 - `public/`
@@ -34,11 +39,15 @@ No repository files were found for:
 - run or push animation frames;
 - sprite sheets;
 - texture atlases;
-- Kaplay-ready runtime artwork.
+- Kaplay-ready runtime artwork;
+- required CCPP-009C supplied inputs
+  `cartoon_rooster_running_sprite_sheet.png` and
+  `rooster_animation_loops_reference_sheet.png`.
 
 ## Future Asset Requirements
 
-Missing runtime artwork does not block CCPP-009A. A later visual stage, expected
-around CCPP-009C, needs production-ready Rooster assets or a separate approved
-asset-production task before implementing shove/run/push animation frames or
-sprite atlases.
+Missing runtime artwork did not block CCPP-009A. CCPP-009C is blocked until the
+approved source-art PNGs are available locally. Once present, the implementation
+must preserve originals unchanged and generate reproducible prepared frames,
+atlas/metadata, contact sheets, transparency checks, and motion-review evidence
+before integrating the Match Result shove.

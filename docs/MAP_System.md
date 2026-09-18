@@ -43,7 +43,8 @@
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
 - `docs/MAP_Rooster_Assets.md` - CCPP-009A current repository Rooster/app icon
-  asset inventory and missing runtime animation asset requirements.
+  asset inventory, missing runtime animation asset requirements, and the
+  CCPP-009C supplied-art availability blocker.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
 - `docs/AUDIT_002_Testing_Infrastructure.md` - CCPP-002 completion evidence.
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
@@ -101,6 +102,8 @@
   saved-baseline correctness, publication-lag discard behavior, verified
   process-cleanup ownership, verification, limitations, and review archive
   evidence.
+- `docs/AUDIT_009C_Visual_Foundation_Rooster_Shove.md` - CCPP-009C
+  supplied-art availability blocker, inspected files, and next action.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -143,6 +146,8 @@
 - `docs/TEMP_009B3A_Resume.md` - temporary CCPP-009B3A checkpoint for
   save-baseline correctness, safe process cleanup, verification, documentation,
   and packaging.
+- `docs/TEMP_009C_Resume.md` - temporary CCPP-009C checkpoint for the
+  supplied-art availability blocker before visual foundation implementation.
 
 ## Application Entry Points
 
