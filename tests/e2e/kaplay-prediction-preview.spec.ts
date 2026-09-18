@@ -55,6 +55,28 @@ const waitForMeteorClient = async (page: Page) => {
   );
 };
 
+const waitForReactAppMount = async (page: Page) => {
+  await page.waitForFunction(
+    () => (document.querySelector('#react-target')?.childElementCount ?? 0) > 0,
+    undefined,
+    {
+      timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+    },
+  );
+};
+
+const blockMeteorHmrHotCodePush = async (page: Page) => {
+  await page.routeWebSocket(
+    (url) => url.pathname === '/__meteor__hmr__/websocket',
+    async (webSocket) => {
+      await webSocket.close({
+        code: 1000,
+        reason: 'Meteor HMR disabled for deterministic isolated E2E.',
+      });
+    },
+  );
+};
+
 const evaluateMeteorCall = async <TResult>(
   page: Page,
   method: string,
@@ -106,6 +128,7 @@ const gotoLocal = async (page: Page, url: string) => {
         waitUntil: 'domcontentloaded',
       });
       await waitForMeteorClient(page);
+      await waitForReactAppMount(page);
       return;
     } catch (error) {
       lastError = error;
@@ -401,10 +424,29 @@ declare global {
   }
 }
 
+const createMainFrameNavigationProbe = (page: Page) => {
+  let armed = false;
+  const urls: string[] = [];
+
+  page.on('framenavigated', (frame) => {
+    if (armed && frame === page.mainFrame()) {
+      urls.push(frame.url());
+    }
+  });
+
+  return {
+    arm: () => {
+      armed = true;
+    },
+    urls: () => [...urls],
+  };
+};
+
 test.describe('Kaplay prediction preview', () => {
   test.describe.configure({ timeout: 60_000 });
 
   test.beforeEach(async ({ page }) => {
+    await blockMeteorHmrHotCodePush(page);
     await resetTestData(page);
     await page.emulateMedia({ reducedMotion: 'no-preference' });
   });
@@ -657,6 +699,9 @@ test.describe('Kaplay prediction preview', () => {
       page.getByRole('radio', { exact: true, name: team1 }),
     ).toBeChecked();
 
+    const navigationProbe = createMainFrameNavigationProbe(page);
+
+    navigationProbe.arm();
     await animationsButton(page, 'On').click();
     await expect(
       page.getByRole('button', { name: 'Return to Review' }),
@@ -686,6 +731,10 @@ test.describe('Kaplay prediction preview', () => {
     await expect(
       page.getByRole('radio', { exact: true, name: team1 }),
     ).toBeChecked();
+    expect(
+      navigationProbe.urls(),
+      'Kaplay dirty-session preservation segment should not trigger a page reload.',
+    ).toEqual([]);
 
     const entryAfterFailure = await currentUserPredictionEntry(page, fixtureId);
 

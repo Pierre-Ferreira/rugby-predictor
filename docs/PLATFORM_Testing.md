@@ -251,6 +251,21 @@ The current browser suite covers:
   failure before explicit revised save. Current pass/fail status for the dirty
   scenario is recorded in the CCPP-009B1 audit.
 
+CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
+preview spec. The WebSocket route predicate is limited to the exact path
+`/__meteor__hmr__/websocket`; it must not intercept DDP/SockJS application
+traffic, prediction requests, all WebSockets, or broad development-server
+traffic. This HMR-isolated run is not proof that ordinary development hot reload
+preserves unsaved in-memory answers.
+
+The Kaplay preview spec may retry bounded transient navigation/setup readiness
+only inside explicit initial setup or revisit helpers, before protected dirty
+session preservation begins. After unsaved edits are made and the dirty segment
+is armed, tests must not hide a document replacement behind automatic `goto`,
+reload, relogin, or fixture rebuild steps. Unexpected full document navigation
+in that segment is a failure and should be preserved as evidence. React
+session-owner remounts should be distinguished from full document navigation.
+
 Prediction browser tests use `test.predictions.currentUserEntry` only under the
 existing isolated-test helper gate to observe the signed-in current user's saved
 entry revision and prediction payload. It is not registered in production and
@@ -272,6 +287,8 @@ Failure diagnostics:
 
 - Playwright retains traces, screenshots, and videos on failure.
 - Generated artifacts under `test-results/` and `playwright-report/` are ignored by Git.
+- Raw traces can contain session material. Preserve originals privately and
+  package only sanitized excerpts or summaries when preparing review archives.
 
 Browser checks do not prove backend security. Server code must still be inspected for privileged operations, and future domain features need server-side tests.
 

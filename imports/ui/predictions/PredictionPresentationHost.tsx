@@ -344,7 +344,11 @@ export const PredictionPresentationHost = ({
           return;
         }
 
-        runtimeHandle.update(snapshot);
+        try {
+          runtimeHandle.update(snapshot);
+        } catch (error) {
+          fail(errorFromUnknown(error, 'Kaplay preview runtime failed.'));
+        }
       };
 
       const startRuntime = (input: KaplayMatchResultRuntimeFactoryInput) => {
@@ -383,11 +387,28 @@ export const PredictionPresentationHost = ({
               return;
             }
 
+            try {
+              handle.update(latestSnapshot ?? input.initialSnapshot);
+            } catch (error) {
+              disposeLocalHandle(handle);
+              fail(
+                errorFromUnknown(
+                  error,
+                  'Kaplay preview initialization failed.',
+                ),
+              );
+              return;
+            }
+
+            if (!isCurrent() || activeRuntimeStartId !== runtimeStartId) {
+              disposeLocalHandle(handle);
+              return;
+            }
+
             runtimeHandle = handle;
             runtimeHandleDisposed = false;
             attempt.status = 'ready';
             clearDeadline();
-            handle.update(latestSnapshot ?? input.initialSnapshot);
             updateStateForAttempt('ready', null);
           })
           .catch((error) => {

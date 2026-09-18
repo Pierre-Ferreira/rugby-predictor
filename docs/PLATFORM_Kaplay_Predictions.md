@@ -203,6 +203,8 @@ Failures handled through the same recovery path include:
 - dynamic import rejection;
 - initialization exception;
 - initialization timeout;
+- runtime snapshot update exception during initial adoption;
+- runtime snapshot update exception after readiness;
 - runtime callback failure;
 - KAPLAY `onError`;
 - KAPLAY `onLoadError`;
@@ -223,6 +225,11 @@ Successful module loads may still be cached by the browser/bundler. Re-invoking
 the loader is bounded recovery for recoverable loader failures; it does not
 promise recovery from permanently missing chunks, browser module-cache failures,
 or broken module evaluation. Standard remains usable when retry cannot recover.
+
+CCPP-009B2 adds regressions for runtime update failures during both adoption and
+ready-state snapshot updates. In both cases the host disposes the runtime,
+falls back to Standard at the same session location, and preserves the current
+prediction answers in the shared session.
 
 ## Cleanup And Runtime Safety
 
@@ -296,6 +303,13 @@ that scenario is recorded in the CCPP-009B1 audit rather than treated as a
 platform guarantee.
 
 Intentional screenshot evidence is written to `test-results/ccpp009b/`.
+
+CCPP-009B2 keeps the browser-test success/failure distinction strict:
+success-path assertions require the real stage, visible canvas, and actual
+canvas interaction. Standard fallback is accepted only after a test has
+deliberately triggered a renderer failure. The dirty saved-session failure test
+must first reach a real ready runtime and interact with the canvas before
+checking Standard recovery and persisted-revision preservation.
 
 ## Limitations
 

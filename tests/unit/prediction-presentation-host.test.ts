@@ -576,6 +576,74 @@ describe('prediction presentation host lifecycle', () => {
     expect(lateHandle.update).not.toHaveBeenCalled();
   });
 
+  it('falls back and disposes when the initial runtime update fails during adoption', async () => {
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+
+    const handle = createRuntimeHandle();
+    handle.update.mockImplementationOnce(() => {
+      throw new Error('adoption update failed');
+    });
+
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(handle);
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () =>
+        host.container.textContent?.includes(
+          "Animations couldn't continue. Your answers have been kept.",
+        ) === true,
+      'fallback after failed adoption update',
+    );
+
+    expect(handle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    await host.rerender(rendererState({ matchResult: 'team1' }));
+
+    expect(host.controller.requests).toHaveLength(1);
+    expect(host.container.textContent).toContain('Standard team1 7 revision 3');
+  });
+
+  it('falls back and disposes when a ready runtime snapshot update fails', async () => {
+    const host = await renderHost();
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+
+    const handle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(handle);
+      await Promise.resolve();
+    });
+    expect(handle.update).toHaveBeenCalledTimes(1);
+
+    handle.update.mockImplementationOnce(() => {
+      throw new Error('snapshot update failed');
+    });
+
+    await host.rerender(rendererState({ matchResult: 'team2' }));
+    await waitForCondition(
+      () =>
+        host.container.textContent?.includes(
+          "Animations couldn't continue. Your answers have been kept.",
+        ) === true,
+      'fallback after ready snapshot update failure',
+    );
+
+    expect(handle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.container.textContent).toContain('Standard team2 7 revision 3');
+  });
+
   it('does not revive a timeout after switching Off before readiness', async () => {
     vi.useFakeTimers();
     const host = await renderHost();

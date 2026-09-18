@@ -89,6 +89,10 @@
   storage acquisition, host-owned preview initialization/retry, late-handle
   disposal, dirty-session preservation evidence, verification, limitations, and
   review archive evidence.
+- `docs/AUDIT_009B2_Runtime_Adoption_Reload_Diagnosis.md` - CCPP-009B2 runtime
+  update fallback corrections, HMR/navigation test-boundary review, preserved
+  browser failure evidence, verification, limitations, and review archive
+  evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -122,6 +126,9 @@
 - `docs/TEMP_009B1_Resume.md` - temporary CCPP-009B1 checkpoint for
   initialization recovery, storage safety, verification, documentation, and
   packaging.
+- `docs/TEMP_009B2_Resume.md` - temporary CCPP-009B2 checkpoint for runtime
+  adoption fallback, reload diagnosis, evidence preservation, verification,
+  documentation, and packaging.
 
 ## Application Entry Points
 
