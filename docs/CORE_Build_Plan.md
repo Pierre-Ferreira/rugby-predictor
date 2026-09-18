@@ -541,15 +541,19 @@ Not implemented:
 
 ## CCPP-009B Scope
 
-Milestone status: implemented for the development/test-only Kaplay runtime
-preview and safe fallback. Platform details live in
+Milestone status: implemented for the Kaplay Match Result runtime preview,
+safe fallback, and automatic ordinary-development access. Platform details live in
 `docs/PLATFORM_Kaplay_Predictions.md`, and verification evidence is recorded in
 `docs/AUDIT_009B_Kaplay_Runtime_Fallback.md`.
 
 Implemented:
 
 - `kaplay@3001.0.19` dependency and lazy client-only dynamic import.
-- Settings-gated non-production preview with Animations On/Off preference.
+- Automatic non-production development access for supported scenes, with
+  production still unavailable.
+- Fresh/invalid browser preference defaulting to Animations On, while explicit
+  Off remains respected.
+- Animations On/Off preference control.
 - Reduced-motion Standard fallback.
 - Effective-mode projection for gate, preference, reduced motion, step support,
   and runtime state.
@@ -565,7 +569,7 @@ Implemented:
 Not implemented:
 
 - Rooster artwork, shove animation, complete built-in/custom Kaplay question
-  flow, Kaplay Review/submission, public/default rollout, FPS quality tiers,
+  flow, Kaplay Review/submission, production rollout, FPS quality tiers,
   new persistence schemas, prediction/server redesign, scores/leaderboards,
   result settlement, authentication/Postmark, admin refresh, or offline
   caching.

@@ -279,17 +279,22 @@ state. A save accepted before lock can still finish for the same active session
 and clear its submitting state; the visible locked display remains based on the
 persisted prediction entry.
 
-CCPP-009B adds a development/test-only Kaplay preview for the Match Result
-step. Standard remains the default presentation for ordinary use and remains
-the presentation for Intro, all non-Match-Result questions, Review, and locked
-views. The preview uses the same shared prediction session and can be switched
-On/Off without losing answers, location, message variants, captured revision,
-conflict/submission state, dirty/discard state, or partial custom answers. It
-falls back to Standard when the preview gate is disabled, Animations are Off,
-reduced motion is requested, the step is unsupported, initialization is
-cancelled or fails, the runtime fails, or the canvas loses its graphics
-context. This milestone does not implement the full animated flow, Rooster
-artwork, shove animation, or animated Review/submission.
+CCPP-009B adds a development/test Kaplay preview for the Match Result step.
+CCPP-009B4 makes that supported screen available automatically in ordinary
+local development: no settings JSON preview gate is required, and an absent or
+invalid stored preference defaults to Animations On. Intro,
+non-Match-Result questions, Review, and locked views still use Standard. The
+preview uses the same shared
+prediction session and can be switched On/Off without losing answers, location,
+message variants, captured revision, conflict/submission state,
+dirty/discard state, or partial custom answers. It falls back to Standard when
+production disables the preview, Animations are explicitly Off, reduced motion
+is requested, the step is unsupported, initialization is cancelled or fails, the
+runtime fails, or the canvas loses its graphics context. Legacy
+`kaplayPredictionPreview.enabled:false` development settings no longer block
+the supported scene; test-only controls remain separately opted in. This
+milestone does not implement the full animated flow, Rooster artwork, shove
+animation, or animated Review/submission.
 
 ## Deferred Decisions
 

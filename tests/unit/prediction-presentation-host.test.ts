@@ -25,6 +25,10 @@ import type {
   KaplayMatchResultRuntimeHandle,
   KaplayMatchResultRuntimeFactoryInput,
 } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
+import {
+  animationPreferenceStorageKey,
+  type AnimationPreference,
+} from '../../imports/ui/predictions/presentationPreference';
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -65,12 +69,17 @@ interface MountedHost {
 
 const mountedHosts: MountedHost[] = [];
 const restoreStorageDescriptors: Array<() => void> = [];
+const restoreMatchMediaDescriptors: Array<() => void> = [];
 
 afterEach(async () => {
   vi.useRealTimers();
 
   while (restoreStorageDescriptors.length > 0) {
     restoreStorageDescriptors.pop()?.();
+  }
+
+  while (restoreMatchMediaDescriptors.length > 0) {
+    restoreMatchMediaDescriptors.pop()?.();
   }
 
   window.localStorage.clear();
@@ -155,6 +164,35 @@ const replaceLocalStorage = (descriptor: PropertyDescriptor) => {
       Object.defineProperty(window, 'localStorage', original);
     }
   });
+};
+
+const replaceMatchMedia = (matches: boolean) => {
+  const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn(() => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      matches,
+      media: '(prefers-reduced-motion: reduce)',
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  });
+
+  restoreMatchMediaDescriptors.push(() => {
+    if (original) {
+      Object.defineProperty(window, 'matchMedia', original);
+    } else {
+      delete (window as { matchMedia?: Window['matchMedia'] }).matchMedia;
+    }
+  });
+};
+
+const storeAnimationPreference = (preference: AnimationPreference) => {
+  window.localStorage.setItem(animationPreferenceStorageKey, preference);
 };
 
 const emptyTeam = () => ({
@@ -392,7 +430,7 @@ describe('prediction animation preference storage safety', () => {
     expect(host.controller.factory).not.toHaveBeenCalled();
   });
 
-  it('keeps enabled preview interaction safe when storage acquisition throws', async () => {
+  it('defaults to On in memory when storage acquisition throws', async () => {
     replaceLocalStorage({
       get: () => {
         throw new Error('localStorage blocked');
@@ -401,9 +439,6 @@ describe('prediction animation preference storage safety', () => {
 
     const host = await renderHost();
 
-    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
-
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request after unavailable storage',
@@ -414,7 +449,7 @@ describe('prediction animation preference storage safety', () => {
     ).toBe('true');
   });
 
-  it('keeps an in-memory choice through rerenders when getItem and setItem fail', async () => {
+  it('keeps an in-memory Off choice through rerenders when getItem and setItem fail', async () => {
     replaceLocalStorage({
       value: {
         getItem: () => {
@@ -428,29 +463,114 @@ describe('prediction animation preference storage safety', () => {
 
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
-      'runtime request after failed persistence',
+      'default runtime request after failed persistence read',
     );
+    await clickButton(host.container, 'Off');
 
     await host.rerender(rendererState({ matchResult: 'team2' }));
 
     expect(host.controller.requests).toHaveLength(1);
     expect(
-      buttonByText(host.container, 'On').getAttribute('aria-pressed'),
+      buttonByText(host.container, 'Off').getAttribute('aria-pressed'),
     ).toBe('true');
+    expect(host.container.textContent).toContain('Standard team2 7 revision 3');
   });
 });
 
-describe('prediction presentation host lifecycle', () => {
-  it('defaults to Standard and setup/cleanup/re-setup owns one runtime', async () => {
+describe('prediction presentation host default policy', () => {
+  it('respects explicit stored Off until the player chooses On', async () => {
+    storeAnimationPreference('off');
+    const host = await renderHost(rendererState({ matchResult: 'team1' }));
+
+    expect(host.container.textContent).toContain('Standard team1 7 revision 3');
+    expect(host.controller.factory).not.toHaveBeenCalled();
+    expect(
+      buttonByText(host.container, 'Off').getAttribute('aria-pressed'),
+    ).toBe('true');
+
+    await clickButton(host.container, 'On');
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request after explicit On',
+    );
+    expect(host.container.textContent).not.toContain(
+      'Standard team1 7 revision 3',
+    );
+  });
+
+  it('uses Standard for reduced motion without clearing the On preference', async () => {
+    replaceMatchMedia(true);
+
     const host = await renderHost();
 
     expect(host.container.textContent).toContain('Standard blank 7 revision 3');
     expect(host.controller.factory).not.toHaveBeenCalled();
+    expect(host.container.textContent).toContain(
+      'Your device/browser preference keeps animations off.',
+    );
+    expect(
+      buttonByText(host.container, 'On').getAttribute('aria-pressed'),
+    ).toBe('true');
+  });
 
-    await clickButton(host.container, 'On');
+  it('uses Standard for unsupported and read-only steps without initializing Kaplay', async () => {
+    const unsupportedHost = await renderHost(
+      rendererState({ stepId: 'tries' }),
+    );
+
+    expect(unsupportedHost.container.textContent).toContain(
+      'Standard blank 7 revision 3',
+    );
+    expect(unsupportedHost.container.textContent).toContain(
+      'This step uses the standard experience.',
+    );
+    expect(unsupportedHost.controller.factory).not.toHaveBeenCalled();
+
+    const readOnlyHost = await renderHost(rendererState({ isReadOnly: true }));
+
+    expect(readOnlyHost.container.textContent).toContain(
+      'Standard blank 7 revision 3',
+    );
+    expect(readOnlyHost.controller.factory).not.toHaveBeenCalled();
+  });
+
+  it('keeps test controls disabled for ordinary development unless explicitly enabled', async () => {
+    const ordinaryHost = await renderHost();
+
+    await waitForCondition(
+      () => ordinaryHost.controller.requests.length === 1,
+      'ordinary development runtime request',
+    );
+    expect(ordinaryHost.controller.requests[0].input.testControlsEnabled).toBe(
+      false,
+    );
+
+    const isolatedHost = await renderHost(
+      rendererState({ fixtureId: 'fixture-2' }),
+      {
+        previewSettings: {
+          enabled: true,
+          testControls: true,
+        },
+      },
+    );
+
+    await waitForCondition(
+      () => isolatedHost.controller.requests.length === 1,
+      'isolated test runtime request',
+    );
+    expect(isolatedHost.controller.requests[0].input.testControlsEnabled).toBe(
+      true,
+    );
+  });
+});
+
+describe('prediction presentation host lifecycle', () => {
+  it('uses default On for supported Match Result and setup/cleanup/re-setup owns one runtime', async () => {
+    const host = await renderHost();
+
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'first runtime request',
@@ -487,7 +607,6 @@ describe('prediction presentation host lifecycle', () => {
   it('ignores late initialization and stale callbacks after switching Off', async () => {
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -515,7 +634,6 @@ describe('prediction presentation host lifecycle', () => {
   it('falls back after runtime failure and retries only after explicit action', async () => {
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -550,7 +668,6 @@ describe('prediction presentation host lifecycle', () => {
     vi.useFakeTimers();
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -579,7 +696,6 @@ describe('prediction presentation host lifecycle', () => {
   it('falls back and disposes when the initial runtime update fails during adoption', async () => {
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -614,7 +730,6 @@ describe('prediction presentation host lifecycle', () => {
   it('falls back and disposes when a ready runtime snapshot update fails', async () => {
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -648,7 +763,6 @@ describe('prediction presentation host lifecycle', () => {
     vi.useFakeTimers();
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -679,7 +793,6 @@ describe('prediction presentation host lifecycle', () => {
   it('handles late rejection after cancellation without stale failure UI', async () => {
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -703,7 +816,6 @@ describe('prediction presentation host lifecycle', () => {
     vi.useFakeTimers();
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'first runtime request',
@@ -752,7 +864,6 @@ describe('prediction presentation host lifecycle', () => {
     vi.useFakeTimers();
     const host = await renderHost();
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 1,
       'runtime request',
@@ -789,7 +900,6 @@ describe('prediction presentation host lifecycle', () => {
       strictMode: true,
     });
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => host.controller.requests.length === 2,
       'StrictMode runtime replay',
@@ -824,7 +934,6 @@ describe('prediction presentation outer loader ownership', () => {
       previewLoader: loader.loader,
     });
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => loader.requests.length === 1,
       'outer loader request',
@@ -858,7 +967,6 @@ describe('prediction presentation outer loader ownership', () => {
       previewLoader: loader.loader,
     });
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => loader.requests.length === 1,
       'first loader request',
@@ -910,7 +1018,6 @@ describe('prediction presentation outer loader ownership', () => {
       previewLoader: loader.loader,
     });
 
-    await clickButton(host.container, 'On');
     await waitForCondition(
       () => loader.requests.length === 1,
       'outer loader request',

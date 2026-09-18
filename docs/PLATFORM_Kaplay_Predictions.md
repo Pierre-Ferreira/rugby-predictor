@@ -3,13 +3,14 @@
 ## Purpose
 
 CCPP-009B adds a bounded development/test preview of the Kaplay prediction
-runtime. Standard remains the default presentation for ordinary use. The
-preview covers one real screen only: the Match Result step.
+runtime. CCPP-009B4 makes the already-built Match Result surface available
+automatically in ordinary local development. The preview covers one real screen
+only: the Match Result step.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
 not implement rooster artwork, the shove animation, all prediction scenes,
-animated Review/submission, or production default activation.
+animated Review/submission, or production activation.
 
 ## Dependency
 
@@ -59,38 +60,32 @@ There is no barrel export that imports Kaplay eagerly.
 
 ## Activation
 
-The preview is controlled by:
+In ordinary non-production development, supported Kaplay prediction screens are
+available automatically. No settings JSON edit, query parameter, developer
+console command, or first-click On activation is required.
 
-```json
-{
-  "public": {
-    "rugbyRooster": {
-      "kaplayPredictionPreview": {
-        "enabled": true
-      }
-    }
-  }
-}
-```
+The old development setting
+`public.rugbyRooster.kaplayPredictionPreview.enabled` is retired as the
+availability gate. Missing, `true`, and legacy `false` values all allow
+supported screens in local development. `Meteor.isProduction` still keeps the
+preview unavailable, so this is not a production rollout.
 
-Absent or false means unavailable. `Meteor.isProduction` also keeps the preview
-unavailable, so a production settings file cannot turn it on accidentally.
-Stored browser preferences and query parameters cannot override the disabled
-application gate.
+Normal local workflow:
 
-Safe local activation:
+1. Start the app normally, for example `npm start` for a plain local run or
+   `npm run start:email` when using the local development settings file.
+2. Sign in normally and open an editable published fixture prediction route.
+3. Intro renders through Standard.
+4. Start the prediction sequence and reach Match Result.
+5. Kaplay appears automatically when the player has no explicit Off preference
+   and reduced motion is not requested.
+6. Continue to the remaining unimplemented scenes, which use Standard.
 
-1. Add `public.rugbyRooster.kaplayPredictionPreview.enabled: true` to a local
-   development settings file.
-2. Start Meteor with that settings file on a loopback URL.
-3. Sign in normally and open a published fixture prediction route.
-4. Start the prediction sequence, reach Match Result, and use the DOM
-   `Animations` control.
-
-The isolated Playwright settings enable the gate and additionally set
-`testControls: true` for narrow client-only fault injection. That setting is
-only used by preview browser tests and does not mutate prediction answers or
-call server methods.
+The player-facing `Animations` On/Off control is the normal switch. The
+isolated Playwright settings may set `testControls: true` for narrow
+client-only fault injection. That setting is separate from UI availability, is
+not inferred from development mode or Animations On, and does not mutate
+prediction answers or call server methods.
 
 ## Ownership
 
@@ -130,20 +125,30 @@ Policy:
 
 - Off -> Standard.
 - Reduced motion -> Standard, with a DOM notice when On was requested.
-- Preview disabled -> Standard.
+- Production-disabled preview -> Standard.
 - Unsupported step -> Standard.
 - Runtime failure -> Standard until explicit retry or deliberate On selection.
-- Match Result + enabled gate + explicit On + no reduced motion + healthy
-  runtime -> Kaplay preview.
+- Match Result + development availability + default/stored On + no reduced
+  motion + healthy runtime -> Kaplay preview.
 
-No stored preference defaults to Off. Explicit On/Off is retained in
-`localStorage` under `rugby-rooster:prediction-animations`. Acquisition of
-`window.localStorage` itself is protected, so a throwing browser storage getter
-is treated as unavailable storage. Storage getter exceptions, missing storage,
-malformed values, `getItem` failures, and `setItem` failures fall back to Off
-or no-op persistence and never block prediction entry. If persistence is
-unavailable, the mounted UI still keeps the player's current On/Off choice in
-memory across rerenders.
+No stored preference now defaults to On in development. Malformed stored values
+are treated as unset and also default to On. Explicit stored On remains On, and
+explicit stored Off remains Off. Explicit Off is never erased or renamed by the
+application.
+
+Explicit On/Off is retained in `localStorage` under
+`rugby-rooster:prediction-animations`. Acquisition of `window.localStorage`
+itself is protected, so a throwing browser storage getter is treated as
+unavailable storage. Storage getter exceptions, missing storage, malformed
+values, `getItem` failures, and `setItem` failures fall back to the in-memory
+development default or no-op persistence and never block prediction entry. If
+persistence is unavailable, the mounted UI still keeps the player's current
+On/Off choice in memory across rerenders.
+
+Standard presentation caused by Intro, unsupported steps, reduced motion,
+runtime failure, or read-only state is not written as Off. `Continue without
+animations`, selecting Off, and other intentional player actions remain
+explicit Off choices.
 
 The stored preference never contains answers, revisions, account identifiers,
 fixture identifiers, tokens, or submission data.
@@ -313,6 +318,12 @@ platform guarantee.
 
 Intentional screenshot evidence is written to `test-results/ccpp009b/`.
 
+CCPP-009B4 adds a browser default-access path proving that no
+`enabled:true` preview gate or prepopulated On preference is needed: Intro uses
+Standard, Match Result loads the real Kaplay canvas automatically, canvas
+selection updates shared prediction state, Off is respected when revisiting the
+step, and choosing On restores the supported scene.
+
 CCPP-009B2 keeps the browser-test success/failure distinction strict:
 success-path assertions require the real stage, visible canvas, and actual
 canvas interaction. Standard fallback is accepted only after a test has
@@ -326,6 +337,7 @@ checking Standard recovery and persisted-revision preservation.
 - No rooster sprite, shove animation, or production artwork is included.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
-- No production/default rollout is included.
-- Test-only failure controls are client-only and gated by isolated preview
-  settings; they are not a production admin or fault-injection system.
+- No production rollout is included.
+- Test-only failure controls are client-only and gated by isolated test-control
+  settings; they are not enabled by ordinary development availability,
+  Animations On, or a production admin/fault-injection system.

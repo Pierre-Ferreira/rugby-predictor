@@ -279,11 +279,12 @@ submit/revise, discard confirmation, and load latest saved prediction. Commands
 do not require React event objects or DOM access.
 
 CCPP-009B adds `imports/ui/predictions/PredictionPresentationHost.tsx` below
-that session owner. The host gates the development/test Kaplay preview,
+that session owner. The host resolves development/test Kaplay availability,
 persists only the Animations On/Off preference, observes reduced motion, and
 selects Standard or the lazy preview without remounting the shared session.
-`imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx` is the only
-Kaplay-backed screen in 009B.
+CCPP-009B4 makes the supported development Match Result scene available by
+default when no explicit Off preference exists. `imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx`
+is the only Kaplay-backed screen in 009B.
 
 ## Prediction Presentation Architecture
 
@@ -329,11 +330,13 @@ renderer preserves answers, current location, Review/edit context, message
 variants, captured expected revision, dirty/conflict state, and submission
 state because those values are owned outside the renderer.
 
-CCPP-009B implements the first runtime proof: a non-production, settings-gated,
-lazy-loaded Kaplay Match Result preview. Standard remains the ordinary default
-and handles all unsupported steps, read-only saved-entry views, Off preference,
-reduced-motion preference, loading cancellation, initialization failure,
-runtime failure, and graphics-context loss.
+CCPP-009B implements the first runtime proof: a non-production, lazy-loaded
+Kaplay Match Result preview. CCPP-009B4 retires the old development
+`enabled:true` gate, treats legacy development `enabled:false` as harmless for
+availability, and defaults unset/invalid animation preferences to On. Standard
+still handles Intro, all unsupported steps, read-only saved-entry views,
+explicit Off preference, reduced-motion preference, loading cancellation,
+initialization failure, runtime failure, and graphics-context loss.
 
 ## Test Support
 

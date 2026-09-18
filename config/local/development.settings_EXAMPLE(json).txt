@@ -1,11 +1,4 @@
 {
-  "public": {
-    "rugbyRooster": {
-      "kaplayPredictionPreview": {
-        "enabled": false
-      }
-    }
-  },
   "email": {
     "enabled": true
   },

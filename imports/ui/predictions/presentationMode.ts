@@ -62,12 +62,11 @@ export const resolveKaplayPreviewSettings = ({
 }: KaplayPreviewEnvironment): KaplayPreviewSettings => {
   const previewSettings =
     settings?.public?.rugbyRooster?.kaplayPredictionPreview;
-  const enabled = previewSettings?.enabled === true && !isProduction;
+  const enabled = !isProduction;
 
   return {
     enabled,
-    testControls:
-      enabled && previewSettings?.testControls === true && !isProduction,
+    testControls: previewSettings?.testControls === true && !isProduction,
   };
 };
 

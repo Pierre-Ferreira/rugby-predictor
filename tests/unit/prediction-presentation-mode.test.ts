@@ -6,6 +6,7 @@ import {
 } from '../../imports/ui/predictions/presentationMode';
 import {
   readAnimationPreference,
+  readAnimationPreferenceResult,
   writeAnimationPreference,
   type BrowserStorageLike,
 } from '../../imports/ui/predictions/presentationPreference';
@@ -37,14 +38,14 @@ const rendererState = ({
   }) as PredictionSessionRendererState;
 
 describe('prediction presentation mode policy', () => {
-  it('keeps preview unavailable when settings are absent, false, or production', () => {
+  it('makes preview available by default in non-production development', () => {
     expect(
       resolveKaplayPreviewSettings({
         isProduction: false,
         settings: undefined,
       }),
     ).toEqual({
-      enabled: false,
+      enabled: true,
       testControls: false,
     });
     expect(
@@ -62,7 +63,27 @@ describe('prediction presentation mode policy', () => {
         },
       }),
     ).toEqual({
-      enabled: false,
+      enabled: true,
+      testControls: true,
+    });
+  });
+
+  it('keeps production unavailable and test controls explicitly isolated', () => {
+    expect(
+      resolveKaplayPreviewSettings({
+        isProduction: false,
+        settings: {
+          public: {
+            rugbyRooster: {
+              kaplayPredictionPreview: {
+                enabled: true,
+              },
+            },
+          },
+        },
+      }),
+    ).toEqual({
+      enabled: true,
       testControls: false,
     });
     expect(
@@ -182,14 +203,18 @@ describe('prediction presentation mode policy', () => {
 });
 
 describe('animation preference storage', () => {
-  it('defaults malformed, missing and inaccessible values to Off', () => {
-    expect(readAnimationPreference(undefined)).toBe('off');
+  it('defaults malformed, missing and inaccessible values to On', () => {
+    expect(readAnimationPreference(undefined)).toBe('on');
+    expect(readAnimationPreferenceResult(undefined)).toEqual({
+      preference: 'on',
+      source: 'default',
+    });
     expect(
       readAnimationPreference({
         getItem: () => 'banana',
         setItem: () => undefined,
       }),
-    ).toBe('off');
+    ).toBe('on');
     expect(
       readAnimationPreference({
         getItem: () => {
@@ -197,10 +222,10 @@ describe('animation preference storage', () => {
         },
         setItem: () => undefined,
       }),
-    ).toBe('off');
+    ).toBe('on');
   });
 
-  it('reads explicit On and swallows write failures', () => {
+  it('reads explicit On/Off values and swallows write failures', () => {
     const writes: string[] = [];
     const storage: BrowserStorageLike = {
       getItem: () => 'on',
@@ -210,6 +235,16 @@ describe('animation preference storage', () => {
     };
 
     expect(readAnimationPreference(storage)).toBe('on');
+    expect(
+      readAnimationPreference({
+        getItem: () => 'off',
+        setItem: () => undefined,
+      }),
+    ).toBe('off');
+    expect(readAnimationPreferenceResult(storage)).toEqual({
+      preference: 'on',
+      source: 'stored',
+    });
     writeAnimationPreference('off', storage);
     expect(writes).toEqual(['off']);
     expect(() =>

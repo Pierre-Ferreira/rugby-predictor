@@ -1,9 +1,12 @@
 import { useCallback, useState } from 'react';
 
 export type AnimationPreference = 'off' | 'on';
+export type AnimationPreferenceSource = 'default' | 'stored';
 
 export const animationPreferenceStorageKey =
   'rugby-rooster:prediction-animations';
+
+export const defaultAnimationPreference: AnimationPreference = 'on';
 
 const isAnimationPreference = (value: unknown): value is AnimationPreference =>
   value === 'off' || value === 'on';
@@ -11,6 +14,11 @@ const isAnimationPreference = (value: unknown): value is AnimationPreference =>
 export interface BrowserStorageLike {
   readonly getItem: (key: string) => string | null;
   readonly setItem: (key: string, value: string) => void;
+}
+
+export interface AnimationPreferenceReadResult {
+  readonly preference: AnimationPreference;
+  readonly source: AnimationPreferenceSource;
 }
 
 export const acquireAnimationPreferenceStorage =
@@ -28,17 +36,35 @@ export const acquireAnimationPreferenceStorage =
 
 export const readAnimationPreference = (
   storage: BrowserStorageLike | null | undefined,
-): AnimationPreference => {
+): AnimationPreference => readAnimationPreferenceResult(storage).preference;
+
+export const readAnimationPreferenceResult = (
+  storage: BrowserStorageLike | null | undefined,
+): AnimationPreferenceReadResult => {
   if (!storage) {
-    return 'off';
+    return {
+      preference: defaultAnimationPreference,
+      source: 'default',
+    };
   }
 
   try {
     const value = storage.getItem(animationPreferenceStorageKey);
 
-    return isAnimationPreference(value) ? value : 'off';
+    return isAnimationPreference(value)
+      ? {
+          preference: value,
+          source: 'stored',
+        }
+      : {
+          preference: defaultAnimationPreference,
+          source: 'default',
+        };
   } catch {
-    return 'off';
+    return {
+      preference: defaultAnimationPreference,
+      source: 'default',
+    };
   }
 };
 

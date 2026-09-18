@@ -2,7 +2,6 @@
   "public": {
     "rugbyRooster": {
       "kaplayPredictionPreview": {
-        "enabled": true,
         "testControls": true
       }
     }

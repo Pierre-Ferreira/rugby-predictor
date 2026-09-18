@@ -533,6 +533,20 @@ const waitForKaplayReady = async (page: Page) => {
   markStage(page, 'kaplay-ready:success');
 };
 
+const retryIfAnimationFailureIsVisible = async (page: Page) => {
+  const retryButton = page.getByRole('button', { name: 'Retry animations' });
+
+  if (
+    await retryButton
+      .isVisible({
+        timeout: 1_000,
+      })
+      .catch(() => false)
+  ) {
+    await retryButton.click();
+  }
+};
+
 const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
   const canvas = page.getByTestId('kaplay-match-result-canvas');
   const box = await canvas.boundingBox();
@@ -556,7 +570,7 @@ const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
   });
 };
 
-const createPredictionAtMatchResult = async (
+const createEditablePredictionFixture = async (
   page: Page,
   label: string,
   teams?: {
@@ -577,14 +591,45 @@ const createPredictionAtMatchResult = async (
 
   await loginAsPlayer(page, label);
   await gotoLocal(page, predictionPath(fixtureId));
-  await startPrediction(page);
-  await expect(page.getByText('Step 1 of 9')).toBeVisible();
 
   return {
     fixtureId,
     team1,
     team2,
   };
+};
+
+const createPredictionAtMatchResult = async (
+  page: Page,
+  label: string,
+  teams?: {
+    readonly team1: string;
+    readonly team2: string;
+  },
+  options: {
+    readonly beforeStart?: () => Promise<void>;
+    readonly storedAnimationPreference?: 'off' | 'on';
+  } = {},
+) => {
+  const fixture = await createEditablePredictionFixture(page, label, teams);
+
+  if (options.storedAnimationPreference) {
+    await page.evaluate(
+      ({ key, preference }) => {
+        window.localStorage.setItem(key, preference);
+      },
+      {
+        key: animationPreferenceStorageKey,
+        preference: options.storedAnimationPreference,
+      },
+    );
+  }
+
+  await options.beforeStart?.();
+  await startPrediction(page);
+  await expect(page.getByText('Step 1 of 9')).toBeVisible();
+
+  return fixture;
 };
 
 const currentUserPredictionEntry = async (page: Page, fixtureId: string) =>
@@ -692,29 +737,42 @@ test.describe('Kaplay prediction preview', () => {
     await evidenceCollectors.get(page)?.write();
   });
 
-  test('renders a real Match Result canvas choice and hands off to Standard', async ({
+  test('opens real Match Result Kaplay automatically in development without preview enablement', async ({
     page,
   }) => {
-    const { team1, team2 } = await createPredictionAtMatchResult(
+    const { team1, team2 } = await createEditablePredictionFixture(
       page,
-      'kaplay-real',
+      'kaplay-default-access',
     );
 
+    await expect(
+      page.getByText('Standard prediction', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          (key) => window.localStorage.getItem(key),
+          animationPreferenceStorageKey,
+        ),
+      )
+      .toBeNull();
     await expect
       .poll(() =>
         page.evaluate(() => window.__RUGBY_ROOSTER_KAPLAY_IMPORT_COUNT__ ?? 0),
       )
       .toBe(0);
 
-    markStage(page, 'real-canvas:animations-on');
-    await animationsButton(page, 'On').click();
+    markStage(page, 'default-access:start-prediction');
+    await startPrediction(page);
+    await expect(page.getByText('Step 1 of 9')).toBeVisible();
     await waitForKaplayReady(page);
     await page.screenshot({
       fullPage: true,
-      path: evidenceScreenshotPath('desktop-match-result-preview.png'),
+      path: evidenceScreenshotPath('desktop-default-match-result-preview.png'),
     });
 
-    markStage(page, 'real-canvas:canvas-choice-click');
+    markStage(page, 'default-access:canvas-choice-click');
     await clickCanvasChoice(page, 1);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
@@ -724,38 +782,47 @@ test.describe('Kaplay prediction preview', () => {
     ).toHaveAttribute('aria-checked', 'true');
     await page.screenshot({
       fullPage: true,
-      path: evidenceScreenshotPath('desktop-match-result-selected.png'),
+      path: evidenceScreenshotPath('desktop-default-match-result-selected.png'),
     });
 
-    markStage(page, 'real-canvas:animations-off');
+    markStage(page, 'default-access:animations-off');
     await animationsButton(page, 'Off').click();
     await expect(
       page.getByRole('radio', { name: team2, exact: true }),
     ).toBeChecked();
 
-    markStage(page, 'real-canvas:animations-on-again');
-    await animationsButton(page, 'On').click();
-    await waitForKaplayReady(page);
-    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
-      `You picked ${team2}`,
-    );
-
-    markStage(page, 'real-canvas:continue-to-standard-step');
+    markStage(page, 'default-access:continue-to-standard-step');
     await continueButton(page).click();
     await expect(page.getByText('Step 2 of 9')).toBeVisible();
     await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
     await expect(
       page.getByRole('spinbutton', { name: `${team1} tries` }),
     ).toBeVisible();
+
+    markStage(page, 'default-access:back-to-match-result-off');
+    await page.getByRole('button', { name: 'Back' }).click();
+    await expect(page.getByText('Step 1 of 9')).toBeVisible();
+    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
+    await expect(
+      page.getByRole('radio', { name: team2, exact: true }),
+    ).toBeChecked();
+
+    markStage(page, 'default-access:animations-on-again');
+    await animationsButton(page, 'On').click();
+    await waitForKaplayReady(page);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team2}`,
+    );
   });
 
-  test('uses Standard while Off and when reduced motion changes during preview', async ({
+  test('uses Standard when reduced motion blocks automatic activation', async ({
     page,
   }) => {
     const longTeam1 = `${uniqueLabel('Cape Town Very Long Club Name')} XV`;
     const longTeam2 = `${uniqueLabel('Johannesburg Equally Long Club Name')} XV`;
 
     await page.setViewportSize({ height: 760, width: 390 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     const { team1 } = await createPredictionAtMatchResult(
       page,
       'kaplay-reduced-motion',
@@ -765,6 +832,9 @@ test.describe('Kaplay prediction preview', () => {
       },
     );
 
+    await expect(
+      page.getByText('Your device/browser preference keeps animations off.'),
+    ).toBeVisible();
     await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
     await expect
       .poll(() =>
@@ -772,8 +842,8 @@ test.describe('Kaplay prediction preview', () => {
       )
       .toBe(0);
 
-    markStage(page, 'reduced-motion:animations-on');
-    await animationsButton(page, 'On').click();
+    markStage(page, 'reduced-motion:emulate-no-preference');
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await waitForKaplayReady(page);
     await page.screenshot({
       fullPage: true,
@@ -797,6 +867,10 @@ test.describe('Kaplay prediction preview', () => {
     const { fixtureId, team1 } = await createPredictionAtMatchResult(
       page,
       'kaplay-failure',
+      undefined,
+      {
+        storedAnimationPreference: 'off',
+      },
     );
 
     await page.evaluate(() => {
@@ -832,6 +906,7 @@ test.describe('Kaplay prediction preview', () => {
     });
     markStage(page, 'controlled-failure:pointer-failure-armed');
     await animationsButton(page, 'On').click();
+    await retryIfAnimationFailureIsVisible(page);
     await waitForKaplayReady(page);
     markStage(page, 'controlled-failure:canvas-choice-click');
     await clickCanvasChoice(page, 0);
@@ -962,7 +1037,6 @@ test.describe('Kaplay prediction preview', () => {
 
     navigationProbe.arm();
     markStage(page, 'dirty-session:protected-segment-armed');
-    await animationsButton(page, 'On').click();
     await expect(
       page.getByRole('button', { name: 'Return to Review' }),
     ).toBeVisible();
@@ -1032,10 +1106,10 @@ test.describe('Kaplay prediction preview', () => {
     });
   });
 
-  test('supports keyboard selection and preserves preference gate behavior locally', async ({
+  test('supports keyboard selection while legacy enabled false no longer blocks development access', async ({
     page,
   }) => {
-    const { fixtureId, team1, team2 } = await createPredictionAtMatchResult(
+    const { team2 } = await createEditablePredictionFixture(
       page,
       'kaplay-keyboard',
     );
@@ -1062,17 +1136,11 @@ test.describe('Kaplay prediction preview', () => {
         };
       }
     }, animationPreferenceStorageKey);
-    await continueButton(page).click();
-    await page.getByRole('button', { name: 'Back' }).click();
-    await expect(page.getByTestId('kaplay-match-result-stage')).toHaveCount(0);
-    await expect(
-      page.getByRole('radio', { name: team1, exact: true }),
-    ).toBeVisible();
 
-    await gotoLocal(page, predictionPath(fixtureId));
     await startPrediction(page);
     await expect(page.getByText('Step 1 of 9')).toBeVisible();
-    markStage(page, 'keyboard:stored-on-gate-restored');
+    markStage(page, 'keyboard:legacy-enabled-false');
+    await retryIfAnimationFailureIsVisible(page);
     await waitForKaplayReady(page);
     markStage(page, 'keyboard:dom-radio-space');
     await page.getByRole('radio', { name: team2, exact: true }).focus();

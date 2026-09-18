@@ -682,8 +682,8 @@ const AnimationPreviewControl = ({
       <div>
         <p className="text-sm font-black text-rooster-ink">Animations</p>
         <p className="mt-1 text-sm leading-6 text-rooster-muted">
-          Match Result preview only. Other prediction steps use the standard
-          experience.
+          Animated Match Result is available. Other prediction steps currently
+          use the standard experience.
         </p>
       </div>
       <div

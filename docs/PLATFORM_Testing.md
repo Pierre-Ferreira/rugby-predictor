@@ -271,16 +271,21 @@ The current browser suite covers:
   wording or mutation controls.
 - Kaplay Match Result preview coverage in
   `tests/e2e/kaplay-prediction-preview.spec.ts`: cold Standard-only visits do
-  not import Kaplay, real Kaplay canvas choice selection updates shared session
-  state, Off/On switching preserves the answer, Continue hands off to the next
-  Standard step, reduced motion stops the preview, delayed initialization can
-  be cancelled, runtime callback failure and graphics-context loss fall back to
-  Standard, keyboard selection works through the DOM bridge, the disabled
-  preview gate cannot be overridden by stored On, and a dirty saved-prediction
-  scenario with custom Number and Choice answers exercises saved-entry revisit,
-  same-session runtime failure, dirty answer preservation, and explicit revised
-  save. CCPP-009B3 records the isolated-script-delivery evidence and current
-  pass/fail history for that focused file.
+  not import Kaplay, Intro stays Standard, a fresh development preference opens
+  real Kaplay automatically at Match Result without `enabled:true`, real Kaplay
+  canvas choice selection updates shared session state, Off/On switching
+  preserves the answer, Continue hands off to the next Standard step, reduced
+  motion stops automatic activation, delayed initialization can be cancelled,
+  runtime callback failure and graphics-context loss fall back to Standard,
+  keyboard selection works through the DOM bridge, legacy development
+  `enabled:false` no longer blocks supported UI access, and a dirty
+  saved-prediction scenario with custom Number and Choice answers exercises
+  saved-entry revisit, same-session runtime failure, dirty answer preservation,
+  and explicit revised save. Isolated fault-injection controls still require
+  the explicit `testControls: true` test setting and are not inferred from
+  development mode or Animations On. CCPP-009B3 records the
+  isolated-script-delivery evidence and current pass/fail history for that
+  focused file.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

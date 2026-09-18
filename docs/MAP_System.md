@@ -27,9 +27,10 @@
   session ownership, lifecycle, renderer-facing state/actions, Standard
   adapter, future Kaplay adapter boundary, revision/submission/discard handling,
   and renderer-local state.
-- `docs/PLATFORM_Kaplay_Predictions.md` - CCPP-009B development/test Kaplay
-  prediction preview gate, lazy runtime, effective-mode policy, one-screen Match
-  Result support, fallback, cleanup, accessibility bridge, and limitations.
+- `docs/PLATFORM_Kaplay_Predictions.md` - CCPP-009B/009B4 development/test
+  Kaplay prediction availability, lazy runtime, effective-mode policy,
+  one-screen Match Result support, fallback, cleanup, accessibility bridge, and
+  limitations.
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
   revision handling, final confirmation, and custom Void scoring preparation.
@@ -258,14 +259,17 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   prediction form state helpers, score derivation adapters, result consistency,
   and first-try constraints.
 - `imports/ui/predictions/PredictionPresentationHost.tsx` - CCPP-009B/009B1
-  Standard/Kaplay preview selection host, Animations control, reduced-motion
-  fallback, host-owned preview loader/attempt/deadline, loading cancel, failure
-  latch, retry, and late runtime disposal.
-- `imports/ui/predictions/presentationMode.ts` - CCPP-009B preview setting,
-  supported-step, and effective-mode policy helpers.
-- `imports/ui/predictions/presentationPreference.ts` - CCPP-009B/009B1
+  Standard/Kaplay preview selection host, Animations control, default
+  development access, reduced-motion fallback, host-owned preview
+  loader/attempt/deadline, loading cancel, failure latch, retry, and late
+  runtime disposal.
+- `imports/ui/predictions/presentationMode.ts` - CCPP-009B/009B4 development
+  availability, isolated test-control setting, supported-step, and
+  effective-mode policy helpers.
+- `imports/ui/predictions/presentationPreference.ts` - CCPP-009B/009B1/009B4
   resilient browser-storage preference helper for Animations On/Off, including
-  protected `window.localStorage` acquisition.
+  protected `window.localStorage` acquisition and default On for unset/invalid
+  development preferences.
 - `imports/ui/predictions/reducedMotion.ts` - CCPP-009B reduced-motion media
   query helper.
 - `imports/ui/predictions/kaplay/` - CCPP-009B/009B1 lazy Kaplay Match Result
@@ -345,10 +349,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   first-try constraints, submit/revisit, Review Edit and Return to Review, edit
   before kickoff, persisted locked read-only display after dirty local edits,
   custom Number/Choice questions, and conflict value preservation.
-- `tests/e2e/kaplay-prediction-preview.spec.ts` - CCPP-009B browser tests for
-  real Kaplay Match Result preview selection, mode switching, reduced motion,
-  delayed initialization cancellation, runtime failure fallback,
-  graphics-context loss, keyboard bridge, and preview-gate behavior.
+- `tests/e2e/kaplay-prediction-preview.spec.ts` - CCPP-009B/009B4 browser tests
+  for real Kaplay Match Result preview selection, automatic development access,
+  mode switching, reduced motion, delayed initialization cancellation, runtime
+  failure fallback, graphics-context loss, keyboard bridge, and legacy
+  enabled-flag behavior.
 - `tests/e2e/results.spec.ts` - browser tests for result admin provisional
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only
