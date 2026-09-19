@@ -113,7 +113,14 @@ Current unit test files:
   cleanup/disposal assertions, storage getter failure, unavailable persistence
   retention, one end-to-end deadline, outer import retry, late completion and
   rejection isolation, failure latch/retry, stale callback isolation, and Strict
-  Mode replay.
+  Mode replay, plus CCPP-009C3/009C3A/009C3B runtime replacement, cleanup
+  confirmation, cleanup rejection, and obsolete-work regressions.
+- `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
+  Match Result layout, shove motion, compact readability, projection,
+  transformed bounds, hit testing, and resize-preservation tests.
+- `tests/unit/match-result-runtime.test.ts` - CCPP-009C3B controlled Kaplay
+  runtime adapter tests for installed cleanup notification semantics, rejected
+  cleanup paths, partial-start cancellation, and pre-allocation cancellation.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation, custom Number/Choice failure paths, max-two custom
   limit, order normalization, stable ID preservation, unknown-field rejection,
@@ -336,6 +343,19 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   unresolved. The browser evidence is preserved under
   `/tmp/rugby-rooster-ccpp009c3a-browser-20260919` and
   `/tmp/rugby-rooster-ccpp009c3a-browser-correction-20260919`.
+- CCPP-009C3B corrects browser evidence selected-value reads and confirmed
+  Kaplay teardown semantics. The lightweight helper spec verifies an
+  unselected required bridge returns `null`, the three selected values return
+  their values, and missing bridge / closed page failures still reject. The
+  interrupted transcript reports the helper rerun passed six cases after an
+  initial sandboxed browser-launch failure. Focused unit history is reported as
+  69 passed tests across motion, runtime adapter, and React host coverage. The
+  final retained focused browser batch executed nine Kaplay cases with
+  `8 passed / 1 failed`: reduced motion and dirty saved-session recovery
+  passed, while resize remained unresolved after synchronized compact 390px
+  readiness and a later canvas `boundingBox()` timeout with Standard fallback
+  visible. See
+  `docs/AUDIT_009C3B_Evidence_Capture_Confirmed_Teardown.md`.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

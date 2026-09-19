@@ -168,6 +168,12 @@ const nextAnimationFrame = (): Promise<void> =>
     window.requestAnimationFrame(() => resolve());
   });
 
+const safeDisposalError = (error: unknown, fallback: string): Error => {
+  const resolved = errorFromUnknown(error, fallback);
+
+  return new Error(resolved.message);
+};
+
 const errorFromUnknown = (error: unknown, fallback: string): Error => {
   if (error instanceof Error) {
     return error;
@@ -254,19 +260,27 @@ export const createKaplayMatchResultRuntime = async ({
   const abortController = new AbortController();
   const configuredStage = initialViewport.stage;
   let resolveDisposalComplete!: () => void;
-  const disposalComplete = new Promise<void>((resolve) => {
+  let rejectDisposalComplete!: (error: Error) => void;
+  let disposalCompleteSettled = false;
+  const disposalComplete = new Promise<void>((resolve, reject) => {
     resolveDisposalComplete = resolve;
+    rejectDisposalComplete = reject;
   });
-  let disposalCompletionScheduled = false;
-  const scheduleDisposalCompletion = () => {
-    if (disposalCompletionScheduled) {
+  const confirmDisposalComplete = () => {
+    if (disposalCompleteSettled) {
       return;
     }
 
-    disposalCompletionScheduled = true;
-    window.requestAnimationFrame(() => {
-      resolveDisposalComplete();
-    });
+    disposalCompleteSettled = true;
+    resolveDisposalComplete();
+  };
+  const rejectDisposal = (error: Error) => {
+    if (disposalCompleteSettled) {
+      return;
+    }
+
+    disposalCompleteSettled = true;
+    rejectDisposalComplete(error);
   };
 
   const k = kaplay({
@@ -285,6 +299,25 @@ export const createKaplayMatchResultRuntime = async ({
     touchToMouse: false,
     width: configuredStage.width,
   } satisfies KAPLAYOpt);
+  let cleanupRegistrationError: Error | null = null;
+  let cleanupNotificationRegistered = false;
+
+  try {
+    if (typeof k.onCleanup !== 'function') {
+      cleanupRegistrationError = new Error(
+        'Kaplay preview cleanup notification is unavailable.',
+      );
+    } else {
+      k.onCleanup(confirmDisposalComplete);
+      cleanupNotificationRegistered = true;
+    }
+  } catch (error) {
+    cleanupRegistrationError = safeDisposalError(
+      error,
+      'Kaplay preview cleanup notification registration failed.',
+    );
+  }
+
   applyCanvasDisplayGeometry(canvas, configuredStage);
   onDisposalComplete?.(disposalComplete);
 
@@ -301,12 +334,30 @@ export const createKaplayMatchResultRuntime = async ({
       controller.cancel();
     }
 
+    let quitFailed = false;
+
     try {
       k.quit();
-    } catch {
-      // Teardown is best-effort after partial initialization or engine failure.
-    } finally {
-      scheduleDisposalCompletion();
+    } catch (error) {
+      quitFailed = true;
+      rejectDisposal(
+        safeDisposalError(error, 'Kaplay preview runtime teardown failed.'),
+      );
+    }
+
+    if (quitFailed) {
+      return;
+    }
+
+    if (cleanupRegistrationError) {
+      rejectDisposal(cleanupRegistrationError);
+      return;
+    }
+
+    if (!cleanupNotificationRegistered) {
+      rejectDisposal(
+        new Error('Kaplay preview cleanup notification is unavailable.'),
+      );
     }
   };
 

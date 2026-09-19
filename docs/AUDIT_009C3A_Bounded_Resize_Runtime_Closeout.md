@@ -8,6 +8,28 @@ current-source focused browser batches executed nine cases and ended
 `7 passed / 2 failed`. The corrected dirty saved-session journey passed in both
 batches, but the resize and reduced-motion journeys remain unresolved.
 
+## Correction Note Added 2026-09-19
+
+CCPP-009C3B corrected two conclusions from this audit without rewriting the
+historical `7 passed / 2 failed` results:
+
+- The `collectKaplayLayoutEvidence()` selected-answer read used
+  `[data-testid="kaplay-match-result-choice-bridge"] input:checked`, which made
+  an initially unselected but ready scene wait for a checked radio. The later
+  screenshot/canvas and closed-page symptoms were not sufficient evidence that
+  the capture API itself caused the delay.
+- A visible semantic radio bridge alone does not establish Standard fallback.
+  CCPP-009C3B now records selected value by reading the required bridge and
+  treating the checked descendant as optional, while still failing when the
+  required scene or bridge is missing.
+- The prior adapter description treated a browser frame after `ctx.quit()` as
+  disposal completion. CCPP-009C3B changed the contract so completion is the
+  installed Kaplay cleanup notification, observed via `ctx.onCleanup(...)`.
+- The 009C3B review package and final current-source browser result are
+  recorded in
+  `docs/AUDIT_009C3B_Evidence_Capture_Confirmed_Teardown.md`; this note keeps
+  the historical 009C3A `7 passed / 2 failed` browser results unchanged.
+
 ## Scope
 
 CCPP-009C3A was limited to the existing development/test Kaplay Match Result

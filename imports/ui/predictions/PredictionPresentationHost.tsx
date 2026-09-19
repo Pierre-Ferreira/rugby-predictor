@@ -173,6 +173,7 @@ export const PredictionPresentationHost = ({
   const [preference, setPreference] = useAnimationPreference();
   const reducedMotion = usePrefersReducedMotion();
   const activeAttemptRef = useRef<HostPreviewAttempt | null>(null);
+  const pendingRuntimeTeardownRef = useRef<Promise<void> | null>(null);
   const nextAttemptIdRef = useRef(0);
   const runtimeFactoryRef = useRef<KaplayMatchResultRuntimeFactory>(
     runtimeFactory ?? createDefaultKaplayMatchResultRuntime,
@@ -297,17 +298,29 @@ export const PredictionPresentationHost = ({
         disposalComplete: Promise<void> | undefined,
       ): Promise<void> => {
         if (!disposalComplete) {
-          return pendingRuntimeTeardown ?? Promise.resolve();
+          return (
+            pendingRuntimeTeardown ??
+            pendingRuntimeTeardownRef.current ??
+            Promise.resolve()
+          );
         }
 
-        const teardown = disposalComplete.catch(() => undefined);
+        const teardown = disposalComplete.then(() => undefined);
 
         pendingRuntimeTeardown = teardown;
-        teardown.finally(() => {
-          if (pendingRuntimeTeardown === teardown) {
-            pendingRuntimeTeardown = null;
-          }
-        });
+        pendingRuntimeTeardownRef.current = teardown;
+        void teardown.catch(() => undefined);
+        teardown.then(
+          () => {
+            if (pendingRuntimeTeardown === teardown) {
+              pendingRuntimeTeardown = null;
+            }
+            if (pendingRuntimeTeardownRef.current === teardown) {
+              pendingRuntimeTeardownRef.current = null;
+            }
+          },
+          () => undefined,
+        );
 
         return teardown;
       };
@@ -508,6 +521,7 @@ export const PredictionPresentationHost = ({
         activeGeneration = generation;
         const adoptedRuntimeTeardown = disposeAdoptedRuntime();
         const teardownBeforeStart = Promise.all([
+          pendingRuntimeTeardownRef.current ?? Promise.resolve(),
           supersededGenerationTeardown,
           adoptedRuntimeTeardown,
         ]).then(() => undefined);
@@ -526,6 +540,7 @@ export const PredictionPresentationHost = ({
           } catch {
             // Obsolete runtime handles should not be able to damage recovery.
           }
+          void rememberRuntimeTeardown(handle.disposalComplete);
         };
 
         const runtimeWork = Promise.resolve().then(async () => {

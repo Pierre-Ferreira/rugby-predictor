@@ -11,6 +11,7 @@ import {
   type PredictionEntryDocument,
 } from '../../imports/shared/predictions';
 import type { KaplayMatchResultDebugLayout } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
+import { readKaplayMatchResultSelectedValue } from '../support/kaplay-layout-evidence';
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const SCREENSHOT_CAPTURE_TIMEOUT_MS = 5_000;
@@ -649,6 +650,7 @@ const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
 };
 
 const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
+  markStage(page, 'kaplay-layout-evidence:scene-readiness-start', { label });
   await waitForKaplayDebugLayout(page);
   await page.waitForFunction(
     () => {
@@ -675,6 +677,7 @@ const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
     undefined,
     { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
   );
+  markStage(page, 'kaplay-layout-evidence:scene-readiness-success', { label });
   const canvas = page.getByTestId('kaplay-match-result-canvas');
   const box = await canvas.boundingBox();
 
@@ -691,10 +694,16 @@ const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
 
     return currentLayout;
   });
-  const selectedValue = await page
-    .locator('[data-testid="kaplay-match-result-choice-bridge"] input:checked')
-    .evaluate((input: HTMLInputElement) => input.value)
-    .catch(() => null);
+  markStage(page, 'kaplay-layout-evidence:optional-selection-read-start', {
+    label,
+  });
+  const selectedValue = await readKaplayMatchResultSelectedValue(page, {
+    timeoutMs: NAVIGATION_ATTEMPT_TIMEOUT_MS,
+  });
+  markStage(page, 'kaplay-layout-evidence:optional-selection-read-success', {
+    label,
+    selectedValue,
+  });
 
   return {
     canvasCss: {
@@ -723,19 +732,31 @@ const writePngDataUrl = (name: string, dataUrl: string) => {
 };
 
 const captureCanvasBitmap = async (page: Page, name: string) => {
+  markStage(page, 'canvas-bitmap-capture:start', { name });
   const canvas = page.getByTestId('kaplay-match-result-canvas');
 
-  await expect(canvas).toBeVisible({ timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS });
-
-  const dataUrl = await canvas.evaluate(
-    (node: HTMLCanvasElement) => node.toDataURL('image/png'),
-    undefined,
-    {
+  try {
+    await expect(canvas).toBeVisible({
       timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
-    },
-  );
+    });
 
-  writePngDataUrl(name, dataUrl);
+    const dataUrl = await canvas.evaluate(
+      (node: HTMLCanvasElement) => node.toDataURL('image/png'),
+      undefined,
+      {
+        timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
+      },
+    );
+
+    writePngDataUrl(name, dataUrl);
+    markStage(page, 'canvas-bitmap-capture:end', { name });
+  } catch (error) {
+    markStage(page, 'canvas-bitmap-capture:failed', {
+      error: errorMessage(error),
+      name,
+    });
+    throw error;
+  }
 };
 
 const startCanvasRecording = async (page: Page) => {
@@ -1177,7 +1198,7 @@ test.describe('Kaplay prediction preview', () => {
       name: string,
       capture: () => Promise<void>,
     ) => {
-      markStage(page, `resize-sync:capture-${kind}`, { name });
+      markStage(page, `resize-sync:capture-${kind}:start`, { name });
 
       try {
         await capture();
@@ -1186,6 +1207,10 @@ test.describe('Kaplay prediction preview', () => {
           name,
           status: 'passed',
           time: utcNow(),
+        });
+        markStage(page, `resize-sync:capture-${kind}:end`, {
+          name,
+          status: 'passed',
         });
       } catch (error) {
         const message = errorMessage(error);
@@ -1197,9 +1222,10 @@ test.describe('Kaplay prediction preview', () => {
           status: 'failed',
           time: utcNow(),
         });
-        markStage(page, `resize-sync:capture-${kind}-failed`, {
+        markStage(page, `resize-sync:capture-${kind}:end`, {
           error: message,
           name,
+          status: 'failed',
         });
       } finally {
         writeResizeEvidence();
@@ -1218,7 +1244,13 @@ test.describe('Kaplay prediction preview', () => {
         ...measurement,
         observedPointerResult,
       });
+      markStage(page, 'resize-sync:measurement-persistence:start', {
+        label,
+      });
       writeResizeEvidence();
+      markStage(page, 'resize-sync:measurement-persistence:end', {
+        label,
+      });
 
       await captureResizeScreenshot('viewport', screenshotName, async () => {
         await captureCanvasBitmap(page, screenshotName);
@@ -1237,6 +1269,7 @@ test.describe('Kaplay prediction preview', () => {
         width: measurement.layout.stage.width,
       });
       expect(measurement.layout.viewport.renderedContentBounds).not.toBeNull();
+      markStage(page, 'resize-sync:interaction-continuation', { label });
     };
 
     await collectResizeEvidence(
@@ -1500,6 +1533,7 @@ test.describe('Kaplay prediction preview', () => {
 
     await page.getByRole('button', { name: 'Change my selection' }).click();
     await page.setViewportSize({ height: 760, width: 360 });
+    await waitForHitTestableChoices(page);
     const mobile360Initial = await collectKaplayLayoutEvidence(
       page,
       '360px viewport initial choices',
@@ -1521,6 +1555,7 @@ test.describe('Kaplay prediction preview', () => {
       `You picked ${longTeam1}`,
     );
     await page.getByRole('button', { name: 'Change my selection' }).click();
+    await waitForHitTestableChoices(page);
     markStage(page, 'reduced-motion:mobile-360-draw-click');
     await clickCanvasChoice(page, 2);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(

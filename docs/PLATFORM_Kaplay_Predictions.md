@@ -16,7 +16,9 @@ compact layout changes by replacing only the current runtime generation when the
 projected stage dimensions genuinely change. CCPP-009C3A bounds post-ready
 replacement cycles, adds per-runtime generation ownership before allocation,
 and records that focused browser resize/reduced-motion closeout remains
-unresolved after the permitted runs.
+unresolved after the permitted runs. CCPP-009C3B corrects the selected-answer
+evidence helper so an unselected ready bridge returns `null`, and changes
+runtime teardown completion to the installed Kaplay cleanup notification.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
@@ -37,6 +39,8 @@ APIs:
 - `pixelDensity`, `maxFPS`, `touchToMouse: false`, `loadingScreen: false`, and
   `focus: false` for conservative preview behavior.
 - `ctx.quit()` for engine teardown.
+- `ctx.onCleanup(...)` as the authoritative installed cleanup-complete
+  notification after `quit()` has run Kaplay's frame-end cleanup path.
 - `ctx.onError(...)` and `ctx.onLoadError(...)` for runtime and asset-load
   failure handling.
 - `ctx.width()` and `ctx.height()` for test-control-gated evidence of the
@@ -342,12 +346,18 @@ teardown path.
 
 Installed Kaplay `3001.0.19` schedules `quit()` cleanup on the next `frameEnd`,
 and `app.quit()` removes app listeners synchronously from that cleanup
-callback. The adapter exposes a narrow `disposalComplete` promise based on the
-next frame after `quit()` is requested. Replacement allocation waits for any
-known adopted-handle or partial-initialization disposal promise, bounded by the
-current startup or replacement cycle. If that safe handoff cannot complete
-inside the cycle, Standard fallback wins rather than creating another live
-context to escape the wait.
+callback. The adapter registers `ctx.onCleanup(...)` immediately after context
+creation and exposes `disposalComplete` from that installed cleanup
+notification. A requested `quit()`, a later browser frame, a removed canvas, or
+a caught exception is not enough to confirm Kaplay cleanup.
+
+Replacement allocation waits for any known adopted-handle or
+partial-initialization disposal promise, bounded by the current startup or
+replacement cycle. Pending cleanup remains visible across host work. If cleanup
+rejects, the host follows the existing Standard fallback path instead of
+allocating another runtime. If pending cleanup cannot complete inside the
+cycle, Standard fallback wins rather than creating another live context to
+escape the wait.
 
 Late success or failure from an obsolete initialization attempt is ignored. If
 a late runtime handle is created after the attempt or runtime-start generation
@@ -390,6 +400,11 @@ content as well as canvas text. The external Animations control remains outside
 the runtime and is usable while loading, failed, unavailable, or reduced-motion
 blocked.
 
+Browser evidence reads this bridge as required scene evidence. The checked
+radio input is optional: an initially unselected ready bridge returns
+`selectedValue: null`; a missing bridge or closed page remains a failed
+evidence read.
+
 This is a focused bridge for the first screen, not a full accessibility
 redesign of every future animated scene.
 
@@ -397,6 +412,8 @@ redesign of every future animated scene.
 
 Unit coverage:
 
+- `tests/unit/match-result-motion.test.ts`
+- `tests/unit/match-result-runtime.test.ts`
 - `tests/unit/prediction-presentation-mode.test.ts`
 - `tests/unit/prediction-presentation-host.test.ts`
 
@@ -407,9 +424,20 @@ outer import timeout/retry, one shared deadline budget, late module/runtime
 resolution, late rejection, retry isolation, unmount disposal, timer cleanup,
 and Strict Mode replay.
 
+The CCPP-009C3B runtime adapter tests use a controlled Kaplay context to prove
+that `disposalComplete` does not settle from `quit()` or a browser frame, does
+settle once from `onCleanup`, rejects when `quit()` fails or cleanup support is
+missing, and keeps cleanup debt visible for cancellation during required asset
+loading. The CCPP-009C3B host tests prove replacement allocation waits for
+confirmed cleanup, rejected cleanup falls back to Standard, pending cleanup is
+bounded by the existing deadline, Off cancels obsolete replacement work, and a
+superseded partially initialized runtime must confirm cleanup before current
+allocation.
+
 Browser coverage:
 
 - `tests/e2e/kaplay-prediction-preview.spec.ts`
+- `tests/e2e/kaplay-layout-evidence-helper.spec.ts`
 
 The browser spec uses the existing isolated auth/fixture helpers and runs only
 against local loopback. It does not send real email or perform broad database
@@ -481,6 +509,17 @@ tests. The permitted browser batches both executed nine cases with
 reduced-motion remained unresolved. See
 `docs/AUDIT_009C3A_Bounded_Resize_Runtime_Closeout.md`.
 
+CCPP-009C3B adds the selected-value evidence helper regression and confirmed
+Kaplay cleanup teardown regressions. Its helper check is reported as six passed
+cases after an initial sandboxed browser-launch failure. Its focused unit
+history is reported as 69 passed tests across motion, runtime adapter, and
+React host coverage after a controlled harness correction. The final retained
+full-app browser batch executed nine Kaplay cases with `8 passed / 1 failed`:
+reduced motion and dirty saved-session recovery passed, while resize remained
+unresolved after synchronized compact 390px readiness and later
+`boundingBox()` timeout with Standard fallback visible. See
+`docs/AUDIT_009C3B_Evidence_Capture_Confirmed_Teardown.md`.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
@@ -497,6 +536,10 @@ reduced-motion remained unresolved. See
   dirty-session browser case continued to pass in both current-source browser
   batches. Full browser acceptance for the resize and reduced-motion journeys
   remains unresolved after the bounded attempts.
+- CCPP-009C3B source and static closeout checks are complete, and its final
+  retained browser batch improved to `8 passed / 1 failed`. Resize remains
+  unresolved and the underlying host/runtime failure reason was not captured in
+  the retained sanitized browser evidence.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

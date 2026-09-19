@@ -160,9 +160,14 @@ const createLoaderController = (): LoaderController => {
   };
 };
 
-const createRuntimeHandle = () => ({
-  dispose: vi.fn(),
-  update: vi.fn(),
+const createRuntimeHandle = ({
+  disposalComplete,
+}: {
+  readonly disposalComplete?: Promise<void>;
+} = {}) => ({
+  disposalComplete,
+  dispose: vi.fn(() => undefined),
+  update: vi.fn((_snapshot: MatchResultRuntimeSnapshot) => undefined),
 });
 
 const controlledRuntimeSnapshot = (
@@ -1231,6 +1236,169 @@ describe('prediction presentation host lifecycle', () => {
     );
   });
 
+  it('does not allocate a replacement until the previous runtime confirms cleanup', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstCleanup = createDeferred<void>();
+    const firstHandle = createRuntimeHandle({
+      disposalComplete: firstCleanup.promise,
+    });
+
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await flushReact();
+
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.controller.requests).toHaveLength(1);
+
+    await geometry.setWidth(MATCH_RESULT_SCENE_WIDTH);
+    await flushReact();
+
+    expect(host.controller.requests).toHaveLength(1);
+
+    await act(async () => {
+      firstCleanup.resolve();
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'current replacement after confirmed cleanup',
+    );
+
+    expect(host.controller.requests[1].input.initialViewport.stage).toEqual(
+      projectMatchResultLayout(
+        host.controller.requests[1].input.initialSnapshot,
+        MATCH_RESULT_SCENE_WIDTH,
+      ).stage,
+    );
+  });
+
+  it('does not treat rejected cleanup as permission to allocate a replacement', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstCleanup = createDeferred<void>();
+    const firstHandle = createRuntimeHandle({
+      disposalComplete: firstCleanup.promise,
+    });
+
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await flushReact();
+
+    await act(async () => {
+      firstCleanup.reject(new Error('controlled cleanup failure'));
+      await Promise.resolve();
+    });
+
+    await waitForCondition(
+      () =>
+        host.container.textContent?.includes(
+          "Animations couldn't continue. Your answers have been kept.",
+        ) === true,
+      'fallback after cleanup rejection',
+    );
+
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.controller.requests).toHaveLength(1);
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+  });
+
+  it('falls back through the existing deadline when cleanup never confirms', async () => {
+    vi.useFakeTimers();
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames), {
+      initializationTimeoutMs: 100,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstCleanup = createDeferred<void>();
+    const firstHandle = createRuntimeHandle({
+      disposalComplete: firstCleanup.promise,
+    });
+
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await flushReact();
+
+    expect(host.controller.requests).toHaveLength(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(101);
+      await Promise.resolve();
+    });
+
+    expect(host.controller.requests).toHaveLength(1);
+    expect(host.container.textContent).toContain(
+      "Animations couldn't continue. Your answers have been kept.",
+    );
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+  });
+
+  it('does not start obsolete replacement work when switched Off before cleanup confirms', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstCleanup = createDeferred<void>();
+    const firstHandle = createRuntimeHandle({
+      disposalComplete: firstCleanup.promise,
+    });
+
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await flushReact();
+    await clickButton(host.container, 'Off');
+
+    await act(async () => {
+      firstCleanup.resolve();
+      await Promise.resolve();
+    });
+    await flushReact();
+
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.controller.requests).toHaveLength(1);
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+  });
+
   it('falls back when a replacement stalls and disposes its late handle once', async () => {
     vi.useFakeTimers();
     const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
@@ -1421,6 +1589,91 @@ describe('prediction presentation host lifecycle', () => {
     expect(host.container.textContent).not.toContain(
       "Animations couldn't continue.",
     );
+  });
+
+  it('waits for cleanup confirmation after superseding a partially initialized runtime', async () => {
+    let startReplacementB: (() => void) | null = null;
+    const TwoPhasePreview = ({ attempt }: KaplayMatchResultPreviewProps) => {
+      const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+      useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+          return undefined;
+        }
+
+        const stopA = attempt.startRuntime(
+          controlledRuntimeInput(canvas, {
+            height: MATCH_RESULT_SCENE_HEIGHT + 120,
+            width: 390,
+          }),
+        );
+        let stopB: (() => void) | null = null;
+
+        startReplacementB = () => {
+          stopA();
+          stopB = attempt.startRuntime(
+            controlledRuntimeInput(canvas, {
+              height: MATCH_RESULT_SCENE_HEIGHT,
+              width: MATCH_RESULT_SCENE_WIDTH,
+            }),
+          );
+        };
+
+        return () => {
+          stopB?.();
+          stopA();
+        };
+      }, [attempt]);
+
+      return createElement('canvas', {
+        'data-testid': 'kaplay-match-result-canvas',
+        ref: canvasRef,
+        style: {
+          aspectRatio: `${MATCH_RESULT_SCENE_WIDTH} / ${MATCH_RESULT_SCENE_HEIGHT}`,
+        },
+      });
+    };
+
+    const host = await renderHost(rendererState(), {
+      previewComponent: TwoPhasePreview,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'partially initialized runtime allocation',
+    );
+
+    const partialCleanup = createDeferred<void>();
+    const firstRequest = host.controller.requests[0];
+
+    firstRequest.input.onDisposalComplete?.(partialCleanup.promise);
+
+    await act(async () => {
+      startReplacementB?.();
+      await Promise.resolve();
+    });
+    await flushReact();
+
+    expect(firstRequest.input.abortSignal?.aborted).toBe(true);
+    expect(host.controller.requests).toHaveLength(1);
+
+    await act(async () => {
+      partialCleanup.resolve();
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'current runtime allocation after partial cleanup',
+    );
+
+    expect(host.controller.requests[1].input.initialViewport.stage).toEqual({
+      height: MATCH_RESULT_SCENE_HEIGHT,
+      width: MATCH_RESULT_SCENE_WIDTH,
+      x: 0,
+      y: 0,
+    });
   });
 
   it('does not extend one stalled replacement cycle across repeated measurements', async () => {
