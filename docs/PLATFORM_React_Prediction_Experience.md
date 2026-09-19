@@ -5,7 +5,9 @@
 CCPP-010A makes the active player prediction experience React-first. CCPP-010A1
 keeps that architecture and closes small Match Result presentation follow-ups.
 CCPP-010A2 refines only the Match Result motion timing and settled hero
-treatment. Real React/HTML controls own prediction entry for the active route.
+treatment. CCPP-010A3 keeps the same contract and corrects only the Match Result
+selected-card lift and rejected-card ghosting. Real React/HTML controls own
+prediction entry for the active route.
 Optional browser-native animation is a decorative layer over those same
 controls; it is not a second answer model, validation path, navigation path, or
 persistence path.
@@ -74,12 +76,15 @@ When no Match Result answer exists, all three radio-card controls are present
 and keyboard usable. Choosing an answer updates the shared session immediately
 through the same React action path. With animations enabled, a deliberate new
 choice enters a short presentation-only reveal: the selected real radio-card
-rises above the rejected choices, the Rooster pushes decorative rejected-choice
-copies away over a roughly 1.2 second sequence, and the selected answer is not
-pushed or moved away. The settled state then shows the selected answer as a
-larger hero card with the exact label `YOU SELECTED:` above it and a real
-`Change my selection` button. Rejected choices are not focusable or announced
-as available choices in the settled state.
+physically rises above the rejected choices, the Rooster pushes decorative
+rejected-choice copies away over a roughly 1.2 second sequence, and the selected
+answer is not pushed or moved away. During this reveal, the original rejected
+real radio-card elements may remain mounted only for layout continuity; they are
+visually hidden, disabled, `aria-hidden`, and noninteractive while the
+decorative copies represent them. The settled state then shows the selected
+answer as a larger hero card with the exact label `YOU SELECTED:` above it and a
+real `Change my selection` button. Rejected choices are not focusable or
+announced as available choices in the settled state.
 
 `Change my selection` returns immediately to the three real radio-card choices.
 It preserves the current answer until another choice is deliberately selected,

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { expect, type Page, test } from '@playwright/test';
@@ -235,6 +235,27 @@ const videoPath = (name: string) => {
   return join(videoDir, name);
 };
 
+const measurementPath = (name: string) => {
+  if (!evidenceDir) {
+    return null;
+  }
+
+  const measurementDir = join(evidenceDir, 'browser-measurements');
+  mkdirSync(measurementDir, { recursive: true });
+
+  return join(measurementDir, name);
+};
+
+const writeMeasurement = (name: string, data: unknown) => {
+  const path = measurementPath(name);
+
+  if (!path) {
+    return;
+  }
+
+  writeFileSync(path, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+};
+
 const captureScreenshot = async (
   page: Page,
   name: string,
@@ -264,6 +285,64 @@ const saveVideo = async (page: Page, name: string) => {
   await page.close();
   await video.saveAs(path);
 };
+
+const choiceBounds = async (page: Page, value: string) =>
+  page.getByTestId(`match-result-choice-${value}`).evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+
+    return {
+      bottom: rect.bottom,
+      height: rect.height,
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      width: rect.width,
+    };
+  });
+
+const revealControlState = async (
+  page: Page,
+  selectedValue: string,
+  rejectedValues: readonly string[],
+) =>
+  page.evaluate(
+    ({ rejectedValues: rejected, selectedValue: selected }) => {
+      const cardState = (value: string) => {
+        const card = document.querySelector<HTMLElement>(
+          `[data-testid="match-result-choice-${value}"]`,
+        );
+        const input = card?.querySelector<HTMLInputElement>(
+          'input[name="match-result"]',
+        );
+        const style = card ? window.getComputedStyle(card) : null;
+
+        return {
+          ariaHidden: card?.getAttribute('aria-hidden') ?? null,
+          checked: input?.checked ?? false,
+          className: card?.className ?? null,
+          disabled: input?.disabled ?? false,
+          visibility: style?.visibility ?? null,
+        };
+      };
+
+      return {
+        activeRadioCount: document.querySelectorAll(
+          'input[name="match-result"]:not(:disabled)',
+        ).length,
+        decorativeButtonCount: document.querySelectorAll(
+          '[data-testid="match-result-shove-layer"] button, [data-testid="match-result-shove-layer"] input',
+        ).length,
+        decorativeCardCount: document.querySelectorAll(
+          '.rr-match-result-shove-card',
+        ).length,
+        rejected: Object.fromEntries(
+          rejected.map((value) => [value, cardState(value)]),
+        ),
+        selected: cardState(selected),
+      };
+    },
+    { rejectedValues, selectedValue },
+  );
 
 const createFixtureAndOpenPrediction = async (
   page: Page,
@@ -394,7 +473,7 @@ test.describe('React prediction presentation', () => {
     await captureScreenshot(page, '010a-match-result-360.png');
   });
 
-  test('captures the refined Match Result rise, shove, and selected hero', async ({
+  test('captures the CCPP-010A3 Match Result lift and clean shove', async ({
     page,
   }) => {
     const { teams } = await createFixtureAndOpenPrediction(
@@ -406,13 +485,15 @@ test.describe('React prediction presentation', () => {
       },
     );
     const matchResultStep = page.getByTestId('react-match-result-step');
+    const measurements: Record<string, unknown> = {};
 
     await expect(matchResultStep).toBeVisible();
     await expect(
       page.getByRole('button', { exact: true, name: 'On' }),
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
-    await captureScreenshot(page, '010a2-match-result-before-selection.png');
+    const desktopBefore = await choiceBounds(page, 'team1');
+    await captureScreenshot(page, '010a3-match-result-before-selection.png');
 
     await page.getByRole('radio', { name: teams.team1 }).check();
 
@@ -421,15 +502,64 @@ test.describe('React prediction presentation', () => {
     await expect(page.getByTestId('match-result-choice-team1')).toHaveClass(
       /rr-match-result-choice-card--selected-rise/,
     );
-    await page.waitForTimeout(160);
-    await captureScreenshot(page, '010a2-match-result-selected-rise.png', {
+    await page.waitForTimeout(170);
+    const desktopLift = await choiceBounds(page, 'team1');
+    const desktopRevealState = await revealControlState(page, 'team1', [
+      'team2',
+      'draw',
+    ]);
+    const desktopLiftDisplacement = desktopBefore.top - desktopLift.top;
+
+    expect(desktopLiftDisplacement).toBeGreaterThanOrEqual(18);
+    expect(desktopRevealState.activeRadioCount).toBe(1);
+    expect(desktopRevealState.decorativeButtonCount).toBe(0);
+    expect(desktopRevealState.decorativeCardCount).toBe(2);
+    expect(desktopRevealState).toMatchObject({
+      rejected: {
+        draw: {
+          ariaHidden: 'true',
+          disabled: true,
+          visibility: 'hidden',
+        },
+        team2: {
+          ariaHidden: 'true',
+          disabled: true,
+          visibility: 'hidden',
+        },
+      },
+      selected: {
+        checked: true,
+        disabled: false,
+      },
+    });
+    measurements.desktop = {
+      before: desktopBefore,
+      lift: desktopLift,
+      liftDisplacementPx: desktopLiftDisplacement,
+      revealState: desktopRevealState,
+    };
+
+    await captureScreenshot(page, '010a3-match-result-selected-lift.png', {
       fullPage: false,
     });
 
     await expect(page.getByTestId('match-result-rooster')).toBeVisible();
-    await page.waitForTimeout(470);
+    await page.waitForTimeout(520);
     await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
-    await captureScreenshot(page, '010a2-match-result-contact-push.png', {
+    measurements.desktopContactState = await revealControlState(page, 'team1', [
+      'team2',
+      'draw',
+    ]);
+    await captureScreenshot(
+      page,
+      '010a3-match-result-contact-clean-shove.png',
+      {
+        fullPage: false,
+      },
+    );
+
+    await page.waitForTimeout(260);
+    await captureScreenshot(page, '010a3-match-result-shove-exit.png', {
       fullPage: false,
     });
 
@@ -454,30 +584,108 @@ test.describe('React prediction presentation', () => {
     ).toHaveCount(0);
     await captureScreenshot(
       page,
-      '010a2-match-result-settled-hero-desktop.png',
+      '010a3-match-result-settled-hero-desktop.png',
     );
 
     await page.setViewportSize({ height: 844, width: 390 });
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
+    const mobile390Before = await choiceBounds(page, 'team2');
+    await page.getByRole('radio', { name: teams.team2 }).check();
+    await page.waitForTimeout(170);
+    const mobile390Lift = await choiceBounds(page, 'team2');
+    const mobile390LiftDisplacement = mobile390Before.top - mobile390Lift.top;
+    const mobile390Layout = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      liftCardTop:
+        document
+          .querySelector<HTMLElement>(
+            '[data-testid="match-result-choice-team2"]',
+          )
+          ?.getBoundingClientRect().top ?? null,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+
+    expect(mobile390LiftDisplacement).toBeGreaterThanOrEqual(16);
+    expect(mobile390Layout.liftCardTop).not.toBeNull();
+    expect(mobile390Layout.liftCardTop ?? 0).toBeGreaterThanOrEqual(0);
+    expect(mobile390Layout.scrollWidth).toBeLessThanOrEqual(
+      mobile390Layout.clientWidth + 1,
+    );
+    measurements.mobile390 = {
+      before: mobile390Before,
+      layout: mobile390Layout,
+      lift: mobile390Lift,
+      liftDisplacementPx: mobile390LiftDisplacement,
+      revealState: await revealControlState(page, 'team2', ['team1', 'draw']),
+    };
+    await captureScreenshot(page, '010a3-match-result-selected-lift-390.png', {
+      fullPage: false,
+    });
+    await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
+      timeout: 2_500,
+    });
     await expect(
       page.getByText('YOU SELECTED:', { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Change my selection' }),
     ).toBeVisible();
-    await captureScreenshot(page, '010a2-match-result-settled-hero-390.png');
+    await captureScreenshot(page, '010a3-match-result-settled-hero-390.png');
 
     await page.setViewportSize({ height: 740, width: 360 });
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
+    const mobile360Before = await choiceBounds(page, 'draw');
+    await page.getByRole('radio', { name: 'Draw' }).check();
+    await page.waitForTimeout(170);
+    const mobile360Lift = await choiceBounds(page, 'draw');
+    const mobile360LiftDisplacement = mobile360Before.top - mobile360Lift.top;
+    const mobile360Layout = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      liftCardTop:
+        document
+          .querySelector<HTMLElement>(
+            '[data-testid="match-result-choice-draw"]',
+          )
+          ?.getBoundingClientRect().top ?? null,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+
+    expect(mobile360LiftDisplacement).toBeGreaterThanOrEqual(16);
+    expect(mobile360Layout.liftCardTop).not.toBeNull();
+    expect(mobile360Layout.liftCardTop ?? 0).toBeGreaterThanOrEqual(0);
+    expect(mobile360Layout.scrollWidth).toBeLessThanOrEqual(
+      mobile360Layout.clientWidth + 1,
+    );
+    measurements.mobile360 = {
+      before: mobile360Before,
+      layout: mobile360Layout,
+      lift: mobile360Lift,
+      liftDisplacementPx: mobile360LiftDisplacement,
+      revealState: await revealControlState(page, 'draw', ['team1', 'team2']),
+    };
+    await captureScreenshot(page, '010a3-match-result-selected-lift-360.png', {
+      fullPage: false,
+    });
+    await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
+      timeout: 2_500,
+    });
     await expect(
       page.getByText('YOU SELECTED:', { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Change my selection' }),
     ).toBeVisible();
-    await captureScreenshot(page, '010a2-match-result-settled-hero-360.png');
+    await captureScreenshot(page, '010a3-match-result-settled-hero-360.png');
+    writeMeasurement(
+      '010a3-match-result-lift-clean-shove-measurements.json',
+      measurements,
+    );
 
     await saveVideo(
       page,
-      '010a2-match-result-rise-shove-hero-normal-speed.webm',
+      '010a3-match-result-lift-clean-shove-normal-speed.webm',
     );
   });
 

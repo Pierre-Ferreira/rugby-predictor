@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+
 import {
   StrictMode,
   act,
@@ -157,6 +159,9 @@ const matchResultRadios = (container: HTMLElement) =>
     container.querySelectorAll<HTMLInputElement>('input[name="match-result"]'),
   );
 
+const enabledMatchResultRadios = (container: HTMLElement) =>
+  matchResultRadios(container).filter((radio) => !radio.disabled);
+
 const matchResultStage = (container: HTMLElement) => {
   const stage = container.querySelector<HTMLElement>(
     '[data-testid="react-match-result-step"] [data-motion-phase]',
@@ -182,6 +187,18 @@ const radioByValue = (container: HTMLElement, value: string) => {
   }
 
   return radio;
+};
+
+const matchResultChoiceCard = (container: HTMLElement, value: string) => {
+  const card = container.querySelector<HTMLElement>(
+    `[data-testid="match-result-choice-${value}"]`,
+  );
+
+  if (!card) {
+    throw new Error(`Match Result choice card "${value}" not found.`);
+  }
+
+  return card;
 };
 
 const inputByTestId = (container: HTMLElement, testId: string) => {
@@ -377,6 +394,20 @@ describe('React prediction presentation host', () => {
 });
 
 describe('Match Result React presentation', () => {
+  it('defines a physical selected-card lift and hidden rejected-real-control CSS', () => {
+    const css = readFileSync('client/main.css', 'utf8');
+
+    expect(css).toMatch(
+      /@keyframes rr-match-result-selected-rise[\s\S]*translateY\(-1\.5rem\) scale\(1\.06\)/,
+    );
+    expect(css).toMatch(
+      /@keyframes rr-match-result-selected-rise-compact[\s\S]*translateY\(-1\.125rem\) scale\(1\.045\)/,
+    );
+    expect(css).toMatch(
+      /\.rr-match-result-stage \.rr-match-result-choice-card--rejected-hidden[\s\S]*visibility: hidden;[\s\S]*pointer-events: none;/,
+    );
+  });
+
   it('starts with the three-choice radio group when no answer exists', async () => {
     const mountedStep = await mount(
       createElement(MatchResultHarness, {
@@ -407,19 +438,32 @@ describe('Match Result React presentation', () => {
       'revealing',
     );
     expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(enabledMatchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
     expect(
-      mountedStep.container
-        .querySelector('[data-testid="match-result-choice-team1"]')
-        ?.classList.contains('rr-match-result-choice-card--selected-rise'),
+      matchResultChoiceCard(mountedStep.container, 'team1').classList.contains(
+        'rr-match-result-choice-card--selected-rise',
+      ),
     ).toBe(true);
+    expect(radioByValue(mountedStep.container, 'team1').disabled).toBe(false);
+
+    const rejectedTeam2 = matchResultChoiceCard(mountedStep.container, 'team2');
+    const rejectedDraw = matchResultChoiceCard(mountedStep.container, 'draw');
+
     expect(
-      mountedStep.container
-        .querySelector('[data-testid="match-result-choice-team2"]')
-        ?.classList.contains(
-          'rr-match-result-choice-card--rejected-background',
-        ),
+      rejectedTeam2.classList.contains(
+        'rr-match-result-choice-card--rejected-hidden',
+      ),
     ).toBe(true);
+    expect(rejectedTeam2.getAttribute('aria-hidden')).toBe('true');
+    expect(radioByValue(mountedStep.container, 'team2').disabled).toBe(true);
+    expect(
+      rejectedDraw.classList.contains(
+        'rr-match-result-choice-card--rejected-hidden',
+      ),
+    ).toBe(true);
+    expect(rejectedDraw.getAttribute('aria-hidden')).toBe('true');
+    expect(radioByValue(mountedStep.container, 'draw').disabled).toBe(true);
     expect(
       buttonByText(mountedStep.container, 'Change my selection').tagName,
     ).toBe('BUTTON');
@@ -429,6 +473,11 @@ describe('Match Result React presentation', () => {
     );
 
     expect(shoveLayer).not.toBeNull();
+    expect(shoveLayer?.getAttribute('aria-hidden')).toBe('true');
+    expect(
+      shoveLayer?.querySelectorAll('.rr-match-result-shove-card'),
+    ).toHaveLength(2);
+    expect(shoveLayer?.querySelectorAll('button, input')).toHaveLength(0);
 
     if (shoveLayer) {
       await finishAnimation(shoveLayer);
@@ -477,6 +526,8 @@ describe('Match Result React presentation', () => {
       'revealing',
     );
     expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(enabledMatchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'team1').disabled).toBe(true);
     expect(
       mountedStep.container.querySelector(
         '[data-testid="match-result-shove-layer"]',
@@ -498,6 +549,7 @@ describe('Match Result React presentation', () => {
 
     expect(choices).toEqual([]);
     expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(enabledMatchResultRadios(mountedStep.container)).toHaveLength(3);
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
     expect(document.activeElement).toBe(
       radioByValue(mountedStep.container, 'team1'),
@@ -661,6 +713,11 @@ describe('Match Result React presentation', () => {
     ).toBeNull();
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
     expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(
+      mountedStep.container.querySelector(
+        '.rr-match-result-choice-card--rejected-hidden',
+      ),
+    ).toBeNull();
   });
 
   it('Change during an active shove removes the decoration and restores choices', async () => {
@@ -688,7 +745,13 @@ describe('Match Result React presentation', () => {
       ),
     ).toBeNull();
     expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(enabledMatchResultRadios(mountedStep.container)).toHaveLength(3);
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(
+      mountedStep.container.querySelector(
+        '.rr-match-result-choice-card--rejected-hidden',
+      ),
+    ).toBeNull();
   });
 
   it('treats sprite load failure as harmless presentation cancellation', async () => {

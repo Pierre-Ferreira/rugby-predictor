@@ -207,9 +207,11 @@ export const MatchResultPredictionStep = ({
           <div className="grid gap-3 sm:grid-cols-3">
             {choices.map((choice) => {
               const checked = choice.value === value;
+              const rejectedDuringReveal = isRevealing && !checked;
 
               return (
                 <label
+                  aria-hidden={rejectedDuringReveal ? 'true' : undefined}
                   className={[
                     'rr-match-result-choice-card flex min-h-24 cursor-pointer items-center rounded-md border p-4 text-base font-black transition sm:min-h-28',
                     checked
@@ -218,8 +220,8 @@ export const MatchResultPredictionStep = ({
                     isRevealing && checked
                       ? 'rr-match-result-choice-card--selected-rise'
                       : '',
-                    isRevealing && !checked
-                      ? 'rr-match-result-choice-card--rejected-background'
+                    rejectedDuringReveal
+                      ? 'rr-match-result-choice-card--rejected-hidden'
                       : '',
                   ].join(' ')}
                   data-testid={`match-result-choice-${choice.value}`}
@@ -231,6 +233,7 @@ export const MatchResultPredictionStep = ({
                     }}
                     checked={checked}
                     className="focus-ring mr-3 h-5 w-5 shrink-0 accent-rooster-red"
+                    disabled={rejectedDuringReveal}
                     id={`${baseId}-${choice.value}`}
                     name="match-result"
                     type="radio"
@@ -334,7 +337,11 @@ const MatchResultShoveOverlay = ({
     >
       <div className="rr-match-result-shove-pack">
         {rejectedChoices.map((choice) => (
-          <div className="rr-match-result-shove-card" key={choice.value}>
+          <div
+            className="rr-match-result-shove-card"
+            data-testid={`match-result-shove-card-${choice.value}`}
+            key={choice.value}
+          >
             {choice.label}
           </div>
         ))}

@@ -139,6 +139,9 @@
   Match Result shove timing, selected-card rise treatment, `YOU SELECTED:` hero
   settled state, responsive evidence, verification, and review archive
   evidence.
+- `docs/AUDIT_010A3_Match_Result_Lift_Clean_Shove.md` - CCPP-010A3 Match Result
+  rejected-real-control suppression, measured selected-card lift, focused
+  browser evidence, verification, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -207,6 +210,8 @@
 - `docs/TEMP_010A2_Resume.md` - temporary CCPP-010A2 checkpoint for Match
   Result motion timing, selected-card rise, settled hero treatment, evidence,
   verification, and packaging handoff.
+- `docs/TEMP_010A3_Resume.md` - temporary CCPP-010A3 checkpoint for Match
+  Result lift, clean shove evidence, verification, and packaging handoff.
 
 ## Application Entry Points
 
