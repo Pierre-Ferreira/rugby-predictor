@@ -65,4 +65,305 @@
   .focus-ring:focus-visible {
     outline-color: rgb(var(--color-rooster-sun));
   }
+
+  .rr-match-result-shove-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+    overflow: hidden;
+    animation: rr-match-result-layer-life 760ms linear both;
+  }
+
+  .rr-match-result-shove-pack {
+    position: absolute;
+    left: 30%;
+    top: 50%;
+    display: grid;
+    width: min(50%, 28rem);
+    transform: translateY(-50%);
+    gap: 0.5rem;
+    animation: rr-match-result-shove-pack 760ms linear both;
+  }
+
+  .rr-match-result-shove-card {
+    min-height: 4.75rem;
+    border: 1px solid rgb(var(--color-rooster-line));
+    border-radius: 0.375rem;
+    background: white;
+    padding: 1rem;
+    color: rgb(var(--color-rooster-ink));
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1.4;
+    box-shadow: 0 10px 24px rgb(22 31 38 / 0.12);
+    overflow-wrap: anywhere;
+  }
+
+  .rr-match-result-rooster-lane {
+    position: absolute;
+    inset: 0 0 0 31%;
+    overflow: hidden;
+  }
+
+  .rr-match-result-rooster {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: clamp(6.75rem, 16vw, 8.75rem);
+    aspect-ratio: 276 / 268;
+    transform: translate(-120%, -47%);
+    animation: rr-match-result-rooster-travel 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    opacity: 0;
+  }
+
+  .rr-match-result-rooster-frame-0 {
+    animation: rr-match-result-rooster-frame-0 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-1 {
+    animation: rr-match-result-rooster-frame-1 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-2 {
+    animation: rr-match-result-rooster-frame-2 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-3 {
+    animation: rr-match-result-rooster-frame-3 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-4 {
+    animation: rr-match-result-rooster-frame-4 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-5 {
+    animation: rr-match-result-rooster-frame-5 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-6 {
+    animation: rr-match-result-rooster-frame-6 760ms linear both;
+  }
+
+  .rr-match-result-rooster-frame-7 {
+    animation: rr-match-result-rooster-frame-7 760ms linear both;
+  }
+
+  @media (max-width: 520px) {
+    .rr-match-result-shove-pack {
+      left: 22%;
+      width: min(62%, 18rem);
+    }
+
+    .rr-match-result-shove-card {
+      min-height: 4rem;
+      padding: 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .rr-match-result-rooster {
+      width: clamp(5.75rem, 24vw, 7.25rem);
+    }
+
+    .rr-match-result-rooster-lane {
+      left: 22%;
+    }
+  }
+
+  @keyframes rr-match-result-layer-life {
+    from {
+      opacity: 1;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes rr-match-result-shove-pack {
+    0% {
+      opacity: 1;
+      transform: translate(0, -50%);
+    }
+
+    38% {
+      opacity: 1;
+      transform: translate(0, -50%);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translate(115%, -50%);
+    }
+  }
+
+  @keyframes rr-match-result-rooster-travel {
+    0% {
+      transform: translate(-120%, -47%);
+    }
+
+    38% {
+      transform: translate(14%, -47%);
+    }
+
+    100% {
+      transform: translate(132%, -47%);
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-0 {
+    0%,
+    12.49% {
+      opacity: 1;
+    }
+
+    12.5%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-1 {
+    0%,
+    12.49% {
+      opacity: 0;
+    }
+
+    12.5%,
+    24.99% {
+      opacity: 1;
+    }
+
+    25%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-2 {
+    0%,
+    24.99% {
+      opacity: 0;
+    }
+
+    25%,
+    37.49% {
+      opacity: 1;
+    }
+
+    37.5% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-3 {
+    0%,
+    37.49% {
+      opacity: 0;
+    }
+
+    37.5%,
+    49.99% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-4 {
+    0%,
+    49.99% {
+      opacity: 0;
+    }
+
+    50%,
+    62.49% {
+      opacity: 1;
+    }
+
+    62.5% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-5 {
+    0%,
+    62.49% {
+      opacity: 0;
+    }
+
+    62.5%,
+    74.99% {
+      opacity: 1;
+    }
+
+    75% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-6 {
+    0%,
+    74.99% {
+      opacity: 0;
+    }
+
+    75%,
+    87.49% {
+      opacity: 1;
+    }
+
+    87.5%,
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rr-match-result-rooster-frame-7 {
+    0%,
+    87.49% {
+      opacity: 0;
+    }
+
+    87.5%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rr-match-result-shove-layer,
+    .rr-match-result-shove-pack,
+    .rr-match-result-rooster-lane,
+    .rr-match-result-rooster,
+    .rr-match-result-rooster-frame {
+      animation: none;
+    }
+  }
 }

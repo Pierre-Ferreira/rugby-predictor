@@ -257,38 +257,45 @@ state is cleared and repopulated only from the new account's own subscription.
 
 ## Prediction Presentation Architecture
 
-Rugby Rooster will have two complete prediction presentation experiences.
+CCPP-010A changes the durable prediction-control architecture. The active
+player prediction path is now React-first:
 
-The animated Kaplay experience will be the default prediction experience. It can
-own the visual scene, rooster animations, transitions, reactions, effects, and
-animated interactions.
+- React/HTML controls are authoritative for prediction answers.
+- Animations are optional browser-native decoration layered over those same
+  controls.
+- Animations Off and reduced motion keep the same essential answer interface.
+- Nothing essential to successful prediction submission may depend on animation
+  completion.
+- The active prediction route no longer imports, initializes, or renders the
+  prediction-specific Kaplay runtime.
 
-The standard non-animated experience is also a complete prediction experience.
-It is not temporary scaffolding and not merely an accessibility afterthought. It
-provides the whole usable prediction sequence without Kaplay and is the
-resilient fallback when animations are disabled by the player, reduced motion is
-preferred, device or browser capability is unsuitable, Kaplay initialization
-fails, or Kaplay fails at runtime.
+The shared prediction session remains the single owner of answers, validation
+state, fixture ruleset interpretation, navigation, edit/review behavior,
+revision handling, discard/conflict state, and Meteor submission. Presentation
+code adapts browser input to session commands; it does not own a second answer
+state or duplicate business validation.
 
-Both experiences must share one prediction domain and state model. They must use
-the same prediction answers, validation rules, fixture ruleset snapshot
-interpretation, navigation and step semantics where applicable, and Meteor
-submission contract. Kaplay must not implement separate business validation that
-can diverge from the standard experience.
+Match Result and Tries are the first React-first presentation screens. Match
+Result renders real Team 1, Team 2, and Draw controls, with an optional
+noninteractive shove overlay for deliberate new choices. Tries renders real
+numeric controls for both teams, with optional cosmetic numeric reactions.
+Later steps continue through the existing React sequence.
 
-Switching or falling back between experiences must preserve the player's
-answers. Kaplay initialization or runtime failure must never lose answers, block
-progression, or prevent submission. Nothing essential to successful prediction
-submission may depend on an animation completing.
+Kaplay remains installed and the CCPP-009 prediction-specific source remains in
+the repository as superseded/deferred-cleanup code. It may inform future
+genuine gameplay such as a later half-time quiz if that product idea is chosen,
+but that quiz is not implemented and Kaplay is not active for prediction
+controls.
 
-Renderer-only resize replacement is allowed when an animated runtime's logical
-viewport genuinely changes, but it remains below the shared session owner and
-must make no prediction write. If resize interrupts a transient animation, the
-current selected answer survives even when the visual effect is cancelled.
+The CCPP-009 work is still useful history. It produced the shared session
+boundary, animation preference and reduced-motion experience, prepared Rooster
+artwork, shove choreography, and visual evidence. Its historical resize browser
+failure is not fixed by CCPP-010A; it ceased to be on the active prediction
+path.
 
-Player-facing controls should be framed around animation, such as "Animations
-On" and "Animations Off." Implementation terms such as `kaplay` and `standard`
-may be used internally when that future milestone implements them.
+Player-facing controls should continue to be framed around animation, such as
+"Animations On" and "Animations Off." Implementation labels such as `kaplay`
+must not leak into the player-facing prediction route.
 
 CCPP-007 adds the shared standard sequence and message architecture that the
 future Kaplay experience should also consume. It does not implement Kaplay,
@@ -347,10 +354,10 @@ prediction flow, Review/submission animation, or final visual acceptance.
 - Match results and final scoring persistence.
 - Leaderboards and league aggregation.
 - Prize, venue, sponsorship, and competition rules.
-- Kaplay animation design beyond the 009C Match Result visual foundation,
-  mascot behavior for other steps, full-flow capability detection, production
-  rollout, and player animation controls beyond the development/test On/Off
-  preview.
+- Whether Kaplay is used later for genuine gameplay, such as a possible
+  half-time quiz. That idea remains unimplemented.
+- Cleanup/removal timing for superseded prediction-specific Kaplay modules and
+  historical 009 browser evidence.
 - Custom-question scoring or settlement, official-answer workflows, and future
   balancing across fixtures with different optional/custom question sets.
 - Detailed card-event normalization, including second-yellow dismissals and card

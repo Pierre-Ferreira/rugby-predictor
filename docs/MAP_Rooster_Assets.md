@@ -23,6 +23,11 @@ CCPP-009C1 reused this asset set unchanged while correcting motion/layout
 projection. No source images, prepared frames, atlas pixels, manifest anchors,
 source hashes, or preparation outputs changed.
 
+CCPP-010A reuses the prepared transparent frame PNGs directly from React/CSS
+Match Result browser animation. The active prediction route no longer consumes
+the Kaplay atlas/runtime, but the atlas and generated manifests remain as
+historical 009 assets and deferred-cleanup material.
+
 Inspected locations:
 
 - `public/`
@@ -31,22 +36,22 @@ Inspected locations:
 
 ## Available Assets
 
-| Path                                                                                        | Type / Dimensions         | Status                    | Notes                                                                    |
-| ------------------------------------------------------------------------------------------- | ------------------------- | ------------------------- | ------------------------------------------------------------------------ |
-| `assets/source/rooster/cartoon_rooster_running_sprite_sheet.png`                            | PNG, 1672 x 941 sRGBA     | CCPP-009C source art      | Preserved original runtime sheet for run/push extraction.                |
-| `assets/source/rooster/rooster_animation_loops_reference_sheet.png`                         | PNG, 1672 x 941 sRGB      | CCPP-009C source art      | Preserved reference-only labelled sheet.                                 |
-| `public/assets/rooster/match-result/frames/rooster-run-1.png` through `rooster-run-4.png`   | PNG, 276 x 268 sRGBA each | Runtime prepared frames   | First-pass running frames for Match Result shove entry.                  |
-| `public/assets/rooster/match-result/frames/rooster-push-1.png` through `rooster-push-4.png` | PNG, 276 x 268 sRGBA each | Runtime prepared frames   | First-pass push-run frames for contact and shove exit.                   |
-| `public/assets/rooster/match-result/rooster-shove-atlas.png`                                | PNG, 1136 x 552 sRGBA     | Runtime KAPLAY atlas      | Atlas consumed by the Match Result runtime.                              |
-| `public/assets/rooster/match-result/rooster-shove-manifest.json`                            | JSON                      | Runtime asset manifest    | Public manifest with frame, animation, source hash, and anchor metadata. |
-| `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json`                         | JSON                      | Runtime source manifest   | Generated manifest imported by motion/runtime code.                      |
-| `public/favicon.svg`                                                                        | SVG                       | Reference/app icon        | Favicon source only; not runtime-ready mascot animation art.             |
-| `public/icons/apple-touch-icon.png`                                                         | PNG, 180 x 180 RGBA       | App icon                  | Touch icon only.                                                         |
-| `public/icons/rr-icon-192.png`                                                              | PNG, 192 x 192 RGBA       | App icon                  | PWA icon only.                                                           |
-| `public/icons/rr-icon-512.png`                                                              | PNG, 512 x 512 RGBA       | App icon                  | PWA icon only.                                                           |
-| `public/icons/rr-icon-source.svg`                                                           | SVG                       | Reference/app icon source | Source for monogram-style app icon.                                      |
-| `public/icons/rr-maskable-512.png`                                                          | PNG, 512 x 512 RGBA       | App icon                  | Maskable PWA icon only.                                                  |
-| `public/icons/rr-maskable-source.svg`                                                       | SVG                       | Reference/app icon source | Source for maskable icon.                                                |
+| Path                                                                                        | Type / Dimensions         | Status                        | Notes                                                                           |
+| ------------------------------------------------------------------------------------------- | ------------------------- | ----------------------------- | ------------------------------------------------------------------------------- |
+| `assets/source/rooster/cartoon_rooster_running_sprite_sheet.png`                            | PNG, 1672 x 941 sRGBA     | CCPP-009C source art          | Preserved original runtime sheet for run/push extraction.                       |
+| `assets/source/rooster/rooster_animation_loops_reference_sheet.png`                         | PNG, 1672 x 941 sRGB      | CCPP-009C source art          | Preserved reference-only labelled sheet.                                        |
+| `public/assets/rooster/match-result/frames/rooster-run-1.png` through `rooster-run-4.png`   | PNG, 276 x 268 sRGBA each | Active React animation frames | First-pass running frames used by the CCPP-010A Match Result shove decoration.  |
+| `public/assets/rooster/match-result/frames/rooster-push-1.png` through `rooster-push-4.png` | PNG, 276 x 268 sRGBA each | Active React animation frames | First-pass push-run frames used by the CCPP-010A Match Result shove decoration. |
+| `public/assets/rooster/match-result/rooster-shove-atlas.png`                                | PNG, 1136 x 552 sRGBA     | Historical KAPLAY atlas       | Atlas retained for superseded CCPP-009 Match Result runtime cleanup/review.     |
+| `public/assets/rooster/match-result/rooster-shove-manifest.json`                            | JSON                      | Historical asset manifest     | Public manifest with frame, animation, source hash, and anchor metadata.        |
+| `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json`                         | JSON                      | Historical source manifest    | Generated manifest imported by superseded motion/runtime code.                  |
+| `public/favicon.svg`                                                                        | SVG                       | Reference/app icon            | Favicon source only; not runtime-ready mascot animation art.                    |
+| `public/icons/apple-touch-icon.png`                                                         | PNG, 180 x 180 RGBA       | App icon                      | Touch icon only.                                                                |
+| `public/icons/rr-icon-192.png`                                                              | PNG, 192 x 192 RGBA       | App icon                      | PWA icon only.                                                                  |
+| `public/icons/rr-icon-512.png`                                                              | PNG, 512 x 512 RGBA       | App icon                      | PWA icon only.                                                                  |
+| `public/icons/rr-icon-source.svg`                                                           | SVG                       | Reference/app icon source     | Source for monogram-style app icon.                                             |
+| `public/icons/rr-maskable-512.png`                                                          | PNG, 512 x 512 RGBA       | App icon                      | Maskable PWA icon only.                                                         |
+| `public/icons/rr-maskable-source.svg`                                                       | SVG                       | Reference/app icon source     | Source for maskable icon.                                                       |
 
 ## Historical Not Found
 

@@ -24,13 +24,16 @@
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
 - `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
 - `docs/PLATFORM_Prediction_Session.md` - CCPP-009A shared prediction
-  session ownership, lifecycle, renderer-facing state/actions, Standard
-  adapter, future Kaplay adapter boundary, revision/submission/discard handling,
-  and renderer-local state.
+  session ownership, lifecycle, renderer-facing state/actions, React
+  presentation host, superseded Kaplay adapter boundary,
+  revision/submission/discard handling, and renderer-local state.
+- `docs/PLATFORM_React_Prediction_Experience.md` - CCPP-010A active
+  React-first prediction controls, optional browser animation, Match Result and
+  Tries presentation contracts, and superseded Kaplay status.
 - `docs/PLATFORM_Kaplay_Predictions.md` - CCPP-009B/009B4 development/test
   Kaplay prediction availability, lazy runtime, effective-mode policy,
-  one-screen Match Result support, fallback, cleanup, accessibility bridge, and
-  limitations.
+  one-screen Match Result support, fallback, cleanup, accessibility bridge,
+  limitations, and CCPP-010A superseded-route status.
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
   revision handling, final confirmation, and custom Void scoring preparation.
@@ -125,6 +128,9 @@
   selected-value evidence helper correction, confirmed Kaplay cleanup teardown
   semantics, retained `8 passed / 1 failed` browser evidence, unresolved
   resize failure, and review archive evidence.
+- `docs/AUDIT_010A_Shared_React_Presentation.md` - CCPP-010A React-first Match
+  Result and Tries implementation, retained browser evidence, final
+  verification, superseded Kaplay status, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -184,6 +190,9 @@
 - `docs/TEMP_009C3B_Resume.md` - temporary CCPP-009C3B checkpoint for
   evidence-helper correction, confirmed teardown, retained browser results,
   static closeout checks, and packaging handoff.
+- `docs/TEMP_010A_Resume.md` - temporary CCPP-010A checkpoint for the
+  React-first Match Result and Tries closeout, evidence review, verification,
+  documentation, and packaging handoff.
 
 ## Application Entry Points
 
@@ -300,10 +309,12 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   prediction form state helpers, score derivation adapters, result consistency,
   and first-try constraints.
 - `imports/ui/predictions/PredictionPresentationHost.tsx` - CCPP-009B/009B1
-  Standard/Kaplay preview selection host, Animations control, default
-  development access, reduced-motion fallback, host-owned preview
-  loader/attempt/deadline, loading cancel, failure latch, retry, confirmed
-  runtime cleanup handoff, and late runtime disposal.
+  historical Standard/Kaplay preview selection host; after CCPP-010A it owns
+  only Animations preference, reduced-motion observation, and React
+  presentation options.
+- `imports/ui/predictions/reactPredictionPresentation.tsx` - CCPP-010A
+  React-first Match Result and Tries controls with optional decorative browser
+  animation.
 - `imports/ui/predictions/presentationMode.ts` - CCPP-009B/009B4 development
   availability, isolated test-control setting, supported-step, and
   effective-mode policy helpers.
@@ -317,11 +328,12 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   preview component, host attempt controller contract, runtime adapter, and
   CCPP-009C rooster shove motion/manifest helpers, including CCPP-009C3
   measured-viewport runtime replacement, pointer transform handling, and
-  CCPP-009C3B installed-cleanup confirmation.
+  CCPP-009C3B installed-cleanup confirmation; superseded for active prediction
+  controls by CCPP-010A.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
-  route host, shared session host, Standard renderer, Kaplay presentation host,
-  Intro, numbered steps, Review/Edit UI, and read-only locked-entry UI that
-  presents persisted entry data.
+  route host, shared session host, React presentation host, Intro, numbered
+  steps, Review/Edit UI, and read-only locked-entry UI that presents persisted
+  entry data.
 
 ## Verification Entry Points
 
@@ -365,12 +377,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   presentation replacement, duplicate transport, read-only context update, and
   disposed-owner stale completion tests, including CCPP-009B3A controlled
   transport saved-baseline regressions.
-- `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B preview
-  effective-mode and preference-storage unit tests.
-- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B React DOM
-  presentation-host lifecycle tests with mocked runtime factories, including
-  CCPP-009C3 measured resize/replacement regressions and CCPP-009C3B confirmed
-  cleanup handoff/rejection regressions.
+- `tests/unit/prediction-presentation-mode.test.ts` - historical CCPP-009B
+  preview effective-mode tests plus current animation preference and
+  reduced-motion helper tests.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A React DOM
+  presentation-host, Match Result, and Tries presentation tests, including
+  shared action dispatch, animation Off/reduced-motion parity, resize
+  cancellation, harmless sprite-load cancellation, numeric blank/zero handling,
+  conversion clamping delegation, and rapid numeric changes.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C Match Result layout and
   shove-motion unit coverage, including compact readability, projected bounds,
   hit testing, and resize-preservation checks.
@@ -407,7 +421,12 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   failure fallback, graphics-context loss, keyboard bridge, legacy enabled-flag
   behavior, 009C/009C1/009C2 Rooster shove playback evidence, compact mobile
   layout measurements, CCPP-009C3 resize journey coverage, CCPP-009C3B
-  selected-value evidence reads, and dirty saved-session preservation.
+  selected-value evidence reads, and dirty saved-session preservation;
+  superseded for active prediction-flow browser acceptance by CCPP-010A.
+- `tests/e2e/react-prediction-presentation.spec.ts` - CCPP-010A focused
+  browser coverage for React-first Match Result, Tries, animation preference
+  parity, mobile layouts, absence of active Kaplay canvas/import requests, and
+  handoff into Conversions.
 - `tests/e2e/kaplay-layout-evidence-helper.spec.ts` - lightweight CCPP-009C3B
   Playwright regression for required Match Result bridge and optional checked
   radio evidence reads without launching the Meteor app.

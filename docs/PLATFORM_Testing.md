@@ -105,16 +105,16 @@ Current unit test files:
   replaceable keyed consumers below one session owner, controlled submit
   promises, duplicate-submit transport assertions, read-only context updates,
   and disposed-owner stale completion isolation.
-- `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B pure preview
-  gate/effective-mode and animation preference storage tests.
-- `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B/009B1 real
-  React DOM presentation-host lifecycle tests using controlled preview loaders,
-  mocked runtime factories, controlled initialization promises, timeout control,
-  cleanup/disposal assertions, storage getter failure, unavailable persistence
-  retention, one end-to-end deadline, outer import retry, late completion and
-  rejection isolation, failure latch/retry, stale callback isolation, and Strict
-  Mode replay, plus CCPP-009C3/009C3A/009C3B runtime replacement, cleanup
-  confirmation, cleanup rejection, and obsolete-work regressions.
+- `tests/unit/prediction-presentation-mode.test.ts` - historical CCPP-009B
+  pure preview gate/effective-mode coverage plus current animation preference
+  storage and reduced-motion helper tests.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A real React DOM
+  presentation-host, Match Result, and Tries tests for stable controls across
+  Animations On/Off, reduced-motion suppression, shared Match Result action
+  dispatch, deliberate-only shove creation, Off/no-shove parity, resize
+  cancellation preserving the selected answer, harmless sprite-load
+  cancellation, shared Tries numeric dispatch, blank/zero semantics, conversion
+  clamping delegation, and rapid numeric updates.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
   Match Result layout, shove motion, compact readability, projection,
   transformed bounds, hit testing, and resize-preservation tests.
@@ -356,6 +356,14 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   readiness and a later canvas `boundingBox()` timeout with Standard fallback
   visible. See
   `docs/AUDIT_009C3B_Evidence_Capture_Confirmed_Teardown.md`.
+- CCPP-010A adds `tests/e2e/react-prediction-presentation.spec.ts` for the
+  active React-first prediction flow. It verifies real Match Result controls,
+  absence of the old Kaplay canvas/import requests in the normal route, handoff
+  into React Tries, Animations Off parity, resize interruption preserving React
+  state, coherent 390px/360px layouts, Tries numeric input/toggles, Back/Continue
+  retention, and handoff into existing Conversions with conversion clamping
+  still authoritative. Retained final browser evidence on 2026-09-19 records
+  `3 passed`; closeout did not rerun this browser spec.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

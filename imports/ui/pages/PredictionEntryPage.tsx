@@ -72,8 +72,14 @@ import {
   type PredictionSessionActions,
   type PredictionSessionRendererState,
 } from '../predictions/predictionSession';
-import { kaplayPreviewSettingsFromMeteor } from '../predictions/presentationMode';
-import { PredictionPresentationHost } from '../predictions/PredictionPresentationHost';
+import {
+  PredictionPresentationHost,
+  type PredictionPresentationOptions,
+} from '../predictions/PredictionPresentationHost';
+import {
+  MatchResultPredictionStep,
+  TriesPredictionStep,
+} from '../predictions/reactPredictionPresentation';
 
 type PredictionStepRenderer = (props: PredictionStepContentProps) => ReactNode;
 
@@ -92,6 +98,7 @@ interface PredictionStepContentProps {
     field: keyof TeamPredictionForm,
     value: string,
   ) => void;
+  readonly presentation: PredictionPresentationOptions;
   readonly ruleset: RulesetSnapshot;
 }
 
@@ -341,11 +348,11 @@ const PredictionEntrySession = ({
     ruleset,
     userId,
   });
-  const previewSettings = kaplayPreviewSettingsFromMeteor(Meteor);
   const renderStandardPrediction = useCallback(
-    () => (
+    (presentation: PredictionPresentationOptions) => (
       <StandardPredictionRenderer
         actions={session.actions}
+        presentation={presentation}
         state={session.state}
       />
     ),
@@ -374,10 +381,7 @@ const PredictionEntrySession = ({
         />
       ) : (
         <PredictionPresentationHost
-          actions={session.actions}
-          previewSettings={previewSettings}
-          renderStandard={renderStandardPrediction}
-          state={session.state}
+          renderExperience={renderStandardPrediction}
         />
       )}
     </PredictionShell>
@@ -386,9 +390,11 @@ const PredictionEntrySession = ({
 
 const StandardPredictionRenderer = ({
   actions,
+  presentation,
   state,
 }: {
   readonly actions: PredictionSessionActions;
+  readonly presentation: PredictionPresentationOptions;
   readonly state: PredictionSessionRendererState;
 }) => (
   <form
@@ -403,7 +409,11 @@ const StandardPredictionRenderer = ({
     ) : null}
 
     {state.location.kind === 'step' ? (
-      <PredictionStepView actions={actions} state={state} />
+      <PredictionStepView
+        actions={actions}
+        presentation={presentation}
+        state={state}
+      />
     ) : null}
 
     {state.location.kind === 'review' ? (
@@ -576,9 +586,11 @@ const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
 
 const PredictionStepView = ({
   actions,
+  presentation,
   state,
 }: {
   readonly actions: PredictionSessionActions;
+  readonly presentation: PredictionPresentationOptions;
   readonly state: PredictionSessionRendererState;
 }) => {
   const currentStep = state.currentStep;
@@ -647,6 +659,7 @@ const PredictionStepView = ({
             onCustomAnswerChange={actions.changeCustomAnswer}
             onEditStep={actions.editStep}
             onTeamFieldChange={actions.changeTeamNumericField}
+            presentation={presentation}
             ruleset={state.ruleset}
           />
         ) : customQuestion ? (
@@ -780,25 +793,20 @@ const builtInStepRenderers: Record<
   'penalty-kicks': (props) => (
     <ScoreComponentStep component="penaltyKicks" {...props} />
   ),
-  tries: (props) => <ScoreComponentStep component="tries" {...props} />,
+  tries: (props) => <TriesStep {...props} />,
 };
 
 const MatchResultStep = ({
   fixture,
   form,
   onChoiceChange,
+  presentation,
 }: PredictionStepContentProps) => (
-  <PredictionChoiceGroup
-    label="Who do you think will win?"
-    name="match-result"
-    onChange={(value) => onChoiceChange('matchResult', value)}
-    options={[
-      { label: teamDisplayName(fixture, 'team1'), value: 'team1' },
-      { label: teamDisplayName(fixture, 'team2'), value: 'team2' },
-      { label: 'Draw', value: 'draw' },
-    ]}
-    selectedLabel={matchResultLabel(fixture, form.matchResult)}
+  <MatchResultPredictionStep
+    fixture={fixture}
+    motionEnabled={presentation.animationsEnabled}
     value={form.matchResult}
+    onChange={(value) => onChoiceChange('matchResult', value)}
   />
 );
 
@@ -916,6 +924,22 @@ const inputLabelForComponent = (component: ScoreComponent): string => {
 
   return component;
 };
+
+const TriesStep = ({
+  conversionAdjustmentNotice,
+  fixture,
+  form,
+  onTeamFieldChange,
+  presentation,
+}: PredictionStepContentProps) => (
+  <TriesPredictionStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    fixture={fixture}
+    form={form}
+    motionEnabled={presentation.animationsEnabled}
+    onChange={(side, value) => onTeamFieldChange(side, 'tries', value)}
+  />
+);
 
 const CardsStep = ({
   fixture,

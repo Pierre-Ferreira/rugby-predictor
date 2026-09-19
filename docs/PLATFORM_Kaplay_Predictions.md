@@ -25,6 +25,22 @@ handling, failure fallback, cleanup, and shared-session integration. It does
 not implement all prediction scenes, animated Review/submission, or production
 activation.
 
+## Current Status After CCPP-010A
+
+CCPP-010A supersedes Kaplay for active prediction controls. The player
+prediction route now renders React/HTML controls for the active flow and does
+not import, dynamically load, initialize, or render the prediction-specific
+Kaplay runtime.
+
+This document remains historical platform documentation for the CCPP-009
+prototype and for deferred cleanup. The unresolved CCPP-009 resize browser
+failure is not fixed by CCPP-010A; it is no longer relevant to the active
+prediction route because that renderer is disconnected.
+
+Kaplay remains installed as an available capability for possible future genuine
+gameplay if a later product milestone chooses it. The half-time quiz remains
+only a future idea and is not implemented.
+
 ## Dependency
 
 Kaplay is installed from npm as `kaplay@3001.0.19`. The lockfile resolves the
@@ -55,13 +71,15 @@ bundler.
 
 ## Source Map
 
-- `imports/ui/pages/PredictionEntryPage.tsx` keeps route, auth,
+- `imports/ui/pages/PredictionEntryPage.tsx` historically kept route, auth,
   subscriptions, read-only persisted display, feedback, and the shared session
-  owner.
-- `imports/ui/predictions/PredictionPresentationHost.tsx` owns preview
-  preference/effective-mode switching, the end-to-end preview attempt, the
-  outer preview-module loader, deadline, retry, failure latch, and late runtime
-  disposal below the shared session owner.
+  owner while wiring the preview. After CCPP-010A it renders the React-first
+  prediction presentation and no longer imports the Kaplay preview.
+- `imports/ui/predictions/PredictionPresentationHost.tsx` historically owned
+  preview preference/effective-mode switching, the end-to-end preview attempt,
+  the outer preview-module loader, deadline, retry, failure latch, and late
+  runtime disposal below the shared session owner. After CCPP-010A it owns only
+  the Animations preference and reduced-motion projection for React.
 - `imports/ui/predictions/presentationMode.ts` contains the pure preview gate,
   supported-step, and effective-mode projection.
 - `imports/ui/predictions/presentationPreference.ts` contains the resilient
@@ -85,11 +103,11 @@ bundler.
 
 There is no barrel export that imports Kaplay eagerly.
 
-## Activation
+## Historical Activation
 
-In ordinary non-production development, supported Kaplay prediction screens are
-available automatically. No settings JSON edit, query parameter, developer
-console command, or first-click On activation is required.
+In ordinary non-production development during CCPP-009, supported Kaplay
+prediction screens were available automatically. After CCPP-010A, this is no
+longer active route behavior.
 
 The old development setting
 `public.rugbyRooster.kaplayPredictionPreview.enabled` is retired as the
@@ -97,16 +115,23 @@ availability gate. Missing, `true`, and legacy `false` values all allow
 supported screens in local development. `Meteor.isProduction` still keeps the
 preview unavailable, so this is not a production rollout.
 
-Normal local workflow:
+Historical local workflow:
 
 1. Start the app normally, for example `npm start` for a plain local run or
    `npm run start:email` when using the local development settings file.
 2. Sign in normally and open an editable published fixture prediction route.
 3. Intro renders through Standard.
 4. Start the prediction sequence and reach Match Result.
-5. Kaplay appears automatically when the player has no explicit Off preference
-   and reduced motion is not requested.
-6. Continue to the remaining unimplemented scenes, which use Standard.
+5. Kaplay appeared automatically when the player had no explicit Off preference
+   and reduced motion was not requested.
+6. Continue to the remaining unimplemented scenes, which used Standard.
+
+Current CCPP-010A workflow:
+
+1. Start the prediction sequence and reach Match Result.
+2. React/HTML Match Result controls render.
+3. Continue reaches React/HTML Tries controls.
+4. Continue reaches the existing React Conversions step.
 
 The player-facing `Animations` On/Off control is the normal switch. The
 isolated Playwright settings may set `testControls: true` for narrow
@@ -114,7 +139,7 @@ client-only fault injection. That setting is separate from UI availability, is
 not inferred from development mode or Animations On, and does not mutate
 prediction answers or call server methods.
 
-## Ownership
+## Historical Ownership
 
 The owner shape is:
 
@@ -132,10 +157,10 @@ Route / authentication / subscriptions
 answers, location, message variants, Review edit context, expected revision,
 dirty/discard state, conflict feedback, and submission state.
 
-The Kaplay runtime owns only presentation resources: canvas, KAPLAY context,
-draw/update handlers, DOM listeners, hit-test rectangles, a short selection
-pulse, and cleanup callbacks. It receives current snapshots from React and
-dispatches only `selectBuiltInChoice('matchResult', value)` after current
+Historically, the Kaplay runtime owned only presentation resources: canvas,
+KAPLAY context, draw/update handlers, DOM listeners, hit-test rectangles,
+visual effects, and cleanup callbacks. It received current snapshots from React
+and dispatched only `selectBuiltInChoice('matchResult', value)` after current
 session and step eligibility checks.
 
 ## Effective Mode Policy

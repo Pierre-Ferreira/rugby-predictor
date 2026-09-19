@@ -228,13 +228,41 @@ Read-only locked/cancelled display intentionally remains outside the editable
 renderer contract in 009A. It continues to render from persisted entry data, not
 dirty local form values.
 
-## Kaplay Preview Adapter
+## React Presentation Host
 
-CCPP-009B adds the first Kaplay presentation beside Standard for the Match
-Result step only. The adapter receives the same session state and calls the same
-session actions. Kaplay owns canvas setup, draw/update handlers, pointer
-hit-testing, a short selection pulse, visual effects, and runtime cleanup. It
-does not own a second prediction answer state, duplicate submission logic, or
+CCPP-010A keeps the same session owner and makes the active editable prediction
+route React-first. `PredictionPresentationHost.tsx` no longer owns a Kaplay
+preview attempt. It owns only:
+
+- the Animations On/Off preference;
+- reduced-motion observation;
+- the derived `animationsEnabled` flag;
+- the render callback into the React prediction renderer.
+
+The host does not own answers, navigation, validation, revision capture,
+submission, or discard/conflict behavior.
+
+`reactPredictionPresentation.tsx` supplies the CCPP-010A React-first Match
+Result and Tries controls. Match Result calls
+`selectBuiltInChoice('matchResult', value)` immediately from real radio
+controls. Tries calls `changeTeamNumericField(side, 'tries', value)` from
+decrement, direct input editing, and increment controls.
+
+Animations are renderer-local decoration. Shove/pulse state, asset frames,
+browser animation handles, resize cancellation, and numeric pulse state are not
+session state and cannot become saved prediction answers.
+
+## Superseded Kaplay Preview Adapter
+
+CCPP-009B added the first Kaplay presentation beside Standard for the Match
+Result step only. CCPP-010A supersedes that active direction. The historical
+adapter remains in source for deferred cleanup, but the active prediction route
+does not import, lazy-load, initialize, or render it.
+
+The original boundary remains correct as history: Kaplay received the same
+session state and called the same session actions. It owned canvas setup,
+draw/update handlers, pointer hit-testing, visual effects, and runtime cleanup.
+It did not own a second prediction answer state, duplicate submission logic, or
 independent business validation.
 
 Renderer replacement preserves answers, location, message variants, captured
@@ -245,13 +273,10 @@ the shared session above the renderer subtree.
 mounted while a keyed consumer below it is replaced, replacement sends no save
 request, and a pending request completes into the surviving owner exactly once.
 
-009B extends that protection with presentation-mode and mocked-runtime lifecycle
-tests. The runtime callback path re-checks the current session and supported
-step before dispatching `selectBuiltInChoice('matchResult', value)`. Unsupported
-steps, loading cancellation, reduced motion, Off preference, runtime failure,
-read-only context, account replacement, and fixture replacement all leave the
-shared session owner as the source of truth and render Standard or persisted
-read-only display as appropriate.
+009B extended that protection with presentation-mode and mocked-runtime
+lifecycle tests. Those tests and the runtime modules are now historical for the
+prediction flow unless a later cleanup or gameplay milestone explicitly reuses
+them.
 
 CCPP-009B1 keeps preview module loading, runtime initialization, timeout,
 retry, and late-handle disposal below the same shared session owner. A renderer

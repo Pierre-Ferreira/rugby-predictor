@@ -584,6 +584,43 @@ CCPP-009B.
 - 009E - Review/submission/edit parity.
 - 009F - integrated verification and default activation.
 
+CCPP-010A supersedes this staged Kaplay prediction-control plan for the active
+prediction route. The 009 artifacts remain useful history and may inform later
+gameplay, but future prediction-control work should start from the React-first
+architecture unless a later product decision explicitly changes direction.
+
+## CCPP-010A Scope
+
+Milestone status: implemented for shared React Match Result and Tries
+presentation closeout. Platform details live in
+`docs/PLATFORM_React_Prediction_Experience.md`, and verification evidence is
+recorded in `docs/AUDIT_010A_Shared_React_Presentation.md`.
+
+Implemented:
+
+- Active prediction route renders React-first Match Result and Tries controls.
+- Match Result uses real HTML Team 1, Team 2, and Draw controls and shared
+  `selectBuiltInChoice('matchResult', value)` updates.
+- Tries uses real per-team numeric controls and shared
+  `changeTeamNumericField(side, 'tries', value)` updates.
+- Animations On adds optional browser-native decoration over the same controls.
+- Animations Off and reduced motion use the same essential controls and session
+  state.
+- Prediction-specific Kaplay route/runtime imports are disconnected from the
+  active prediction flow while the package and historical modules remain for
+  later cleanup.
+- Final retained focused browser evidence, closeout static/unit checks,
+  documentation, and review packaging are recorded in the audit.
+
+Not implemented:
+
+- Conversions or later visual migration.
+- Full animated prediction flow.
+- Half-time quiz or other Kaplay gameplay.
+- Deleting historical Kaplay prediction modules.
+- Server prediction method or scoring behavior changes.
+- CCPP-010B work.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

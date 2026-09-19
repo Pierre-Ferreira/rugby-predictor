@@ -159,6 +159,10 @@ Source paths:
 - `imports/ui/pages/PredictionEntryPage.tsx`
 - `imports/ui/predictions/predictionSession.ts`
 - `imports/ui/predictions/standardPredictionState.ts`
+- `imports/ui/predictions/PredictionPresentationHost.tsx`
+- `imports/ui/predictions/reactPredictionPresentation.tsx`
+- `imports/ui/predictions/presentationPreference.ts`
+- `imports/ui/predictions/reducedMotion.ts`
 - `imports/shared/predictions/sequence.ts`
 - `imports/shared/predictions/messages.ts`
 - `imports/ui/pages/GameDetailPage.tsx`
@@ -278,65 +282,49 @@ answer by stable question ID, Back, Continue, edit step, return to Review,
 submit/revise, discard confirmation, and load latest saved prediction. Commands
 do not require React event objects or DOM access.
 
-CCPP-009B adds `imports/ui/predictions/PredictionPresentationHost.tsx` below
-that session owner. The host resolves development/test Kaplay availability,
-persists only the Animations On/Off preference, observes reduced motion, and
-selects Standard or the lazy preview without remounting the shared session.
-CCPP-009B4 makes the supported development Match Result scene available by
-default when no explicit Off preference exists. `imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx`
-is the only Kaplay-backed screen in 009B.
+CCPP-009B added `imports/ui/predictions/PredictionPresentationHost.tsx` below
+that session owner for the historical Kaplay Match Result preview. CCPP-010A
+replaces that active wiring with a React-first host: the host now owns only the
+Animations On/Off preference, reduced-motion observation, and the derived
+`animationsEnabled` flag passed into the single React renderer. The active
+prediction route imports `reactPredictionPresentation.tsx` for Match Result and
+Tries and does not import the Kaplay preview/runtime.
 
 ## Prediction Presentation Architecture
 
-Future Rugby Rooster prediction presentation has two complete experiences:
+CCPP-010A makes React/HTML controls the authoritative prediction presentation.
+The active player route has one answer interface, one shared session, and one
+validation/navigation path. Optional animation is a browser-native layer over
+the same controls.
 
-- `kaplay` - the default animated experience. Kaplay may own the visual scene,
-  rooster animations, transitions, reactions, effects, and animated
-  interactions.
-- `standard` - the complete non-animated prediction experience. It must provide
-  the full usable prediction sequence without Kaplay and act as the resilient
-  fallback for user-disabled animations, reduced-motion preference, unsuitable
-  device or browser capability, Kaplay initialization failure, and Kaplay
-  runtime failure.
+Current policy:
 
-Both experiences must consume the same prediction domain/state model. Shared
-code must own prediction answers/state, validation and rules, fixture ruleset
-snapshot interpretation, navigation and step semantics where applicable, and the
-server API/submission contract. The animated experience must not contain
-independent validation or business behavior that can drift from the standard
-experience.
+- Match Result and Tries render through React-first presentation components.
+- Later built-in steps, custom questions, Review, Edit, submit/revise,
+  discard, conflict recovery, and read-only saved-entry display continue through
+  the existing React sequence.
+- Animations On may add decorative effects only.
+- Animations Off and reduced motion suppress optional effects without swapping
+  to a second form implementation.
+- Animation completion, cancellation, asset failure, or resize interruption must
+  not navigate, save, validate, submit, clear answers, or block Continue.
+- Continue remains driven by the shared session navigation and validation
+  state.
 
-Presentation switching and fallback must preserve the player's answers. Kaplay
-initialization or runtime failure must never lose answers, block progression, or
-prevent submission. Submission must never depend on an animation completing.
+CCPP-009A remains the durable state boundary: `usePredictionSession(...)` owns
+answers, current location, Review/edit context, message variants, captured
+expected revision, dirty/conflict state, and submission state. CCPP-010A uses
+that boundary with React controls instead of the historical two-renderer switch.
+
+Kaplay is superseded for prediction controls. The package remains installed and
+prediction-specific Kaplay modules are retained for later cleanup because they
+still document useful prototype work: lazy runtime investigation, animation
+preference/reduced-motion behavior, Rooster assets, shove choreography, and
+visual evidence. The active route must not reconnect those modules.
 
 Player-facing controls should describe animation state, such as "Animations On"
 and "Animations Off." Avoid exposing implementation labels such as "React mode"
-to players. Internal labels such as `kaplay` and `standard` are acceptable when
-that future milestone implements them.
-
-CCPP-006A documents this architecture only. It does not implement Kaplay,
-animation toggles, reduced-motion or capability detection, sprite loading,
-lazy-loading, runtime fallback machinery, animation lifecycle, or hidden-page
-pausing.
-
-CCPP-007 implements the shared standard sequence/message architecture that a
-future Kaplay experience should consume, but still does not implement Kaplay or
-animation behavior.
-
-CCPP-009A implements the first code boundary for that architecture: one shared
-editable session above the presentation subtree. Replacing or remounting the
-renderer preserves answers, current location, Review/edit context, message
-variants, captured expected revision, dirty/conflict state, and submission
-state because those values are owned outside the renderer.
-
-CCPP-009B implements the first runtime proof: a non-production, lazy-loaded
-Kaplay Match Result preview. CCPP-009B4 retires the old development
-`enabled:true` gate, treats legacy development `enabled:false` as harmless for
-availability, and defaults unset/invalid animation preferences to On. Standard
-still handles Intro, all unsupported steps, read-only saved-entry views,
-explicit Off preference, reduced-motion preference, loading cancellation,
-initialization failure, runtime failure, and graphics-context loss.
+or "Kaplay mode" to players.
 
 ## Test Support
 
