@@ -397,11 +397,15 @@ describe('Match Result React presentation', () => {
   it('defines a physical selected-card lift and hidden rejected-real-control CSS', () => {
     const css = readFileSync('client/main.css', 'utf8');
 
+    expect(css).toMatch(/--rr-match-result-selected-lift: 7\.5rem;/);
     expect(css).toMatch(
-      /@keyframes rr-match-result-selected-rise[\s\S]*translateY\(-1\.5rem\) scale\(1\.06\)/,
+      /@keyframes rr-match-result-selected-rise[\s\S]*var\(--rr-match-result-selected-shift-x\)[\s\S]*calc\(-1 \* var\(--rr-match-result-selected-lift\)\)/,
     );
     expect(css).toMatch(
-      /@keyframes rr-match-result-selected-rise-compact[\s\S]*translateY\(-1\.125rem\) scale\(1\.045\)/,
+      /\.rr-match-result-stage--revealing[\s\S]*min-height: var\(--rr-match-result-reveal-min-height\);[\s\S]*margin-top: var\(--rr-match-result-stage-lift-space\);/,
+    );
+    expect(css).toMatch(
+      /@keyframes rr-match-result-rooster-travel[\s\S]*35%[\s\S]*var\(--rr-match-result-rooster-entry-left\)[\s\S]*52%[\s\S]*var\(--rr-match-result-rooster-underpass-left\)[\s\S]*64%[\s\S]*var\(--rr-match-result-rooster-contact-left\)/,
     );
     expect(css).toMatch(
       /\.rr-match-result-stage \.rr-match-result-choice-card--rejected-hidden[\s\S]*visibility: hidden;[\s\S]*pointer-events: none;/,

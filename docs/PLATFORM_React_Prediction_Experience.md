@@ -75,16 +75,19 @@ The active Match Result step renders real HTML radio controls for:
 When no Match Result answer exists, all three radio-card controls are present
 and keyboard usable. Choosing an answer updates the shared session immediately
 through the same React action path. With animations enabled, a deliberate new
-choice enters a short presentation-only reveal: the selected real radio-card
-physically rises above the rejected choices, the Rooster pushes decorative
-rejected-choice copies away over a roughly 1.2 second sequence, and the selected
-answer is not pushed or moved away. During this reveal, the original rejected
-real radio-card elements may remain mounted only for layout continuity; they are
-visually hidden, disabled, `aria-hidden`, and noninteractive while the
-decorative copies represent them. The settled state then shows the selected
-answer as a larger hero card with the exact label `YOU SELECTED:` above it and a
-real `Change my selection` button. Rejected choices are not focusable or
-announced as available choices in the settled state.
+choice enters a short presentation-only reveal: the Match Result stage creates a
+two-level arrangement, the selected real radio-card moves into an upper tier,
+and the Rooster enters only after that lift has completed. The Rooster then runs
+through a measured lane underneath the selected card with visible clearance
+before contacting and pushing decorative rejected-choice copies away over a
+roughly 1.2 second sequence. The selected answer is not pushed or moved away.
+During this reveal, the original rejected real radio-card elements may remain
+mounted only for layout continuity; they are visually hidden, disabled,
+`aria-hidden`, and noninteractive while the decorative copies represent them.
+The settled state then shows the selected answer as a larger hero card with the
+exact label `YOU SELECTED:` above it and a real `Change my selection` button.
+Rejected choices are not focusable or announced as available choices in the
+settled state.
 
 `Change my selection` returns immediately to the three real radio-card choices.
 It preserves the current answer until another choice is deliberately selected,

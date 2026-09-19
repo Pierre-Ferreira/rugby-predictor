@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type ChangeEvent,
   type AnimationEvent as ReactAnimationEvent,
   useCallback,
@@ -34,9 +35,28 @@ interface ShoveEffectState {
   readonly selectedValue: MatchResultChoiceValue;
 }
 
+interface MatchResultRevealGeometry {
+  readonly laneHeightPx: number;
+  readonly laneTopPx: number;
+  readonly packExitLeftPx: number;
+  readonly packLeftPx: number;
+  readonly packWidthPx: number;
+  readonly revealMinHeightPx: number;
+  readonly roosterContactLeftPx: number;
+  readonly roosterEntryLeftPx: number;
+  readonly roosterExitLeftPx: number;
+  readonly roosterSizePx: number;
+  readonly roosterUnderpassLeftPx: number;
+  readonly selectedLiftPx: number;
+  readonly selectedShiftXPx: number;
+  readonly stageLiftSpacePx: number;
+}
+
 type MatchResultViewMode = 'choosing' | 'revealing' | 'settled';
 
 const matchResultMotionDurationMs = 1_200;
+const matchResultMinimumClearancePx = 16;
+const roosterSpriteAspectRatio = 268 / 276;
 
 const roosterShoveFrameUrls = [
   '/assets/rooster/match-result/frames/rooster-run-1.png',
@@ -62,6 +82,11 @@ const isMatchResultChoiceValue = (
 ): value is MatchResultChoiceValue =>
   value === 'team1' || value === 'team2' || value === 'draw';
 
+const clamp = (value: number, min: number, max: number): number =>
+  Math.min(Math.max(value, min), max);
+
+const cssPixel = (value: number): string => `${Math.round(value)}px`;
+
 export const MatchResultPredictionStep = ({
   fixture,
   motionEnabled,
@@ -76,14 +101,20 @@ export const MatchResultPredictionStep = ({
   const baseId = useId();
   const nextEffectIdRef = useRef(0);
   const focusChoicesAfterChangeRef = useRef(false);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const choiceInputRefs = useRef<
     Partial<Record<MatchResultChoiceValue, HTMLInputElement | null>>
+  >({});
+  const choiceCardRefs = useRef<
+    Partial<Record<MatchResultChoiceValue, HTMLLabelElement | null>>
   >({});
   const choices = matchResultChoicesForFixture(fixture);
   const selectedChoice = isMatchResultChoiceValue(value)
     ? (choices.find((choice) => choice.value === value) ?? null)
     : null;
   const [shoveEffect, setShoveEffect] = useState<ShoveEffectState | null>(null);
+  const [revealGeometry, setRevealGeometry] =
+    useState<MatchResultRevealGeometry | null>(null);
   const [heroSettleMotion, setHeroSettleMotion] = useState(false);
   const [viewMode, setViewMode] = useState<MatchResultViewMode>(() =>
     isMatchResultChoiceValue(value) ? 'settled' : 'choosing',
@@ -91,11 +122,13 @@ export const MatchResultPredictionStep = ({
   const effectiveViewMode = selectedChoice ? viewMode : 'choosing';
   const cancelShoveEffect = useCallback(() => {
     setShoveEffect(null);
+    setRevealGeometry(null);
     setHeroSettleMotion(false);
   }, []);
   const settleShoveEffect = useCallback(
     ({ animateHero }: { readonly animateHero: boolean }) => {
       setShoveEffect(null);
+      setRevealGeometry(null);
       setHeroSettleMotion(animateHero);
       setViewMode((currentMode) =>
         currentMode === 'choosing' ? currentMode : 'settled',
@@ -152,6 +185,100 @@ export const MatchResultPredictionStep = ({
     };
   }, [motionEnabled, settleShoveEffect, shoveEffect, value]);
 
+  const measureRevealGeometry = useCallback(
+    (selectedValue: MatchResultChoiceValue): MatchResultRevealGeometry => {
+      const stage = stageRef.current;
+      const selectedCard = choiceCardRefs.current[selectedValue];
+
+      if (!stage || !selectedCard) {
+        return {
+          laneHeightPx: 160,
+          laneTopPx: 152,
+          packExitLeftPx: 760,
+          packLeftPx: 400,
+          packWidthPx: 360,
+          revealMinHeightPx: 328,
+          roosterContactLeftPx: 340,
+          roosterEntryLeftPx: -160,
+          roosterExitLeftPx: 900,
+          roosterSizePx: 140,
+          roosterUnderpassLeftPx: 56,
+          selectedLiftPx: 120,
+          selectedShiftXPx: 0,
+          stageLiftSpacePx: 48,
+        };
+      }
+
+      const stageRect = stage.getBoundingClientRect();
+      const selectedRect = selectedCard.getBoundingClientRect();
+      const stageWidth = Math.max(stageRect.width, 320);
+      const selectedTopWithinStage = selectedRect.top - stageRect.top;
+      const selectedLeftWithinStage = selectedRect.left - stageRect.left;
+      const selectedHeight = selectedRect.height;
+      const selectedWidth = selectedRect.width;
+      const isCompact = stageWidth <= 520 || window.innerWidth <= 520;
+      const roosterSize = isCompact
+        ? clamp(window.innerWidth * 0.24, 92, 116)
+        : clamp(window.innerWidth * 0.16, 108, 140);
+      const roosterHeight = roosterSize * roosterSpriteAspectRatio;
+      const upperTierTopWithinStage = isCompact ? 6 : 8;
+      const stageLiftSpace = clamp(selectedHeight * 0.34, 32, 48);
+      const selectedLift =
+        stageLiftSpace + selectedTopWithinStage - upperTierTopWithinStage;
+      const selectedTargetLeft = isCompact
+        ? 6
+        : clamp(stageWidth * 0.055, 8, 44);
+      const selectedShiftX = selectedTargetLeft - selectedLeftWithinStage;
+      const rejectedCardHeight = isCompact
+        ? Math.max(64, selectedHeight * 0.62)
+        : Math.max(76, selectedHeight * 0.68);
+      const rejectedPackHeight = rejectedCardHeight * 2 + 8;
+      const laneHeight =
+        Math.max(roosterHeight, rejectedPackHeight) +
+        matchResultMinimumClearancePx;
+      const selectedFinalBottom =
+        upperTierTopWithinStage + selectedHeight - stageLiftSpace;
+      const laneTop = Math.max(
+        selectedHeight + 52,
+        selectedFinalBottom + matchResultMinimumClearancePx + 72,
+      );
+      const packWidth = isCompact
+        ? clamp(stageWidth * 0.54, 172, stageWidth - 24)
+        : clamp(stageWidth * 0.42, 300, 448);
+      const packLeft = isCompact
+        ? clamp(stageWidth * 0.48, 126, stageWidth - packWidth + 8)
+        : clamp(stageWidth * 0.52, 320, stageWidth - packWidth + 20);
+      const roosterUnderpassLeft =
+        selectedTargetLeft + Math.min(selectedWidth * 0.24, 48);
+      const roosterContactLeft = Math.max(
+        roosterUnderpassLeft + 24,
+        packLeft - roosterSize * 0.42,
+      );
+      const roosterEntryLeft = -roosterSize - 24;
+      const roosterExitLeft = stageWidth + roosterSize + 24;
+      const packExitLeft = stageWidth + packWidth + 32;
+      const revealMinHeight = stageLiftSpace + laneTop + laneHeight + 20;
+
+      return {
+        laneHeightPx: Math.ceil(laneHeight),
+        laneTopPx: Math.ceil(laneTop),
+        packExitLeftPx: Math.ceil(packExitLeft),
+        packLeftPx: Math.ceil(packLeft),
+        packWidthPx: Math.ceil(packWidth),
+        revealMinHeightPx: Math.ceil(revealMinHeight),
+        roosterContactLeftPx: Math.ceil(roosterContactLeft),
+        roosterEntryLeftPx: Math.floor(roosterEntryLeft),
+        roosterExitLeftPx: Math.ceil(roosterExitLeft),
+        roosterSizePx: Math.ceil(roosterSize),
+        roosterUnderpassLeftPx: Math.ceil(roosterUnderpassLeft),
+        selectedLiftPx: Math.ceil(selectedLift),
+        selectedShiftXPx: Math.round(selectedShiftX),
+        stageLiftSpacePx: Math.ceil(stageLiftSpace),
+      };
+    },
+    [],
+  );
+
   const selectChoice = (nextValue: MatchResultChoiceValue) => {
     if (nextValue === value) {
       cancelShoveEffect();
@@ -159,8 +286,11 @@ export const MatchResultPredictionStep = ({
       return;
     }
 
+    const nextRevealGeometry = measureRevealGeometry(nextValue);
+
     onChange(nextValue);
     setHeroSettleMotion(false);
+    setRevealGeometry(nextRevealGeometry);
 
     if (!motionEnabled) {
       cancelShoveEffect();
@@ -191,20 +321,63 @@ export const MatchResultPredictionStep = ({
     motionEnabled &&
     shoveEffect &&
     value === shoveEffect.selectedValue;
+  const revealStyle =
+    isRevealing && revealGeometry
+      ? ({
+          '--rr-match-result-lane-height': cssPixel(
+            revealGeometry.laneHeightPx,
+          ),
+          '--rr-match-result-lane-top': cssPixel(revealGeometry.laneTopPx),
+          '--rr-match-result-pack-exit-left': cssPixel(
+            revealGeometry.packExitLeftPx,
+          ),
+          '--rr-match-result-pack-left': cssPixel(revealGeometry.packLeftPx),
+          '--rr-match-result-pack-width': cssPixel(revealGeometry.packWidthPx),
+          '--rr-match-result-reveal-min-height': cssPixel(
+            revealGeometry.revealMinHeightPx,
+          ),
+          '--rr-match-result-rooster-contact-left': cssPixel(
+            revealGeometry.roosterContactLeftPx,
+          ),
+          '--rr-match-result-rooster-entry-left': cssPixel(
+            revealGeometry.roosterEntryLeftPx,
+          ),
+          '--rr-match-result-rooster-exit-left': cssPixel(
+            revealGeometry.roosterExitLeftPx,
+          ),
+          '--rr-match-result-rooster-size': cssPixel(
+            revealGeometry.roosterSizePx,
+          ),
+          '--rr-match-result-rooster-underpass-left': cssPixel(
+            revealGeometry.roosterUnderpassLeftPx,
+          ),
+          '--rr-match-result-selected-lift': cssPixel(
+            revealGeometry.selectedLiftPx,
+          ),
+          '--rr-match-result-selected-shift-x': cssPixel(
+            revealGeometry.selectedShiftXPx,
+          ),
+          '--rr-match-result-stage-lift-space': cssPixel(
+            revealGeometry.stageLiftSpacePx,
+          ),
+        } as CSSProperties)
+      : undefined;
 
   return (
     <fieldset data-testid="react-match-result-step">
       <legend className="sr-only">Who do you think will win?</legend>
       <div
+        ref={stageRef}
         className={[
           'rr-match-result-stage',
           isRevealing ? 'rr-match-result-stage--revealing' : '',
           isSettled ? 'rr-match-result-stage--settled' : '',
         ].join(' ')}
         data-motion-phase={effectiveViewMode}
+        style={revealStyle}
       >
         {effectiveViewMode === 'choosing' || isRevealing ? (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rr-match-result-choice-grid grid gap-3 sm:grid-cols-3">
             {choices.map((choice) => {
               const checked = choice.value === value;
               const rejectedDuringReveal = isRevealing && !checked;
@@ -226,6 +399,9 @@ export const MatchResultPredictionStep = ({
                   ].join(' ')}
                   data-testid={`match-result-choice-${choice.value}`}
                   key={choice.value}
+                  ref={(element) => {
+                    choiceCardRefs.current[choice.value] = element;
+                  }}
                 >
                   <input
                     ref={(element) => {
@@ -346,7 +522,10 @@ const MatchResultShoveOverlay = ({
           </div>
         ))}
       </div>
-      <div className="rr-match-result-rooster-lane">
+      <div
+        className="rr-match-result-rooster-lane"
+        data-testid="match-result-rooster-lane"
+      >
         <div
           className="rr-match-result-rooster"
           data-testid="match-result-rooster"

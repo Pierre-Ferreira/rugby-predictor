@@ -10,6 +10,8 @@ import { TEST_PREDICTION_METHODS } from '../../imports/shared/predictions';
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const animationPreferenceStorageKey = 'rugby-rooster:prediction-animations';
 const evidenceDir = process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR;
+const minimumUnderpassOverlapPx = 70;
+const requiredMatchResultClearancePx = 16;
 
 const uniqueEmail = (label: string) =>
   `ccpp010a-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
@@ -300,6 +302,121 @@ const choiceBounds = async (page: Page, value: string) =>
     };
   });
 
+const matchResultUnderpassGeometry = async (
+  page: Page,
+  selectedValue: string,
+) =>
+  page.evaluate(
+    ({ minimumOverlap, requiredClearance, selected }) => {
+      const rectFor = (element: Element | null) => {
+        if (!element) {
+          return null;
+        }
+
+        const rect = element.getBoundingClientRect();
+
+        return {
+          bottom: rect.bottom,
+          height: rect.height,
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          width: rect.width,
+        };
+      };
+      const selectedCard = document.querySelector(
+        `[data-testid="match-result-choice-${selected}"]`,
+      );
+      const rooster = document.querySelector(
+        '[data-testid="match-result-rooster"]',
+      );
+      const lane = document.querySelector(
+        '[data-testid="match-result-rooster-lane"]',
+      );
+      const stage = document.querySelector(
+        '[data-testid="react-match-result-step"] [data-motion-phase]',
+      );
+      const selectedRect = rectFor(selectedCard);
+      const roosterRect = rectFor(rooster);
+      const horizontalOverlapPx =
+        selectedRect && roosterRect
+          ? Math.max(
+              0,
+              Math.min(roosterRect.right, selectedRect.right) -
+                Math.max(roosterRect.left, selectedRect.left),
+            )
+          : 0;
+
+      return {
+        clearance:
+          selectedRect && roosterRect
+            ? roosterRect.top - selectedRect.bottom
+            : null,
+        hasHorizontalOverlap: horizontalOverlapPx >= minimumOverlap,
+        horizontalOverlapPx,
+        lane: rectFor(lane),
+        minimumUnderpassOverlapPx: minimumOverlap,
+        requiredClearance,
+        roosterTransit: roosterRect,
+        selectedLifted: selectedRect,
+        stage: rectFor(stage),
+      };
+    },
+    {
+      minimumOverlap: minimumUnderpassOverlapPx,
+      requiredClearance: requiredMatchResultClearancePx,
+      selected: selectedValue,
+    },
+  );
+
+const waitForMatchResultUnderpass = async (
+  page: Page,
+  selectedValue: string,
+) => {
+  await page.waitForFunction(
+    ({ minimumOverlap, requiredClearance, selected }) => {
+      const selectedCard = document.querySelector(
+        `[data-testid="match-result-choice-${selected}"]`,
+      );
+      const rooster = document.querySelector(
+        '[data-testid="match-result-rooster"]',
+      );
+      const stage = document.querySelector(
+        '[data-testid="react-match-result-step"] [data-motion-phase]',
+      );
+
+      if (!selectedCard || !rooster || !stage) {
+        return false;
+      }
+
+      const selectedRect = selectedCard.getBoundingClientRect();
+      const roosterRect = rooster.getBoundingClientRect();
+      const stageRect = stage.getBoundingClientRect();
+      const horizontallyOverlaps =
+        Math.max(
+          0,
+          Math.min(roosterRect.right, selectedRect.right) -
+            Math.max(roosterRect.left, selectedRect.left),
+        ) >= minimumOverlap;
+      const hasArrived =
+        roosterRect.right > stageRect.left &&
+        roosterRect.left < stageRect.right;
+      const hasClearance =
+        selectedRect.bottom + requiredClearance <= roosterRect.top;
+
+      return horizontallyOverlaps && hasArrived && hasClearance;
+    },
+    {
+      minimumOverlap: minimumUnderpassOverlapPx,
+      requiredClearance: requiredMatchResultClearancePx,
+      selected: selectedValue,
+    },
+    { polling: 'raf', timeout: 1_200 },
+  );
+
+  return matchResultUnderpassGeometry(page, selectedValue);
+};
+
 const revealControlState = async (
   page: Page,
   selectedValue: string,
@@ -476,6 +593,7 @@ test.describe('React prediction presentation', () => {
   test('captures the CCPP-010A3 Match Result lift and clean shove', async ({
     page,
   }) => {
+    await page.setViewportSize({ height: 1500, width: 1280 });
     const { teams } = await createFixtureAndOpenPrediction(
       page,
       'complete-shove',
@@ -493,7 +611,7 @@ test.describe('React prediction presentation', () => {
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
     const desktopBefore = await choiceBounds(page, 'team1');
-    await captureScreenshot(page, '010a3-match-result-before-selection.png');
+    await captureScreenshot(page, '010a3-match-result-normal.png');
 
     await page.getByRole('radio', { name: teams.team1 }).check();
 
@@ -502,15 +620,28 @@ test.describe('React prediction presentation', () => {
     await expect(page.getByTestId('match-result-choice-team1')).toHaveClass(
       /rr-match-result-choice-card--selected-rise/,
     );
-    await page.waitForTimeout(170);
+    await page.waitForTimeout(280);
     const desktopLift = await choiceBounds(page, 'team1');
+    const desktopLiftGeometry = await matchResultUnderpassGeometry(
+      page,
+      'team1',
+    );
     const desktopRevealState = await revealControlState(page, 'team1', [
       'team2',
       'draw',
     ]);
     const desktopLiftDisplacement = desktopBefore.top - desktopLift.top;
 
-    expect(desktopLiftDisplacement).toBeGreaterThanOrEqual(18);
+    expect(desktopLiftDisplacement).toBeGreaterThanOrEqual(40);
+    expect(desktopLiftGeometry.selectedLifted?.top).toBeLessThan(
+      desktopBefore.top - 40,
+    );
+    expect(
+      desktopLiftGeometry.roosterTransit &&
+        desktopLiftGeometry.stage &&
+        desktopLiftGeometry.roosterTransit.right <=
+          desktopLiftGeometry.stage.left + 1,
+    ).toBe(true);
     expect(desktopRevealState.activeRadioCount).toBe(1);
     expect(desktopRevealState.decorativeButtonCount).toBe(0);
     expect(desktopRevealState.decorativeCardCount).toBe(2);
@@ -532,34 +663,54 @@ test.describe('React prediction presentation', () => {
         disabled: false,
       },
     });
-    measurements.desktop = {
-      before: desktopBefore,
-      lift: desktopLift,
+    const desktopLiftMeasurement = {
+      clearanceAtLiftCheck: desktopLiftGeometry.clearance,
+      rejectedOriginalsDuringLift: desktopRevealState,
+      requiredClearance: requiredMatchResultClearancePx,
+      roosterAtLiftCheck: desktopLiftGeometry.roosterTransit,
+      selectedBefore: desktopBefore,
+      selectedLifted: desktopLift,
       liftDisplacementPx: desktopLiftDisplacement,
-      revealState: desktopRevealState,
     };
+    measurements.desktop = desktopLiftMeasurement;
 
-    await captureScreenshot(page, '010a3-match-result-selected-lift.png', {
+    await captureScreenshot(page, '010a3-match-result-lift-complete.png', {
       fullPage: false,
     });
 
     await expect(page.getByTestId('match-result-rooster')).toBeVisible();
-    await page.waitForTimeout(520);
+    const desktopUnderpass = await waitForMatchResultUnderpass(page, 'team1');
+    expect(desktopUnderpass.clearance).not.toBeNull();
+    expect(desktopUnderpass.clearance ?? 0).toBeGreaterThanOrEqual(
+      requiredMatchResultClearancePx,
+    );
+    expect(desktopUnderpass.hasHorizontalOverlap).toBe(true);
+    measurements.desktop = {
+      ...desktopLiftMeasurement,
+      clearance: desktopUnderpass.clearance,
+      roosterTransit: desktopUnderpass.roosterTransit,
+      selectedLifted: desktopUnderpass.selectedLifted,
+      underpassLane: desktopUnderpass.lane,
+    };
+    await captureScreenshot(page, '010a3-match-result-underpass.png', {
+      fullPage: false,
+    });
+
+    await page.waitForTimeout(150);
     await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
-    measurements.desktopContactState = await revealControlState(page, 'team1', [
+    const desktopContactState = await revealControlState(page, 'team1', [
       'team2',
       'draw',
     ]);
-    await captureScreenshot(
-      page,
-      '010a3-match-result-contact-clean-shove.png',
-      {
-        fullPage: false,
-      },
-    );
+    expect(desktopContactState.activeRadioCount).toBe(1);
+    expect(desktopContactState.decorativeCardCount).toBe(2);
+    measurements.desktopContactState = desktopContactState;
+    await captureScreenshot(page, '010a3-match-result-contact.png', {
+      fullPage: false,
+    });
 
-    await page.waitForTimeout(260);
-    await captureScreenshot(page, '010a3-match-result-shove-exit.png', {
+    await page.waitForTimeout(60);
+    await captureScreenshot(page, '010a3-match-result-push.png', {
       fullPage: false,
     });
 
@@ -582,17 +733,14 @@ test.describe('React prediction presentation', () => {
     await expect(
       matchResultStep.getByRole('radio', { name: 'Draw' }),
     ).toHaveCount(0);
-    await captureScreenshot(
-      page,
-      '010a3-match-result-settled-hero-desktop.png',
-    );
+    await captureScreenshot(page, '010a3-match-result-settled-hero.png');
 
     await page.setViewportSize({ height: 844, width: 390 });
     await page.getByRole('button', { name: 'Change my selection' }).click();
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
     const mobile390Before = await choiceBounds(page, 'team2');
     await page.getByRole('radio', { name: teams.team2 }).check();
-    await page.waitForTimeout(170);
+    await page.waitForTimeout(280);
     const mobile390Lift = await choiceBounds(page, 'team2');
     const mobile390LiftDisplacement = mobile390Before.top - mobile390Lift.top;
     const mobile390Layout = await page.evaluate(() => ({
@@ -606,20 +754,33 @@ test.describe('React prediction presentation', () => {
       scrollWidth: document.documentElement.scrollWidth,
     }));
 
-    expect(mobile390LiftDisplacement).toBeGreaterThanOrEqual(16);
+    expect(mobile390LiftDisplacement).toBeGreaterThanOrEqual(40);
     expect(mobile390Layout.liftCardTop).not.toBeNull();
     expect(mobile390Layout.liftCardTop ?? 0).toBeGreaterThanOrEqual(0);
     expect(mobile390Layout.scrollWidth).toBeLessThanOrEqual(
       mobile390Layout.clientWidth + 1,
     );
+    await captureScreenshot(page, '010a3-match-result-lift-complete-390.png', {
+      fullPage: false,
+    });
+    const mobile390Underpass = await waitForMatchResultUnderpass(page, 'team2');
+    expect(mobile390Underpass.clearance).not.toBeNull();
+    expect(mobile390Underpass.clearance ?? 0).toBeGreaterThanOrEqual(
+      requiredMatchResultClearancePx,
+    );
+    expect(mobile390Underpass.hasHorizontalOverlap).toBe(true);
     measurements.mobile390 = {
-      before: mobile390Before,
+      clearance: mobile390Underpass.clearance,
       layout: mobile390Layout,
-      lift: mobile390Lift,
       liftDisplacementPx: mobile390LiftDisplacement,
+      requiredClearance: requiredMatchResultClearancePx,
       revealState: await revealControlState(page, 'team2', ['team1', 'draw']),
+      roosterTransit: mobile390Underpass.roosterTransit,
+      selectedBefore: mobile390Before,
+      selectedLifted: mobile390Underpass.selectedLifted,
+      underpassLane: mobile390Underpass.lane,
     };
-    await captureScreenshot(page, '010a3-match-result-selected-lift-390.png', {
+    await captureScreenshot(page, '010a3-match-result-underpass-390.png', {
       fullPage: false,
     });
     await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
@@ -638,7 +799,7 @@ test.describe('React prediction presentation', () => {
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
     const mobile360Before = await choiceBounds(page, 'draw');
     await page.getByRole('radio', { name: 'Draw' }).check();
-    await page.waitForTimeout(170);
+    await page.waitForTimeout(280);
     const mobile360Lift = await choiceBounds(page, 'draw');
     const mobile360LiftDisplacement = mobile360Before.top - mobile360Lift.top;
     const mobile360Layout = await page.evaluate(() => ({
@@ -652,20 +813,33 @@ test.describe('React prediction presentation', () => {
       scrollWidth: document.documentElement.scrollWidth,
     }));
 
-    expect(mobile360LiftDisplacement).toBeGreaterThanOrEqual(16);
+    expect(mobile360LiftDisplacement).toBeGreaterThanOrEqual(40);
     expect(mobile360Layout.liftCardTop).not.toBeNull();
     expect(mobile360Layout.liftCardTop ?? 0).toBeGreaterThanOrEqual(0);
     expect(mobile360Layout.scrollWidth).toBeLessThanOrEqual(
       mobile360Layout.clientWidth + 1,
     );
+    await captureScreenshot(page, '010a3-match-result-lift-complete-360.png', {
+      fullPage: false,
+    });
+    const mobile360Underpass = await waitForMatchResultUnderpass(page, 'draw');
+    expect(mobile360Underpass.clearance).not.toBeNull();
+    expect(mobile360Underpass.clearance ?? 0).toBeGreaterThanOrEqual(
+      requiredMatchResultClearancePx,
+    );
+    expect(mobile360Underpass.hasHorizontalOverlap).toBe(true);
     measurements.mobile360 = {
-      before: mobile360Before,
+      clearance: mobile360Underpass.clearance,
       layout: mobile360Layout,
-      lift: mobile360Lift,
       liftDisplacementPx: mobile360LiftDisplacement,
+      requiredClearance: requiredMatchResultClearancePx,
       revealState: await revealControlState(page, 'draw', ['team1', 'team2']),
+      roosterTransit: mobile360Underpass.roosterTransit,
+      selectedBefore: mobile360Before,
+      selectedLifted: mobile360Underpass.selectedLifted,
+      underpassLane: mobile360Underpass.lane,
     };
-    await captureScreenshot(page, '010a3-match-result-selected-lift-360.png', {
+    await captureScreenshot(page, '010a3-match-result-underpass-360.png', {
       fullPage: false,
     });
     await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
