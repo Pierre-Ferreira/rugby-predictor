@@ -4,6 +4,8 @@ import {
   StrictMode,
   act,
   createElement,
+  useLayoutEffect,
+  useRef,
   type ComponentType,
   type ReactNode,
 } from 'react';
@@ -24,6 +26,7 @@ import type {
   KaplayMatchResultRuntimeFactory,
   KaplayMatchResultRuntimeHandle,
   KaplayMatchResultRuntimeFactoryInput,
+  MatchResultRuntimeSnapshot,
 } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
 import {
   MATCH_RESULT_SCENE_HEIGHT,
@@ -160,6 +163,66 @@ const createLoaderController = (): LoaderController => {
 const createRuntimeHandle = () => ({
   dispose: vi.fn(),
   update: vi.fn(),
+});
+
+const controlledRuntimeSnapshot = (
+  selected: 'draw' | 'team1' | 'team2' | null = null,
+): MatchResultRuntimeSnapshot => ({
+  canSelect: true,
+  choicePresentation: selected ? 'selected' : 'choices',
+  choices: [
+    {
+      label: 'Springboks',
+      selected: selected === 'team1',
+      value: 'team1',
+    },
+    {
+      label: 'All Blacks',
+      selected: selected === 'team2',
+      value: 'team2',
+    },
+    {
+      label: 'Draw',
+      selected: selected === 'draw',
+      value: 'draw',
+    },
+  ],
+  deduction: null,
+  focusedValue: null,
+  helperText: null,
+  pickedLabel:
+    selected === 'team1'
+      ? 'Springboks'
+      : selected === 'team2'
+        ? 'All Blacks'
+        : selected === 'draw'
+          ? 'Draw'
+          : null,
+  question: 'Who do you think will win?',
+  selectionEffectId: selected ? 1 : 0,
+  sessionKey: 'controlled-session',
+  supportingText: [],
+});
+
+const controlledRuntimeInput = (
+  canvas: HTMLCanvasElement,
+  stage: { readonly height: number; readonly width: number },
+  selected: 'draw' | 'team1' | 'team2' | null = null,
+): KaplayMatchResultRuntimeFactoryInput => ({
+  canvas,
+  initialSnapshot: controlledRuntimeSnapshot(selected),
+  initialViewport: {
+    cssWidth: stage.width,
+    stage: {
+      height: stage.height,
+      width: stage.width,
+      x: 0,
+      y: 0,
+    },
+  },
+  isSelectionAllowed: () => true,
+  onFailure: vi.fn(),
+  onSelect: vi.fn(),
 });
 
 const replaceLocalStorage = (descriptor: PropertyDescriptor) => {
@@ -1108,6 +1171,297 @@ describe('prediction presentation host lifecycle', () => {
     });
 
     expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives a post-ready replacement a fresh bounded budget long after initial startup', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-19T08:00:00.000Z'));
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames), {
+      initializationTimeoutMs: 100,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'replacement runtime request',
+    );
+
+    expect(
+      host.controller.requests[1].input.remainingInitializationMs,
+    ).toBeGreaterThan(0);
+    expect(
+      host.controller.requests[1].input.remainingInitializationMs,
+    ).toBeLessThanOrEqual(100);
+
+    const replacementHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(replacementHandle);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+    expect(replacementHandle.update).toHaveBeenCalled();
+
+    await act(async () => {
+      vi.advanceTimersByTime(150);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+  });
+
+  it('falls back when a replacement stalls and disposes its late handle once', async () => {
+    vi.useFakeTimers();
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(
+      rendererState({
+        ...longTeamNames,
+        matchResult: 'team2',
+      }),
+      {
+        initializationTimeoutMs: 100,
+      },
+    );
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'pending replacement request',
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(101);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).toContain(
+      "Animations couldn't continue. Your answers have been kept.",
+    );
+    expect(host.container.textContent).toContain('Standard team2 7 revision 3');
+
+    const lateReplacementHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(lateReplacementHandle);
+      await Promise.resolve();
+    });
+
+    expect(lateReplacementHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(lateReplacementHandle.update).not.toHaveBeenCalled();
+  });
+
+  it('does not allocate an obsolete queued replacement after rapid supersession', async () => {
+    const SupersedingPreview = ({ attempt }: KaplayMatchResultPreviewProps) => {
+      const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+      useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+          return undefined;
+        }
+
+        const stopA = attempt.startRuntime(
+          controlledRuntimeInput(canvas, {
+            height: MATCH_RESULT_SCENE_HEIGHT + 120,
+            width: 390,
+          }),
+        );
+        stopA();
+        const stopB = attempt.startRuntime(
+          controlledRuntimeInput(canvas, {
+            height: MATCH_RESULT_SCENE_HEIGHT,
+            width: MATCH_RESULT_SCENE_WIDTH,
+          }),
+        );
+
+        return () => {
+          stopB();
+        };
+      }, [attempt]);
+
+      return createElement('canvas', {
+        'data-testid': 'kaplay-match-result-canvas',
+        ref: canvasRef,
+        style: {
+          aspectRatio: `${MATCH_RESULT_SCENE_WIDTH} / ${MATCH_RESULT_SCENE_HEIGHT}`,
+        },
+      });
+    };
+
+    const host = await renderHost(rendererState(), {
+      previewComponent: SupersedingPreview,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'only current replacement allocation',
+    );
+
+    expect(host.controller.requests[0].input.initialViewport.stage).toEqual({
+      height: MATCH_RESULT_SCENE_HEIGHT,
+      width: MATCH_RESULT_SCENE_WIDTH,
+      x: 0,
+      y: 0,
+    });
+  });
+
+  it('cleans an obsolete initializing replacement without damaging the current one', async () => {
+    let startReplacementB: (() => void) | null = null;
+    const TwoPhasePreview = ({ attempt }: KaplayMatchResultPreviewProps) => {
+      const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+      useLayoutEffect(() => {
+        const canvas = canvasRef.current;
+
+        if (!canvas) {
+          return undefined;
+        }
+
+        const stopA = attempt.startRuntime(
+          controlledRuntimeInput(canvas, {
+            height: MATCH_RESULT_SCENE_HEIGHT + 120,
+            width: 390,
+          }),
+        );
+        let stopB: (() => void) | null = null;
+
+        startReplacementB = () => {
+          stopA();
+          stopB = attempt.startRuntime(
+            controlledRuntimeInput(canvas, {
+              height: MATCH_RESULT_SCENE_HEIGHT,
+              width: MATCH_RESULT_SCENE_WIDTH,
+            }),
+          );
+        };
+
+        return () => {
+          stopB?.();
+          stopA();
+        };
+      }, [attempt]);
+
+      return createElement('canvas', {
+        'data-testid': 'kaplay-match-result-canvas',
+        ref: canvasRef,
+        style: {
+          aspectRatio: `${MATCH_RESULT_SCENE_WIDTH} / ${MATCH_RESULT_SCENE_HEIGHT}`,
+        },
+      });
+    };
+
+    const host = await renderHost(rendererState(), {
+      previewComponent: TwoPhasePreview,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'first initializing replacement allocation',
+    );
+
+    const firstRequest = host.controller.requests[0];
+
+    await act(async () => {
+      startReplacementB?.();
+      await Promise.resolve();
+    });
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'current replacement allocation',
+    );
+
+    expect(firstRequest.input.abortSignal?.aborted).toBe(true);
+
+    const currentHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(currentHandle);
+      await Promise.resolve();
+    });
+
+    const obsoleteHandle = createRuntimeHandle();
+    await act(async () => {
+      firstRequest.deferred.resolve(obsoleteHandle);
+      await Promise.resolve();
+    });
+
+    expect(obsoleteHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(currentHandle.dispose).not.toHaveBeenCalled();
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+  });
+
+  it('does not extend one stalled replacement cycle across repeated measurements', async () => {
+    vi.useFakeTimers();
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames), {
+      initializationTimeoutMs: 100,
+    });
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'initial runtime request',
+    );
+
+    const firstHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'pending compact replacement',
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(60);
+      await Promise.resolve();
+    });
+    await geometry.setWidth(360);
+    expect(host.controller.requests).toHaveLength(2);
+
+    await act(async () => {
+      vi.advanceTimersByTime(41);
+      await Promise.resolve();
+    });
+
+    expect(host.container.textContent).toContain(
+      "Animations couldn't continue. Your answers have been kept.",
+    );
   });
 
   it('ignores late initialization and stale callbacks after switching Off', async () => {

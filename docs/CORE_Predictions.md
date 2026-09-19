@@ -83,6 +83,16 @@ dirty/conflict state, or submission state. The corrected dirty saved-session
 browser case passed in the fresh focused run, but full resize browser acceptance
 remains pending after the recorded `7 passed / 2 failed` result.
 
+CCPP-009C3A keeps that replacement behavior below the same shared session owner
+and bounds post-ready renderer replacements with a fresh replacement deadline.
+Obsolete runtime generations cannot allocate, adopt, dispatch input, or report
+failure after supersession. If replacement stalls or safe teardown cannot finish
+inside the bounded cycle, the player remains on the same prediction session in
+Standard until a deliberate retry. Focused unit/type checks passed, and the
+dirty saved-session browser journey continued to pass, but resize and
+reduced-motion browser closeout remain unresolved after the permitted
+`7 passed / 2 failed` current-source browser batches.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.

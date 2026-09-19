@@ -13,6 +13,7 @@ import {
 import type { KaplayMatchResultDebugLayout } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
+const SCREENSHOT_CAPTURE_TIMEOUT_MS = 5_000;
 const animationPreferenceStorageKey = 'rugby-rooster:prediction-animations';
 const evidenceDir = process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR;
 const evidenceCollectors = new WeakMap<Page, BrowserEvidenceCollector>();
@@ -715,23 +716,26 @@ const writeEvidenceJson = (name: string, value: unknown) => {
   );
 };
 
-const screenshotCanvasCrop = async (page: Page, name: string) => {
+const writePngDataUrl = (name: string, dataUrl: string) => {
+  const encoded = dataUrl.replace(/^data:image\/png;base64,/, '');
+
+  writeFileSync(evidenceScreenshotPath(name), Buffer.from(encoded, 'base64'));
+};
+
+const captureCanvasBitmap = async (page: Page, name: string) => {
   const canvas = page.getByTestId('kaplay-match-result-canvas');
-  const box = await canvas.boundingBox();
 
-  if (!box) {
-    throw new Error('Kaplay canvas is not visible for crop evidence.');
-  }
+  await expect(canvas).toBeVisible({ timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS });
 
-  await page.screenshot({
-    path: evidenceScreenshotPath(name),
-    clip: {
-      height: box.height,
-      width: box.width,
-      x: box.x,
-      y: box.y,
+  const dataUrl = await canvas.evaluate(
+    (node: HTMLCanvasElement) => node.toDataURL('image/png'),
+    undefined,
+    {
+      timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
     },
-  });
+  );
+
+  writePngDataUrl(name, dataUrl);
 };
 
 const startCanvasRecording = async (page: Page) => {
@@ -1090,6 +1094,7 @@ test.describe('Kaplay prediction preview', () => {
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('desktop-default-match-result-preview.png'),
+      timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
     });
 
     markStage(page, 'default-access:canvas-choice-click');
@@ -1107,6 +1112,7 @@ test.describe('Kaplay prediction preview', () => {
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('desktop-default-match-result-selected.png'),
+      timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
     });
 
     markStage(page, 'default-access:animations-off');
@@ -1144,6 +1150,7 @@ test.describe('Kaplay prediction preview', () => {
   }) => {
     await page.setViewportSize({ height: 900, width: 1280 });
     const measurements: BrowserEvidenceEntry[] = [];
+    const captureResults: BrowserEvidenceEntry[] = [];
     const longTeam1 = `${uniqueLabel('Cape Town Longform Rugby Football Club')} XV`;
     const longTeam2 = `${uniqueLabel('Johannesburg Longform Rugby Football Club')} XV`;
     const { fixtureId, team1, team2 } = await createPredictionAtMatchResult(
@@ -1157,6 +1164,48 @@ test.describe('Kaplay prediction preview', () => {
 
     await waitForKaplayReady(page);
 
+    const writeResizeEvidence = () => {
+      writeEvidenceJson('resize-interaction-measurements.json', {
+        captureResults,
+        measurements,
+        recordedAt: utcNow(),
+      });
+    };
+
+    const captureResizeScreenshot = async (
+      kind: 'canvas-crop' | 'viewport',
+      name: string,
+      capture: () => Promise<void>,
+    ) => {
+      markStage(page, `resize-sync:capture-${kind}`, { name });
+
+      try {
+        await capture();
+        captureResults.push({
+          kind,
+          name,
+          status: 'passed',
+          time: utcNow(),
+        });
+      } catch (error) {
+        const message = errorMessage(error);
+
+        captureResults.push({
+          error: message,
+          kind,
+          name,
+          status: 'failed',
+          time: utcNow(),
+        });
+        markStage(page, `resize-sync:capture-${kind}-failed`, {
+          error: message,
+          name,
+        });
+      } finally {
+        writeResizeEvidence();
+      }
+    };
+
     const collectResizeEvidence = async (
       label: string,
       screenshotName: string,
@@ -1165,15 +1214,18 @@ test.describe('Kaplay prediction preview', () => {
     ) => {
       const measurement = await collectKaplayLayoutEvidence(page, label);
 
-      await page.screenshot({
-        path: evidenceScreenshotPath(screenshotName),
-      });
-      await screenshotCanvasCrop(page, cropName);
-
       measurements.push({
         ...measurement,
         observedPointerResult,
       });
+      writeResizeEvidence();
+
+      await captureResizeScreenshot('viewport', screenshotName, async () => {
+        await captureCanvasBitmap(page, screenshotName);
+      });
+      await captureResizeScreenshot('canvas-crop', cropName, () =>
+        captureCanvasBitmap(page, cropName),
+      );
 
       for (const choice of measurement.layout.choices) {
         expect(choice.labelCssFontSize).toBeGreaterThanOrEqual(15.99);
@@ -1274,10 +1326,7 @@ test.describe('Kaplay prediction preview', () => {
 
     expect(unsavedEntry).toBeNull();
     expect(measurements).toHaveLength(4);
-    writeEvidenceJson('resize-interaction-measurements.json', {
-      measurements,
-      recordedAt: utcNow(),
-    });
+    writeResizeEvidence();
   });
 
   test('handles Draw, Change my selection and Continue during an active shove', async ({
@@ -1338,6 +1387,7 @@ test.describe('Kaplay prediction preview', () => {
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('standard-after-interruption.png'),
+      timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
     });
   });
 
@@ -1413,11 +1463,8 @@ test.describe('Kaplay prediction preview', () => {
       page,
       '390px viewport initial choices',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-390-match-result-preview.png'),
-    });
-    await screenshotCanvasCrop(page, 'mobile-390-choice-area-crop.png');
+    await captureCanvasBitmap(page, 'mobile-390-match-result-preview.png');
+    await captureCanvasBitmap(page, 'mobile-390-choice-area-crop.png');
     markStage(page, 'reduced-motion:mobile-390-measured', {
       canvasCss: mobile390Initial.canvasCss,
       choices: mobile390Initial.layout.choices.map((choice) => ({
@@ -1436,20 +1483,14 @@ test.describe('Kaplay prediction preview', () => {
       page,
       '390px viewport Draw rejected arrangement',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-390-draw-rejected.png'),
-    });
-    await screenshotCanvasCrop(page, 'mobile-390-draw-rejected-crop.png');
+    await captureCanvasBitmap(page, 'mobile-390-draw-rejected.png');
+    await captureCanvasBitmap(page, 'mobile-390-draw-rejected-crop.png');
     await page.waitForTimeout(3_400);
     const mobile390Settled = await collectKaplayLayoutEvidence(
       page,
       '390px viewport settled Draw',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-390-draw-settled.png'),
-    });
+    await captureCanvasBitmap(page, 'mobile-390-draw-settled.png');
     measurements.push({
       initial: mobile390Initial,
       rejected: mobile390DrawRejected,
@@ -1463,11 +1504,8 @@ test.describe('Kaplay prediction preview', () => {
       page,
       '360px viewport initial choices',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-360-match-result-preview.png'),
-    });
-    await screenshotCanvasCrop(page, 'mobile-360-choice-area-crop.png');
+    await captureCanvasBitmap(page, 'mobile-360-match-result-preview.png');
+    await captureCanvasBitmap(page, 'mobile-360-choice-area-crop.png');
     markStage(page, 'reduced-motion:mobile-360-measured', {
       canvasCss: mobile360Initial.canvasCss,
       choices: mobile360Initial.layout.choices.map((choice) => ({
@@ -1492,20 +1530,14 @@ test.describe('Kaplay prediction preview', () => {
       page,
       '360px viewport Draw rejected arrangement',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-360-draw-rejected.png'),
-    });
-    await screenshotCanvasCrop(page, 'mobile-360-draw-rejected-crop.png');
+    await captureCanvasBitmap(page, 'mobile-360-draw-rejected.png');
+    await captureCanvasBitmap(page, 'mobile-360-draw-rejected-crop.png');
     await page.waitForTimeout(3_400);
     const mobile360Settled = await collectKaplayLayoutEvidence(
       page,
       '360px viewport settled Draw',
     );
-    await page.screenshot({
-      fullPage: true,
-      path: evidenceScreenshotPath('mobile-360-draw-settled.png'),
-    });
+    await captureCanvasBitmap(page, 'mobile-360-draw-settled.png');
     measurements.push({
       initial: mobile360Initial,
       rejected: mobile360DrawRejected,
@@ -1614,6 +1646,7 @@ test.describe('Kaplay prediction preview', () => {
     await page.screenshot({
       fullPage: true,
       path: evidenceScreenshotPath('standard-after-fallback.png'),
+      timeout: SCREENSHOT_CAPTURE_TIMEOUT_MS,
     });
 
     await page.evaluate(() => {

@@ -117,6 +117,10 @@
   findings, focused unit/component checks, fresh `7 passed / 2 failed` browser
   evidence, corrected dirty-session pass, unresolved resize browser acceptance,
   and review archive evidence.
+- `docs/AUDIT_009C3A_Bounded_Resize_Runtime_Closeout.md` - CCPP-009C3A
+  bounded post-ready replacement implementation, runtime-generation ownership,
+  focused unit/type/browser evidence, unresolved resize and reduced-motion
+  browser blockers, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -170,6 +174,9 @@
 - `docs/TEMP_009C3_Resume.md` - temporary CCPP-009C3 checkpoint for resize
   synchronization, focused checks, browser evidence, documentation, and
   packaging handoff.
+- `docs/TEMP_009C3A_Resume.md` - temporary CCPP-009C3A checkpoint for bounded
+  resize runtime replacement, browser budget tracking, verification evidence,
+  unresolved blockers, documentation, and packaging handoff.
 
 ## Application Entry Points
 

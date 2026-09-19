@@ -29,6 +29,7 @@ import {
   type KaplayMatchResultRuntimeFactory,
   type KaplayMatchResultRuntimeFactoryInput,
   type KaplayMatchResultRuntimeHandle,
+  type KaplayMatchResultRuntimeViewport,
   type MatchResultRuntimeSnapshot,
 } from './kaplay/matchResultRuntime';
 import type { KaplayMatchResultPreviewProps } from './kaplay/KaplayMatchResultPreview';
@@ -76,6 +77,24 @@ interface LoadedPreviewState {
 }
 
 type HostAttemptStatus = 'cancelled' | 'failed' | 'loading' | 'ready';
+type PreviewAttemptCycleKind = 'replacement' | 'startup';
+
+interface PreviewAttemptCycle {
+  readonly deadlineAt: number;
+  readonly id: number;
+  readonly kind: PreviewAttemptCycleKind;
+  readonly timer: number;
+}
+
+interface RuntimeGeneration {
+  readonly abortController: AbortController;
+  readonly canvas: HTMLCanvasElement;
+  disposalComplete: Promise<void> | null;
+  readonly id: number;
+  readonly key: string;
+  readonly viewport: KaplayMatchResultRuntimeViewport;
+  stopped: boolean;
+}
 
 interface HostPreviewAttempt {
   readonly cancel: (resetStatus: boolean) => void;
@@ -136,6 +155,9 @@ const errorFromUnknown = (error: unknown, fallback: string): Error => {
 
   return new Error(fallback);
 };
+
+const viewportKey = (viewport: KaplayMatchResultRuntimeViewport): string =>
+  `${viewport.stage.width}:${viewport.stage.height}`;
 
 export const PredictionPresentationHost = ({
   actions,
@@ -217,33 +239,96 @@ export const PredictionPresentationHost = ({
       nextAttemptIdRef.current = id;
 
       const durationMs = initializationTimeoutRef.current;
-      const deadlineAt = Date.now() + durationMs;
-      let deadlineTimer: number | null = null;
+      let nextCycleId = 0;
+      let currentCycle: PreviewAttemptCycle | null = null;
       let latestSnapshot: MatchResultRuntimeSnapshot | null = null;
       let runtimeHandle: KaplayMatchResultRuntimeHandle | null = null;
       let runtimeHandleDisposed = false;
       let runtimeStartCounter = 0;
-      let activeRuntimeStartId = 0;
+      let activeGeneration: RuntimeGeneration | null = null;
+      let pendingRuntimeTeardown: Promise<void> | null = null;
+      let hasReadyRuntime = false;
       let attempt!: HostPreviewAttempt;
 
-      const clearDeadline = () => {
-        if (deadlineTimer === null) {
+      const clearCycle = (cycleId?: number) => {
+        if (!currentCycle || (cycleId && currentCycle.id !== cycleId)) {
           return;
         }
 
-        window.clearTimeout(deadlineTimer);
-        deadlineTimer = null;
+        window.clearTimeout(currentCycle.timer);
+        currentCycle = null;
       };
 
-      const disposeAdoptedRuntime = () => {
-        if (!runtimeHandle || runtimeHandleDisposed) {
-          runtimeHandle = null;
-          return;
+      const beginCycle = (kind: PreviewAttemptCycleKind) => {
+        if (currentCycle?.kind === kind) {
+          return currentCycle;
         }
 
+        clearCycle();
+
+        const cycleId = nextCycleId + 1;
+        nextCycleId = cycleId;
+
+        const cycle: PreviewAttemptCycle = {
+          deadlineAt: Date.now() + durationMs,
+          id: cycleId,
+          kind,
+          timer: window.setTimeout(() => {
+            if (currentCycle?.id !== cycleId) {
+              return;
+            }
+
+            fail(
+              new Error(
+                kind === 'startup'
+                  ? 'Kaplay preview initialization timed out.'
+                  : 'Kaplay preview replacement timed out.',
+              ),
+            );
+          }, durationMs),
+        };
+
+        currentCycle = cycle;
+
+        return cycle;
+      };
+
+      const rememberRuntimeTeardown = (
+        disposalComplete: Promise<void> | undefined,
+      ): Promise<void> => {
+        if (!disposalComplete) {
+          return pendingRuntimeTeardown ?? Promise.resolve();
+        }
+
+        const teardown = disposalComplete.catch(() => undefined);
+
+        pendingRuntimeTeardown = teardown;
+        teardown.finally(() => {
+          if (pendingRuntimeTeardown === teardown) {
+            pendingRuntimeTeardown = null;
+          }
+        });
+
+        return teardown;
+      };
+
+      const disposeAdoptedRuntime = (): Promise<void> => {
+        if (!runtimeHandle || runtimeHandleDisposed) {
+          runtimeHandle = null;
+          return pendingRuntimeTeardown ?? Promise.resolve();
+        }
+
+        const handle = runtimeHandle;
         runtimeHandleDisposed = true;
-        runtimeHandle.dispose();
         runtimeHandle = null;
+
+        try {
+          handle.dispose();
+        } catch {
+          // Runtime teardown is best-effort once a generation is obsolete.
+        }
+
+        return rememberRuntimeTeardown(handle.disposalComplete);
       };
 
       const updateStateForAttempt = (
@@ -273,14 +358,48 @@ export const PredictionPresentationHost = ({
       const isCurrent = () =>
         activeAttemptRef.current === attempt && attempt.status === 'loading';
 
+      const stopGeneration = (
+        generation: RuntimeGeneration | null,
+      ): Promise<void> => {
+        if (!generation) {
+          return pendingRuntimeTeardown ?? Promise.resolve();
+        }
+
+        if (activeGeneration === generation) {
+          activeGeneration = null;
+        }
+
+        if (generation.stopped) {
+          return rememberRuntimeTeardown(
+            generation.disposalComplete ?? undefined,
+          );
+        }
+
+        generation.stopped = true;
+        generation.abortController.abort();
+
+        return rememberRuntimeTeardown(
+          generation.disposalComplete ?? undefined,
+        );
+      };
+
+      const stopActiveGeneration = () => {
+        if (!activeGeneration || activeGeneration.stopped) {
+          activeGeneration = null;
+          return;
+        }
+
+        stopGeneration(activeGeneration);
+      };
+
       const fail = (error: Error) => {
         if (attempt.status === 'cancelled' || attempt.status === 'failed') {
           return;
         }
 
         attempt.status = 'failed';
-        clearDeadline();
-        activeRuntimeStartId = 0;
+        clearCycle();
+        stopActiveGeneration();
         disposeAdoptedRuntime();
 
         if (activeAttemptRef.current === attempt) {
@@ -299,8 +418,8 @@ export const PredictionPresentationHost = ({
         }
 
         attempt.status = 'cancelled';
-        clearDeadline();
-        activeRuntimeStartId = 0;
+        clearCycle();
+        stopActiveGeneration();
         disposeAdoptedRuntime();
 
         if (activeAttemptRef.current === attempt) {
@@ -335,7 +454,20 @@ export const PredictionPresentationHost = ({
         });
       };
 
-      const remainingTimeMs = () => Math.max(0, deadlineAt - Date.now());
+      const remainingTimeMs = () =>
+        currentCycle ? Math.max(0, currentCycle.deadlineAt - Date.now()) : 0;
+
+      const isRuntimeGenerationCurrent = (generation: RuntimeGeneration) =>
+        activeAttemptRef.current === attempt &&
+        attempt.status === 'loading' &&
+        activeGeneration === generation &&
+        !generation.stopped &&
+        !generation.abortController.signal.aborted &&
+        generation.canvas.isConnected &&
+        generation.canvas.getBoundingClientRect().width > 0 &&
+        generation.key === viewportKey(generation.viewport) &&
+        generation.viewport.stage.width > 0 &&
+        generation.viewport.stage.height > 0;
 
       const updateSnapshot = (snapshot: MatchResultRuntimeSnapshot) => {
         latestSnapshot = snapshot;
@@ -358,8 +490,27 @@ export const PredictionPresentationHost = ({
 
         const runtimeStartId = runtimeStartCounter + 1;
         runtimeStartCounter = runtimeStartId;
-        activeRuntimeStartId = runtimeStartId;
-        disposeAdoptedRuntime();
+        const supersededGenerationTeardown = stopGeneration(activeGeneration);
+
+        if (hasReadyRuntime && !currentCycle) {
+          beginCycle('replacement');
+        }
+
+        const generation: RuntimeGeneration = {
+          abortController: new AbortController(),
+          canvas: input.canvas,
+          disposalComplete: null,
+          id: runtimeStartId,
+          key: viewportKey(input.initialViewport),
+          viewport: input.initialViewport,
+          stopped: false,
+        };
+        activeGeneration = generation;
+        const adoptedRuntimeTeardown = disposeAdoptedRuntime();
+        const teardownBeforeStart = Promise.all([
+          supersededGenerationTeardown,
+          adoptedRuntimeTeardown,
+        ]).then(() => undefined);
         attempt.status = 'loading';
         updateStateForAttempt('loading', null);
 
@@ -370,11 +521,17 @@ export const PredictionPresentationHost = ({
           }
 
           localHandleDisposed = true;
-          handle.dispose();
+          try {
+            handle.dispose();
+          } catch {
+            // Obsolete runtime handles should not be able to damage recovery.
+          }
         };
 
-        const runtimeWork = Promise.resolve().then(() => {
-          if (!isCurrent()) {
+        const runtimeWork = Promise.resolve().then(async () => {
+          await teardownBeforeStart;
+
+          if (!isRuntimeGenerationCurrent(generation)) {
             throw new Error(
               'Kaplay preview attempt was cancelled before runtime initialization.',
             );
@@ -382,13 +539,17 @@ export const PredictionPresentationHost = ({
 
           return runtimeFactoryRef.current({
             ...input,
+            abortSignal: generation.abortController.signal,
+            onDisposalComplete: (disposalComplete) => {
+              generation.disposalComplete = disposalComplete;
+            },
             remainingInitializationMs: remainingTimeMs(),
           });
         });
 
         runtimeWork
           .then((handle) => {
-            if (!isCurrent() || activeRuntimeStartId !== runtimeStartId) {
+            if (!isRuntimeGenerationCurrent(generation)) {
               disposeLocalHandle(handle);
               return;
             }
@@ -406,19 +567,21 @@ export const PredictionPresentationHost = ({
               return;
             }
 
-            if (!isCurrent() || activeRuntimeStartId !== runtimeStartId) {
+            if (!isRuntimeGenerationCurrent(generation)) {
               disposeLocalHandle(handle);
               return;
             }
 
             runtimeHandle = handle;
             runtimeHandleDisposed = false;
+            activeGeneration = generation;
+            hasReadyRuntime = true;
             attempt.status = 'ready';
-            clearDeadline();
+            clearCycle();
             updateStateForAttempt('ready', null);
           })
           .catch((error) => {
-            if (!isCurrent() || activeRuntimeStartId !== runtimeStartId) {
+            if (!isRuntimeGenerationCurrent(generation)) {
               return;
             }
 
@@ -428,11 +591,11 @@ export const PredictionPresentationHost = ({
           });
 
         return () => {
-          if (activeRuntimeStartId !== runtimeStartId) {
+          if (activeGeneration !== generation) {
             return;
           }
 
-          activeRuntimeStartId = 0;
+          stopGeneration(generation);
           disposeAdoptedRuntime();
 
           if (attempt.status === 'ready') {
@@ -445,7 +608,9 @@ export const PredictionPresentationHost = ({
       attempt = {
         cancel,
         controller: {
-          deadlineAt,
+          get deadlineAt() {
+            return currentCycle?.deadlineAt ?? 0;
+          },
           fail,
           id,
           isCurrent: () =>
@@ -462,6 +627,7 @@ export const PredictionPresentationHost = ({
         status: 'loading',
       };
 
+      beginCycle('startup');
       activeAttemptRef.current = attempt;
       setLoadedPreviewState((current) =>
         current?.attemptId === id ? current : null,
@@ -474,10 +640,6 @@ export const PredictionPresentationHost = ({
         sessionKey: attemptSessionKey,
         status: 'loading',
       });
-
-      deadlineTimer = window.setTimeout(() => {
-        fail(new Error('Kaplay preview initialization timed out.'));
-      }, durationMs);
 
       const loaderWork = Promise.resolve().then(() =>
         previewLoaderRef.current(),

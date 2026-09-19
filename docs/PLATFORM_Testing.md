@@ -326,6 +326,16 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   measurement-deferral correction could be rerun. Browser resize acceptance
   remains pending a future focused rerun. See
   `docs/AUDIT_009C3_Resize_Interaction_Verification.md`.
+- CCPP-009C3A adds focused host/adapter regressions for fresh post-ready
+  replacement deadlines, stalled replacement fallback, obsolete pre-allocation
+  generation rejection, already-initializing supersession cleanup, and
+  non-refreshing replacement timers. The affected unit/component run passed 58
+  tests. Two permitted current-source focused browser batches both executed
+  nine Kaplay cases with `7 passed / 2 failed`: the corrected dirty
+  saved-session case passed, while resize and reduced-motion remained
+  unresolved. The browser evidence is preserved under
+  `/tmp/rugby-rooster-ccpp009c3a-browser-20260919` and
+  `/tmp/rugby-rooster-ccpp009c3a-browser-correction-20260919`.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

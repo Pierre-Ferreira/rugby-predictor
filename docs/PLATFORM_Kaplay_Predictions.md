@@ -13,7 +13,10 @@ stage height content-driven, propagates that stage through runtime/canvas
 sizing, and preserves fresh integrated playback and mobile layout evidence.
 CCPP-009C3 synchronizes runtime logical dimensions with measured desktop and
 compact layout changes by replacing only the current runtime generation when the
-projected stage dimensions genuinely change.
+projected stage dimensions genuinely change. CCPP-009C3A bounds post-ready
+replacement cycles, adds per-runtime generation ownership before allocation,
+and records that focused browser resize/reduced-motion closeout remains
+unresolved after the permitted runs.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
@@ -249,6 +252,22 @@ input; it does not get a second full timeout after the outer module finishes
 loading. Ordinary rerenders and answer updates do not restart the attempt,
 extend its deadline, or recreate the runtime.
 
+After a runtime has genuinely become ready, a later logical-viewport
+replacement starts a new bounded replacement cycle using the same timeout
+constant. The replacement budget starts when the replacement is requested and
+covers teardown coordination, runtime initialization, required asset readiness,
+initial snapshot adoption, and synchronized readiness. Repeated measurements or
+superseded geometry during the same unresolved replacement do not refresh that
+deadline; newer eligible geometry invalidates the obsolete runtime generation
+and continues under the same remaining budget. A separate resize after a
+successful replacement may begin a new bounded cycle.
+
+On replacement timeout or failure, the host follows the accepted fallback path:
+the shared prediction session is preserved, Standard renders at the same
+location, and retry remains deliberate through `Retry animations` or an
+explicit On selection. A later resize notification does not automatically retry
+a failed replacement.
+
 While loading, the host keeps a DOM action available:
 
 `Continue without animations`
@@ -304,6 +323,31 @@ Each runtime generation owns its canvas listeners, document visibility listener,
 KAPLAY event controllers, context, and cleanup callbacks. Teardown is
 idempotent and calls `ctx.quit()` in addition to removing adapter-owned
 listeners/controllers.
+
+The host assigns every runtime start a generation identity distinct from the
+shared prediction session and the outer preview attempt. Before factory
+allocation, before initial snapshot adoption, before ready publication, and
+before failure reporting, the host checks that the parent attempt is still
+eligible, the runtime generation remains current, it has not been stopped or
+aborted, and its canvas/target stage are still usable. Obsolete queued starts
+therefore cannot allocate just because a newer generation has put the parent
+attempt back into `loading`.
+
+The runtime factory receives an `AbortSignal`. The default Kaplay adapter checks
+that signal before artificial test delays, after dynamic import, before context
+creation, and while waiting for the required sprite atlas. If a generation is
+aborted after a Kaplay context has been allocated but before the ready handle is
+returned, the adapter disposes that context through the same idempotent
+teardown path.
+
+Installed Kaplay `3001.0.19` schedules `quit()` cleanup on the next `frameEnd`,
+and `app.quit()` removes app listeners synchronously from that cleanup
+callback. The adapter exposes a narrow `disposalComplete` promise based on the
+next frame after `quit()` is requested. Replacement allocation waits for any
+known adopted-handle or partial-initialization disposal promise, bounded by the
+current startup or replacement cycle. If that safe handoff cannot complete
+inside the cycle, Standard fallback wins rather than creating another live
+context to escape the wait.
 
 Late success or failure from an obsolete initialization attempt is ignored. If
 a late runtime handle is created after the attempt or runtime-start generation
@@ -428,6 +472,15 @@ mobile evidence path failed before a post-run measurement-deferral correction
 could be rerun. See
 `docs/AUDIT_009C3_Resize_Interaction_Verification.md`.
 
+CCPP-009C3A extends the React lifecycle regressions for post-ready replacement
+budgets, stalled replacement fallback, queued pre-allocation supersession,
+already-initializing supersession, obsolete abort/disposal behavior, and
+non-refreshing replacement timers. The focused unit/component run passed 58
+tests. The permitted browser batches both executed nine cases with
+`7 passed / 2 failed`: the dirty saved-session case passed, while resize and
+reduced-motion remained unresolved. See
+`docs/AUDIT_009C3A_Bounded_Resize_Runtime_Closeout.md`.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
@@ -440,6 +493,10 @@ could be rerun. See
   corrected dirty-session browser case passed, but full resize browser
   acceptance remains unresolved until the focused browser spec is rerun after
   the measurement-deferral correction.
+- CCPP-009C3A source and focused unit/component checks are complete, and the
+  dirty-session browser case continued to pass in both current-source browser
+  batches. Full browser acceptance for the resize and reduced-motion journeys
+  remains unresolved after the bounded attempts.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

@@ -52,6 +52,7 @@ export interface KaplayMatchResultRuntimeViewport {
 }
 
 export interface KaplayMatchResultRuntimeHandle {
+  readonly disposalComplete?: Promise<void>;
   readonly dispose: () => void;
   readonly update: (snapshot: MatchResultRuntimeSnapshot) => void;
 }
@@ -68,6 +69,8 @@ export interface KaplayMatchResultRuntimeInput {
 export type KaplayFunction = typeof import('kaplay').default;
 
 export interface KaplayMatchResultRuntimeFactoryInput extends KaplayMatchResultRuntimeInput {
+  readonly abortSignal?: AbortSignal;
+  readonly onDisposalComplete?: (disposalComplete: Promise<void>) => void;
   readonly remainingInitializationMs?: number;
   readonly testControlsEnabled?: boolean;
 }
@@ -125,9 +128,39 @@ declare global {
   }
 }
 
-const wait = (durationMs: number): Promise<void> =>
-  new Promise((resolve) => {
-    window.setTimeout(resolve, durationMs);
+const errorIfAborted = (signal: AbortSignal | undefined): Error | null =>
+  signal?.aborted
+    ? new Error('Kaplay preview runtime generation was cancelled.')
+    : null;
+
+const throwIfAborted = (signal: AbortSignal | undefined) => {
+  const error = errorIfAborted(signal);
+
+  if (error) {
+    throw error;
+  }
+};
+
+const wait = (durationMs: number, signal?: AbortSignal): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const aborted = errorIfAborted(signal);
+
+    if (aborted) {
+      reject(aborted);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      signal?.removeEventListener('abort', abort);
+      resolve();
+    }, durationMs);
+
+    const abort = () => {
+      window.clearTimeout(timer);
+      reject(new Error('Kaplay preview runtime generation was cancelled.'));
+    };
+
+    signal?.addEventListener('abort', abort, { once: true });
   });
 
 const nextAnimationFrame = (): Promise<void> =>
@@ -156,8 +189,10 @@ export const createDefaultKaplayMatchResultRuntime = async (
   const controls = optionalTestControls(input.testControlsEnabled === true);
 
   if (controls.delayInitializationMs) {
-    await wait(controls.delayInitializationMs);
+    await wait(controls.delayInitializationMs, input.abortSignal);
   }
+
+  throwIfAborted(input.abortSignal);
 
   if (controls.failInitialization) {
     throw new Error('Controlled Kaplay preview initialization failure.');
@@ -169,6 +204,8 @@ export const createDefaultKaplayMatchResultRuntime = async (
   }
 
   const module = await import('kaplay');
+
+  throwIfAborted(input.abortSignal);
 
   return createKaplayMatchResultRuntime({
     ...input,
@@ -183,6 +220,7 @@ export const createDefaultKaplayMatchResultRuntime = async (
 };
 
 export const createKaplayMatchResultRuntime = async ({
+  abortSignal,
   canvas,
   failOnNextPointer = false,
   failRequiredSpriteLoad = false,
@@ -192,15 +230,20 @@ export const createKaplayMatchResultRuntime = async ({
   kaplay,
   motionTimeScale = 1,
   onFailure,
+  onDisposalComplete,
   onSelect,
   testControlsEnabled = false,
 }: KaplayMatchResultRuntimeInput & {
+  readonly abortSignal?: AbortSignal;
   readonly failOnNextPointer?: boolean;
   readonly failRequiredSpriteLoad?: boolean;
   readonly kaplay: KaplayFunction;
   readonly motionTimeScale?: number;
+  readonly onDisposalComplete?: (disposalComplete: Promise<void>) => void;
   readonly testControlsEnabled?: boolean;
 }): Promise<KaplayMatchResultRuntimeHandle> => {
+  throwIfAborted(abortSignal);
+
   let snapshot = initialSnapshot;
   let disposed = false;
   let failed = false;
@@ -210,6 +253,21 @@ export const createKaplayMatchResultRuntime = async ({
   const eventControllers: KEventController[] = [];
   const abortController = new AbortController();
   const configuredStage = initialViewport.stage;
+  let resolveDisposalComplete!: () => void;
+  const disposalComplete = new Promise<void>((resolve) => {
+    resolveDisposalComplete = resolve;
+  });
+  let disposalCompletionScheduled = false;
+  const scheduleDisposalCompletion = () => {
+    if (disposalCompletionScheduled) {
+      return;
+    }
+
+    disposalCompletionScheduled = true;
+    window.requestAnimationFrame(() => {
+      resolveDisposalComplete();
+    });
+  };
 
   const k = kaplay({
     background: [246, 244, 237],
@@ -228,6 +286,7 @@ export const createKaplayMatchResultRuntime = async ({
     width: configuredStage.width,
   } satisfies KAPLAYOpt);
   applyCanvasDisplayGeometry(canvas, configuredStage);
+  onDisposalComplete?.(disposalComplete);
 
   const dispose = () => {
     if (disposed) {
@@ -235,6 +294,7 @@ export const createKaplayMatchResultRuntime = async ({
     }
 
     disposed = true;
+    abortSignal?.removeEventListener('abort', dispose);
     abortController.abort();
 
     for (const controller of eventControllers) {
@@ -245,8 +305,17 @@ export const createKaplayMatchResultRuntime = async ({
       k.quit();
     } catch {
       // Teardown is best-effort after partial initialization or engine failure.
+    } finally {
+      scheduleDisposalCompletion();
     }
   };
+
+  if (abortSignal?.aborted) {
+    dispose();
+    throw new Error('Kaplay preview runtime generation was cancelled.');
+  }
+
+  abortSignal?.addEventListener('abort', dispose, { once: true });
 
   const fail = (error: Error) => {
     if (disposed || failed) {
@@ -343,7 +412,7 @@ export const createKaplayMatchResultRuntime = async ({
       throw setupError;
     }
 
-    await loadRequiredRoosterAtlas(k, failRequiredSpriteLoad);
+    await loadRequiredRoosterAtlas(k, failRequiredSpriteLoad, abortSignal);
 
     eventControllers.push(
       k.onUpdate(() => {
@@ -379,6 +448,7 @@ export const createKaplayMatchResultRuntime = async ({
     }
 
     return {
+      disposalComplete,
       dispose,
       update: (nextSnapshot) => {
         if (disposed || failed) {
@@ -438,32 +508,61 @@ const stagesMatch = (first: MotionRect, second: MotionRect): boolean =>
 const loadRequiredRoosterAtlas = async (
   k: KAPLAYCtx,
   failRequiredSpriteLoad: boolean,
+  signal?: AbortSignal,
 ): Promise<void> => {
   const assetUrl = failRequiredSpriteLoad
     ? '/assets/rooster/match-result/missing-required-rooster-atlas.png'
     : ROOSTER_SHOVE_ATLAS_URL;
   const asset = k.loadSpriteAtlas(assetUrl, ROOSTER_SHOVE_ATLAS_DATA);
 
-  await waitForKaplayAsset(asset);
+  await waitForKaplayAsset(asset, signal);
 };
 
-const waitForKaplayAsset = <TValue>(asset: Asset<TValue>): Promise<TValue> =>
+const waitForKaplayAsset = <TValue>(
+  asset: Asset<TValue>,
+  signal?: AbortSignal,
+): Promise<TValue> =>
   new Promise((resolve, reject) => {
+    const aborted = errorIfAborted(signal);
+
+    if (aborted) {
+      reject(aborted);
+      return;
+    }
+
+    let settled = false;
+    const settle = (action: () => void) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      signal?.removeEventListener('abort', abort);
+      action();
+    };
+    const abort = () => {
+      settle(() =>
+        reject(new Error('Kaplay preview runtime generation was cancelled.')),
+      );
+    };
+
+    signal?.addEventListener('abort', abort, { once: true });
+
     if (asset.loaded && asset.data) {
-      resolve(asset.data);
+      settle(() => resolve(asset.data as TValue));
       return;
     }
 
     if (asset.error) {
-      reject(asset.error);
+      settle(() => reject(asset.error));
       return;
     }
 
     asset.onLoad((data) => {
-      resolve(data);
+      settle(() => resolve(data));
     });
     asset.onError((error) => {
-      reject(error);
+      settle(() => reject(error));
     });
   });
 
