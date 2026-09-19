@@ -68,6 +68,13 @@ full transformed character/card bounds, and uses compact scale-aware choice
 geometry so team/Draw labels remain readable on narrow canvases. The Standard
 prediction flow and shared answer ownership remain authoritative.
 
+CCPP-009C2 keeps that same single-screen development preview and makes compact
+stage height content-driven so the runtime, canvas aspect ratio, and mobile
+evidence use one projected geometry. Fresh retained browser evidence exists for
+normal/slowed Match Result playback and 360/390-style mobile layout, but the
+recorded focused browser run remains `7 passed / 1 failed` after an unrerun
+dirty-session test-precondition correction.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.

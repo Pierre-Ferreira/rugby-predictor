@@ -304,6 +304,15 @@ The current browser suite covers:
   launches on 2026-09-18 both exited before Playwright executed test cases, so
   they produced no successful browser coverage, screenshots, recordings, or
   mobile measurement JSON.
+- CCPP-009C2 extends the compact-layout projection so the Match Result stage
+  height is content-driven and the React canvas uses the projected stage aspect
+  ratio. Its retained focused browser evidence on 2026-09-18 includes normal
+  and slowed Match Result playback WebMs, contact sheets, desktop screenshots,
+  360/390 mobile screenshots and crops, and mobile measurement JSON. The
+  recorded focused browser result remains `7 passed / 1 failed`: the failed
+  dirty saved-session case reached the selected-answer presentation and tried a
+  canvas choice before using the visible `Change my selection` action. The test
+  precondition was corrected after the run and was not rerun.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

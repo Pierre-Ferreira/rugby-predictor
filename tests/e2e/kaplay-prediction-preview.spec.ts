@@ -1556,6 +1556,21 @@ test.describe('Kaplay prediction preview', () => {
       page.getByRole('button', { name: 'Return to Review' }),
     ).toBeVisible();
     await waitForKaplayReady(page);
+    markStage(page, 'dirty-session:change-selection');
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await page.waitForFunction(
+      () => {
+        const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+
+        return (
+          layout?.choices.length === 3 &&
+          layout.selectedChoice === null &&
+          layout.choices.every((choice) => choice.hitTestable)
+        );
+      },
+      undefined,
+      { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
+    );
     markStage(page, 'dirty-session:canvas-choice-click');
     await clickCanvasChoice(page, 0);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(

@@ -8,7 +8,9 @@ automatically in ordinary local development. The preview covers one real screen
 only: the Match Result step. CCPP-009C adds the first prepared Rooster shove
 visual foundation to that same screen. CCPP-009C1 corrects that screen's
 contact-to-push continuity, full-character exit projection, compact readability
-projection, and intended browser evidence path.
+projection, and intended browser evidence path. CCPP-009C2 makes the compact
+stage height content-driven, propagates that stage through runtime/canvas
+sizing, and preserves fresh integrated playback and mobile layout evidence.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
@@ -185,10 +187,13 @@ and offscreen margin; full transformed Rooster bounds and rejected-card bounds
 are projected clear before the effect expires.
 
 Compact Match Result layout is scale-aware rather than a simple desktop shrink.
-The runtime projects text blocks, line wrapping, card bounds, focus bounds, and
-hit rectangles from the same geometry. At 360 px and 390 px portrait-style
-canvas widths in unit coverage, selectable card heights project to at least
-44 CSS px and primary labels to at least 16 CSS px.
+The runtime projects text blocks, line wrapping, card bounds, focus bounds, hit
+rectangles, and stage height from the same geometry. At 360 px and 390 px
+portrait-style canvas widths in unit and browser evidence, selectable card
+heights project to at least 44 CSS px and primary labels to at least 16 CSS px.
+When a saved answer is already selected, the canvas presents the selected card
+as intentionally non-hit-testable; the existing `Change my selection` action
+restores the selectable choices before another canvas choice can be made.
 
 Intro, Tries, Conversions, Penalty Kicks, Drop Goals, Cards, First Try,
 Highest-Scoring Half, Half-Time Leader, custom questions, Review, and locked
@@ -367,13 +372,25 @@ on 2026-09-18 also exited before executable test cases and produced no fresh
 recordings or screenshots; see
 `docs/AUDIT_009C1_Shove_Exit_Mobile_Evidence.md`.
 
+CCPP-009C2 records the first successful fresh integrated Match Result playback
+evidence for the compact-layout correction. The second permitted focused
+browser attempt executed eight tests and recorded `7 passed / 1 failed`,
+including normal-speed and slowed WebMs, contact sheets, desktop screenshots,
+390 px and 360 px mobile screenshots/crops, and mobile measurement JSON. The
+single failure reached the selected-answer presentation and attempted a
+selectable canvas click before using `Change my selection`; the test sequence
+was corrected after the run and was not rerun because the browser budget was
+exhausted. See
+`docs/AUDIT_009C2_Compact_Layout_Playback.md`.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
 - Rooster artwork and a first-pass Match Result shove are included only for the
-  009C visual foundation. CCPP-009C1 corrects the pure/runtime geometry, but
-  fresh integrated browser recording evidence remains blocked and must not be
-  treated as full visual acceptance.
+  009C visual foundation. CCPP-009C2 preserves fresh integrated playback and
+  mobile evidence, but the recorded focused browser result remains `7 passed /
+1 failed`; the unrerun dirty-session test correction must not be treated as
+  full browser acceptance.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

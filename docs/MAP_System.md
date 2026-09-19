@@ -108,6 +108,10 @@
   contact-to-push continuity, full-character exit, compact readability
   correction, verification, blocked browser evidence, and review archive
   evidence.
+- `docs/AUDIT_009C2_Compact_Layout_Playback.md` - CCPP-009C2 content-driven
+  compact stage layout, fresh retained playback/mobile evidence, recorded
+  `7 passed / 1 failed` browser result, unrerun dirty-session test
+  precondition correction, static closeout checks, and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -155,6 +159,9 @@
 - `docs/TEMP_009C1_Resume.md` - temporary CCPP-009C1 checkpoint for shove
   continuity, full exit, mobile readability, browser evidence attempts, and
   packaging handoff.
+- `docs/TEMP_009C2_Resume.md` - temporary CCPP-009C2 closeout checkpoint for
+  compact layout playback evidence, dirty-session test precondition correction,
+  verification, and packaging handoff.
 
 ## Application Entry Points
 
@@ -365,8 +372,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/kaplay-prediction-preview.spec.ts` - CCPP-009B/009B4 browser tests
   for real Kaplay Match Result preview selection, automatic development access,
   mode switching, reduced motion, delayed initialization cancellation, runtime
-  failure fallback, graphics-context loss, keyboard bridge, and legacy
-  enabled-flag behavior.
+  failure fallback, graphics-context loss, keyboard bridge, legacy enabled-flag
+  behavior, 009C/009C1/009C2 Rooster shove playback evidence, compact mobile
+  layout measurements, and dirty saved-session preservation.
 - `tests/e2e/results.spec.ts` - browser tests for result admin provisional
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only

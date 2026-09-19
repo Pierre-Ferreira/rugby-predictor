@@ -1,41 +1,31 @@
 # CCPP-009C2 Resume Checkpoint
 
+## Status
+
+CCPP-009C2 closeout is complete as of 2026-09-18.
+
+Do not restart CCPP-009C2. Do not regenerate the Rooster artwork or prepared
+atlas. Do not begin CCPP-009D from this checkpoint.
+
+This checkpoint now reflects the post-compaction closeout: retained browser
+evidence was preserved, the missing audit was created, a small dirty-session
+test-precondition correction was made, static checks were run, and the EOMD
+review ZIP was created.
+
 ## Scope
 
-Created early on 2026-09-18 for CCPP-009C2 after the provisional CCPP-009C1
-state.
+CCPP-009C2 finished the existing Match Result Kaplay interaction only:
 
-This milestone finishes the existing Match Result Kaplay interaction only:
-
-1. Fit readable compact choices inside the complete stage.
-2. Capture the actual browser-launch outcome and make only an evidenced small
-   launch/output correction if needed.
-3. Produce fresh integrated shove playback and mobile evidence when the bounded
-   browser run executes.
+1. Fit readable compact choices inside the complete projected stage.
+2. Capture and preserve actual browser-launch outcomes.
+3. Preserve fresh integrated normal-speed/slowed shove playback and mobile
+   evidence from the bounded browser run.
+4. Package current source, docs, tests, assets, and sanitized evidence for
+   review.
 
 No new Kaplay question screens, Review/submission animation, prediction scoring
 changes, session ownership changes, server prediction API changes, artwork
-regeneration, or broad platform redesign are in scope.
-
-## Inspected Source
-
-- `AGENTS.md`
-- `imports/ui/predictions/kaplay/matchResultMotion.ts`
-- `imports/ui/predictions/kaplay/matchResultRuntime.ts`
-- `imports/ui/predictions/kaplay/KaplayMatchResultPreview.tsx`
-- `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json`
-- `tests/unit/match-result-motion.test.ts`
-- `tests/e2e/kaplay-prediction-preview.spec.ts`
-- `scripts/run-playwright-tests.mjs`
-- `playwright.config.ts`
-- `tests/unit/test-launchers.test.ts`
-- `docs/AUDIT_009C1_Shove_Exit_Mobile_Evidence.md`
-- `docs/TEMP_009C1_Resume.md`
-- `docs/PLATFORM_Kaplay_Predictions.md`
-- `docs/PLATFORM_Testing.md`
-- `docs/CORE_Predictions.md`
-
-Initial `git status --short` was clean.
+regeneration, or broad platform redesign were added.
 
 ## Current Source And Asset State
 
@@ -45,12 +35,14 @@ regenerated:
 - generated source manifest:
   `imports/ui/predictions/kaplay/roosterShoveManifest.generated.json`
 - runtime atlas path:
-  `/assets/rooster/match-result/rooster-shove-atlas.png`
+  `public/assets/rooster/match-result/rooster-shove-atlas.png`
+- runtime manifest path:
+  `public/assets/rooster/match-result/rooster-shove-manifest.json`
 - sprite name: `rooster-shove`
 - run frames: `0, 1, 2, 3`
 - pushRun frames: `4, 5, 6, 7`
 
-The 009C1 motion corrections are present in source and must be preserved:
+The 009C1 motion corrections are preserved:
 
 - push starts from the contact endpoint;
 - contact-to-push movement is continuous;
@@ -58,99 +50,159 @@ The 009C1 motion corrections are present in source and must be preserved:
 - rejected-group clearance is projected;
 - total action remains approximately `0.76` seconds.
 
-The remaining compact layout defect is structural: the pure projection still
-returns a fixed `720 x 520` stage, and the React canvas still uses a fixed
-`18/13` displayed aspect. Compact card height is not derived from actual display
-scale and content, so sufficiently narrow canvases can make readable labels and
-wrapped selected/rejected stacks exceed the old stage arrangement.
+The 009C2 layout/runtime correction is present:
 
-## Chosen Layout Correction
+- `matchResultMotion.ts` derives compact minimum card height from displayed
+  `44px` controls and label fonts from displayed `16px` targets;
+- compact stage height is content-driven while logical stage width remains
+  `720`;
+- stage height is reserved for both initial and selected/rejected
+  arrangements;
+- the lower canvas width boundary around 272 CSS px is reserved;
+- selected/rejected stacks wrap long labels and preserve separation;
+- `matchResultRuntime.ts` initializes/draws/maps pointer input against the
+  projected stage;
+- `KaplayMatchResultPreview.tsx` measures canvas shell width and applies the
+  projected stage aspect ratio;
+- the browser spec writes 009C2 evidence paths and captures normal/slowed,
+  desktop, 390 px, and 360 px evidence.
 
-Use the existing projection as the single geometry model, but make compact
-stage height content-driven:
+## Prior Run Results
 
-- keep a stable logical stage width of `720`;
-- derive display scale from measured canvas CSS width divided by logical stage
-  width;
-- derive minimum logical card heights from CSS targets (`44px` selectable
-  height, `16px` primary labels, `14px` picked status);
-- wrap labels and picked text before placing cards;
-- compute initial and selected/rejected stack height before returning layout;
-- grow stage height when any complete static arrangement needs more than the
-  baseline height;
-- propagate returned stage dimensions to runtime drawing, pointer conversion,
-  canvas CSS aspect ratio, focus geometry, selected/rejected positions, Rooster
-  ground/contact/exit projection, and browser evidence measurements.
+Before closeout, the interrupted conversation reported:
 
-This preserves the accepted 009C1 motion logic while removing the old fixed
-desktop-height clipping assumption.
+- focused motion/layout and host tests: `47` passed;
+- `npm run typecheck`: passed;
+- `npm run lint`: passed;
+- `npm run lint:project`: passed;
+- browser test discovery: eight focused tests;
+- first browser attempt: exited before cases executed;
+- second permitted browser attempt: `7 passed / 1 failed`;
+- normal recording: `65` frames, approximately `2.594` seconds;
+- slowed recording: `117` frames, approximately `4.724` seconds;
+- 390 px viewport measurements:
+  - canvas width `314px`;
+  - stage `720 x 716`;
+  - labels approximately `16.14` CSS px;
+  - card heights approximately `47-72` CSS px.
 
-## Checks And Outcomes
+Retained logs verified the second browser run as `7 passed / 1 failed`, and
+closeout `ffprobe` verified `65` and `117` frames for the normal/slowed WebMs.
+The WebM files did not expose duration metadata to `ffprobe`, so durations
+remain previous-run reports.
 
-Checkpoint A completed.
+## Preserved Evidence
 
-Source changes made:
+Original retained evidence paths:
 
-- `matchResultMotion.ts` now derives compact minimum card height from the
-  `44px` displayed target and label fonts from the `16px` displayed target.
-- The pure projection now builds initial and all selected arrangements through
-  the same `projectChoice` path, reserves the tallest required compact stage,
-  and keeps a stable logical width of `720`.
-- Compact stage height reserves the requested lower canvas width boundary of
-  `272px` so ordinary 390px-to-360px style resizes do not need runtime
-  recreation to avoid clipping.
-- The selected/rejected arrangement keeps the selected answer above the
-  rejected group, grows the stage for wrapped labels, and derives Rooster lane
-  height from the rejected stack while preserving 009C1 horizontal contact and
-  exit timing.
-- `matchResultRuntime.ts` initializes Kaplay with the projected stage height,
-  draws against the projected stage, maps pointer coordinates through the
-  projected stage, and exposes content bounds in test-only debug evidence.
-- `KaplayMatchResultPreview.tsx` measures the actual canvas shell width and
-  applies the projected `stage.width / stage.height` aspect ratio instead of
-  the fixed `18/13` canvas ratio.
-- `kaplay-prediction-preview.spec.ts` now writes default 009C2 evidence paths
-  and captures mobile initial, Draw rejected, settled, and crop evidence at
-  390px and 360px in one prediction session.
+- `/tmp/rugby-rooster-ccpp009c2-browser-20260918`
+- `/tmp/rugby-rooster-ccpp009c2-browser-rerun-20260918`
 
-Checks run:
+Closeout copied both trees to:
 
-- `npm run test:unit -- tests/unit/match-result-motion.test.ts`
-  - passed: 1 file, 25 tests.
-- `npm run test:unit -- tests/unit/match-result-motion.test.ts tests/unit/prediction-presentation-host.test.ts`
-  - passed: 2 files, 47 tests.
-- `npm run typecheck`
+`/tmp/rugby-rooster-ccpp009c2-preserved-closeout-20260918`
+
+The copied evidence contains launch/exit records, runner/server logs,
+process-event records, normal/slowed WebMs, contact sheets, extracted frames,
+desktop screenshots, 360/390 mobile screenshots/crops, mobile measurement JSON,
+and dirty-session failure screenshot/video/error context.
+
+Raw traces and raw process snapshots remain private and are not included in the
+sanitized review ZIP.
+
+## Dirty-Session Browser Failure
+
+The retained failure artifact confirms the test reached the existing
+selected-answer presentation:
+
+- selected answer was visible;
+- the selected radio was checked;
+- `Change my selection` was visible;
+- projected selected cards were intentionally non-hit-testable.
+
+The failed sequence attempted `clickCanvasChoice(page, 0)` without first using
+`Change my selection`. That explains
+`Kaplay choice layout is not currently hit-testable`.
+
+Closeout changed only `tests/e2e/kaplay-prediction-preview.spec.ts`:
+
+- click `Change my selection`;
+- wait for three hit-testable projected choices and no selected-only card;
+- then use actual canvas pointer input through `clickCanvasChoice(page, 0)`;
+- keep dirty built-in/custom-answer, revision, failure-recovery, and
+  explicit-save assertions.
+
+Test precondition updated after the 7/8 run; browser correction not rerun.
+
+## Visual Evidence Notes
+
+Normal-speed footage is the primary integrated playback evidence. Slowed
+footage and contact sheets supplement it.
+
+Closeout inspection confirmed:
+
+- head-first Rooster entry;
+- leg cycling;
+- contact in the contact sheet;
+- continuous push;
+- complete exit;
+- selected answer remaining after exit;
+- compact text/target measurements and content fit.
+
+State distinction to preserve:
+
+- `mobile-390-match-result-preview.png` is an unselected initial choice state.
+- `mobile-360-choice-area-crop.png` is restored choices with the previous Draw
+  selection still highlighted, not a fresh untouched initial state.
+
+Do not relabel one as the other.
+
+## Closeout Checks
+
+Checks executed during closeout:
+
+- `file` on representative retained media:
   - passed.
-- `npm run lint`
+- `identify -format '%f %wx%h\n'` on retained PNG evidence:
   - passed.
-- `npm run lint:project`
+- `ffprobe -v error -count_frames ... match-result-shove-normal-speed.webm`:
+  - passed; `65` frames.
+- `ffprobe -v error -count_frames ... match-result-shove-slow-review.webm`:
+  - passed; `117` frames.
+- `ffprobe` on the dirty-session failure video:
+  - passed; duration `14.000000` seconds, `350` frames.
+- `npm run typecheck`:
   - passed.
+- `npm run lint`:
+  - passed.
+- `npm run lint:project`:
+  - passed.
+- `./node_modules/.bin/prettier --check` on changed source/docs:
+  - passed.
+- `git diff --check`:
+  - passed after final documentation edits.
 
-Planned checkpoint B:
+No closeout browser tests were run. No unit/component tests were rerun during
+closeout because only the e2e test sequence and documentation changed after the
+previous reported unit/component pass.
 
-- inspect launcher discovery/output capture before browser execution;
-- one instrumented browser batch;
-- one additional browser batch only after a directly evidenced small correction.
+## Review Package
 
-Planned checkpoint C:
+Review archive:
 
-- final docs/checks;
-- EOMD package with current source, tests, docs, evidence, and manifest.
+`rugby-rooster-ccpp009c2-compact-layout-playback-eomd-20260918.zip`
 
-## Browser-Run Budget
+The archive includes current source/tests/docs/assets, fresh normal/slowed
+recordings, desktop/mobile screenshots and measurements, sanitized failure and
+launch evidence, and source/run/evidence manifests.
 
-CCPP-009C1 spent its two browser attempts and recorded zero test cases executed.
-For 009C2 the allowed budget is:
+Package verification completed with:
 
-- one planned instrumented browser batch after unit/static checks;
-- one further batch only after a directly justified correction.
-
-Test listing or static launcher inspection does not count as a browser batch.
-Failed launches do count. Source/docs will not be edited while a watched browser
-batch is running.
+- `zipinfo -t`
+- `unzip -t`
+- `ffprobe` on extracted ZIP media entries
 
 ## Next Action
 
-Implement checkpoint A: content-driven compact layout, consistent runtime/canvas
-stage propagation, and expanded pure/component regressions for the requested
-canvas widths and selection states.
+Stop. Do not start another browser run or another milestone from this
+checkpoint.
