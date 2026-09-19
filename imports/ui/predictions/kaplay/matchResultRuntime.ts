@@ -46,6 +46,11 @@ export interface MatchResultRuntimeSnapshot {
   readonly choices: readonly MatchResultRuntimeChoice[];
 }
 
+export interface KaplayMatchResultRuntimeViewport {
+  readonly cssWidth: number;
+  readonly stage: MotionRect;
+}
+
 export interface KaplayMatchResultRuntimeHandle {
   readonly dispose: () => void;
   readonly update: (snapshot: MatchResultRuntimeSnapshot) => void;
@@ -54,6 +59,7 @@ export interface KaplayMatchResultRuntimeHandle {
 export interface KaplayMatchResultRuntimeInput {
   readonly canvas: HTMLCanvasElement;
   readonly initialSnapshot: MatchResultRuntimeSnapshot;
+  readonly initialViewport: KaplayMatchResultRuntimeViewport;
   readonly isSelectionAllowed: () => boolean;
   readonly onFailure: (error: Error) => void;
   readonly onSelect: (value: MatchResultChoiceValue) => void;
@@ -96,6 +102,19 @@ export interface KaplayMatchResultDebugLayout {
   readonly rejectedGroup: MotionRect | null;
   readonly selectedChoice: MotionRect | null;
   readonly stage: MotionRect;
+  readonly synchronized: boolean;
+  readonly viewport: {
+    readonly canvasCssBounds: MotionRect;
+    readonly drawingBuffer: {
+      readonly height: number;
+      readonly width: number;
+    };
+    readonly engine: {
+      readonly height: number;
+      readonly width: number;
+    };
+    readonly renderedContentBounds: MotionRect | null;
+  };
 }
 
 declare global {
@@ -168,6 +187,7 @@ export const createKaplayMatchResultRuntime = async ({
   failOnNextPointer = false,
   failRequiredSpriteLoad = false,
   initialSnapshot,
+  initialViewport,
   isSelectionAllowed,
   kaplay,
   motionTimeScale = 1,
@@ -189,10 +209,7 @@ export const createKaplayMatchResultRuntime = async ({
   let pointerShouldFail = failOnNextPointer;
   const eventControllers: KEventController[] = [];
   const abortController = new AbortController();
-  const initialLayout = projectMatchResultLayout(
-    initialSnapshot,
-    measuredCanvasCssWidth(canvas),
-  );
+  const configuredStage = initialViewport.stage;
 
   const k = kaplay({
     background: [246, 244, 237],
@@ -201,15 +218,16 @@ export const createKaplayMatchResultRuntime = async ({
     focus: false,
     font: 'sans-serif',
     global: false,
-    height: initialLayout.stage.height,
+    height: configuredStage.height,
     letterbox: true,
     loadingScreen: false,
     maxFPS: 45,
     pixelDensity: conservativePixelDensity(),
     stretch: true,
     touchToMouse: false,
-    width: initialLayout.stage.width,
+    width: configuredStage.width,
   } satisfies KAPLAYOpt);
+  applyCanvasDisplayGeometry(canvas, configuredStage);
 
   const dispose = () => {
     if (disposed) {
@@ -267,7 +285,17 @@ export const createKaplayMatchResultRuntime = async ({
             snapshot,
             measuredCanvasCssWidth(canvas),
           );
+
+          if (!stagesMatch(layout.stage, configuredStage)) {
+            return;
+          }
+
           const pointer = pointerPositionInGame(canvas, event, layout.stage);
+
+          if (!pointer) {
+            return;
+          }
+
           const choice = choiceAtPoint(layout, pointer);
 
           if (choice) {
@@ -335,6 +363,7 @@ export const createKaplayMatchResultRuntime = async ({
             snapshot,
             activeEffect,
             canvas,
+            configuredStage,
             testControlsEnabled === true,
           );
         } catch (error) {
@@ -394,6 +423,18 @@ const measuredCanvasCssWidth = (canvas: HTMLCanvasElement): number => {
   return rect.width > 0 ? rect.width : MATCH_RESULT_SCENE_WIDTH;
 };
 
+const applyCanvasDisplayGeometry = (
+  canvas: HTMLCanvasElement,
+  stage: MotionRect,
+) => {
+  canvas.style.width = '100%';
+  canvas.style.height = 'auto';
+  canvas.style.aspectRatio = `${stage.width} / ${stage.height}`;
+};
+
+const stagesMatch = (first: MotionRect, second: MotionRect): boolean =>
+  first.width === second.width && first.height === second.height;
+
 const loadRequiredRoosterAtlas = async (
   k: KAPLAYCtx,
   failRequiredSpriteLoad: boolean,
@@ -430,12 +471,66 @@ const pointerPositionInGame = (
   canvas: HTMLCanvasElement,
   event: PointerEvent,
   stage: MotionRect,
-): { readonly x: number; readonly y: number } => {
+): { readonly x: number; readonly y: number } | null => {
   const rect = canvas.getBoundingClientRect();
+  const contentRect = renderedContentRect(rect, stage);
+
+  if (!contentRect) {
+    return null;
+  }
+
+  const localX = event.clientX - rect.left - contentRect.x;
+  const localY = event.clientY - rect.top - contentRect.y;
+
+  if (
+    localX < 0 ||
+    localX > contentRect.width ||
+    localY < 0 ||
+    localY > contentRect.height
+  ) {
+    return null;
+  }
 
   return {
-    x: ((event.clientX - rect.left) / rect.width) * stage.width,
-    y: ((event.clientY - rect.top) / rect.height) * stage.height,
+    x: (localX / contentRect.width) * stage.width,
+    y: (localY / contentRect.height) * stage.height,
+  };
+};
+
+const renderedContentRect = (
+  rect: DOMRect,
+  stage: MotionRect,
+): MotionRect | null => {
+  if (
+    rect.width <= 0 ||
+    rect.height <= 0 ||
+    stage.width <= 0 ||
+    stage.height <= 0
+  ) {
+    return null;
+  }
+
+  const canvasAspect = rect.width / rect.height;
+  const stageAspect = stage.width / stage.height;
+
+  if (canvasAspect > stageAspect) {
+    const width = rect.height * stageAspect;
+
+    return {
+      height: rect.height,
+      width,
+      x: (rect.width - width) / 2,
+      y: 0,
+    };
+  }
+
+  const height = rect.width / stageAspect;
+
+  return {
+    height,
+    width: rect.width,
+    x: 0,
+    y: (rect.height - height) / 2,
   };
 };
 
@@ -444,12 +539,30 @@ const drawScene = (
   snapshot: MatchResultRuntimeSnapshot,
   activeEffect: ShoveEffect | null,
   canvas: HTMLCanvasElement,
+  configuredStage: MotionRect,
   testControlsEnabled: boolean,
 ) => {
   const layout = projectMatchResultLayout(
     snapshot,
     measuredCanvasCssWidth(canvas),
   );
+  const synchronized = stagesMatch(layout.stage, configuredStage);
+
+  if (!synchronized) {
+    k.drawRect({
+      color: k.rgb(247, 244, 234),
+      height: configuredStage.height,
+      pos: k.vec2(0, 0),
+      width: configuredStage.width,
+    });
+
+    if (testControlsEnabled) {
+      publishDebugLayout(k, canvas, layout, configuredStage, synchronized);
+    }
+
+    return;
+  }
+
   const shoveProjection = activeEffect
     ? projectShoveMotion(activeEffect, layout)
     : null;
@@ -495,26 +608,56 @@ const drawScene = (
   }
 
   if (testControlsEnabled) {
-    window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__ = {
-      choices: layout.choices.map((choice) => ({
-        hitTestable: choice.hitTestable,
-        isRejected: choice.isRejected,
-        isSelected: choice.isSelected,
-        label: choice.choice.label,
-        labelCssFontSize: choice.labelBlock.fontSize * layout.displayScale,
-        labelLines: choice.labelBlock.lines,
-        rect: choice.rect,
-        targetCssHeight: choice.rect.height * layout.displayScale,
-        value: choice.choice.value,
-      })),
-      contentBounds: layout.contentBounds,
-      displayScale: layout.displayScale,
-      isCompact: layout.isCompact,
-      rejectedGroup: layout.rejectedGroup,
-      selectedChoice: layout.selectedChoice?.rect ?? null,
-      stage: layout.stage,
-    };
+    publishDebugLayout(k, canvas, layout, configuredStage, synchronized);
   }
+};
+
+const publishDebugLayout = (
+  k: KAPLAYCtx,
+  canvas: HTMLCanvasElement,
+  layout: ReturnType<typeof projectMatchResultLayout>,
+  configuredStage: MotionRect,
+  synchronized: boolean,
+) => {
+  const canvasRect = canvas.getBoundingClientRect();
+
+  window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__ = {
+    choices: layout.choices.map((choice) => ({
+      hitTestable: synchronized && choice.hitTestable,
+      isRejected: choice.isRejected,
+      isSelected: choice.isSelected,
+      label: choice.choice.label,
+      labelCssFontSize: choice.labelBlock.fontSize * layout.displayScale,
+      labelLines: choice.labelBlock.lines,
+      rect: choice.rect,
+      targetCssHeight: choice.rect.height * layout.displayScale,
+      value: choice.choice.value,
+    })),
+    contentBounds: layout.contentBounds,
+    displayScale: layout.displayScale,
+    isCompact: layout.isCompact,
+    rejectedGroup: layout.rejectedGroup,
+    selectedChoice: layout.selectedChoice?.rect ?? null,
+    stage: layout.stage,
+    synchronized,
+    viewport: {
+      canvasCssBounds: {
+        height: canvasRect.height,
+        width: canvasRect.width,
+        x: canvasRect.left,
+        y: canvasRect.top,
+      },
+      drawingBuffer: {
+        height: canvas.height,
+        width: canvas.width,
+      },
+      engine: {
+        height: k.height(),
+        width: k.width(),
+      },
+      renderedContentBounds: renderedContentRect(canvasRect, configuredStage),
+    },
+  };
 };
 
 const offsetRect = (rect: MotionRect, offsetX: number): MotionRect => ({

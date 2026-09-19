@@ -313,6 +313,19 @@ The current browser suite covers:
   dirty saved-session case reached the selected-answer presentation and tried a
   canvas choice before using the visible `Change my selection` action. The test
   precondition was corrected after the run and was not rerun.
+- CCPP-009C3 adds resize-coordinate synchronization coverage for the Kaplay
+  Match Result surface. Focused unit/component coverage verifies
+  desktop-to-compact-to-desktop runtime replacement, compact-to-compact updates
+  without replacement, ordinary snapshot updates without replacement, stale
+  replacement isolation, Off/unmount-safe cancellation, late first measurement,
+  and selected-answer preservation when resize interrupts motion. The fresh
+  focused browser run on 2026-09-19 executed nine cases with `7 passed / 2
+failed`; the corrected dirty saved-session case passed. The new resize journey
+  timed out before producing its four-point measurement JSON, and the
+  reduced-motion/mobile evidence path fell back to Standard before a post-run
+  measurement-deferral correction could be rerun. Browser resize acceptance
+  remains pending a future focused rerun. See
+  `docs/AUDIT_009C3_Resize_Interaction_Verification.md`.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

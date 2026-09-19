@@ -183,9 +183,9 @@ const expectChoicesDoNotOverlap = (choices: readonly ProjectedChoice[]) => {
       comparisonIndex < choices.length;
       comparisonIndex += 1
     ) {
-      expect(
-        rectsOverlap(choice.rect, choices[comparisonIndex].rect),
-      ).toBe(false);
+      expect(rectsOverlap(choice.rect, choices[comparisonIndex].rect)).toBe(
+        false,
+      );
     }
   });
 };
@@ -574,6 +574,34 @@ describe('match result rooster shove projection', () => {
     expectLayoutStaticContentFits(afterResize);
 
     for (const layout of [beforeResize, afterResize]) {
+      for (const choice of layout.choices) {
+        expect(
+          choiceAtPoint(layout, {
+            x: choice.rect.x + choice.rect.width / 2,
+            y: choice.rect.y + choice.rect.height / 2,
+          })?.value,
+        ).toBe(choice.choice.value);
+      }
+    }
+  });
+
+  it('keeps projected hit testing coherent across desktop compact desktop breakpoint changes', () => {
+    const restored = longNameSnapshot({ choicePresentation: 'choices' });
+    const desktop = projectMatchResultLayout(restored, 720);
+    const compact = projectMatchResultLayout(restored, 390);
+    const narrowerCompact = projectMatchResultLayout(restored, 360);
+    const returnedDesktop = projectMatchResultLayout(restored, 720);
+
+    expect(desktop.isCompact).toBe(false);
+    expect(compact.isCompact).toBe(true);
+    expect(narrowerCompact.isCompact).toBe(true);
+    expect(returnedDesktop.stage).toEqual(desktop.stage);
+    expect(compact.stage.height).toBeGreaterThan(desktop.stage.height);
+    expect(narrowerCompact.stage).toEqual(compact.stage);
+
+    for (const layout of [desktop, compact, narrowerCompact, returnedDesktop]) {
+      expectLayoutStaticContentFits(layout);
+
       for (const choice of layout.choices) {
         expect(
           choiceAtPoint(layout, {

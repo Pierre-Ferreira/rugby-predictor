@@ -112,6 +112,11 @@
   compact stage layout, fresh retained playback/mobile evidence, recorded
   `7 passed / 1 failed` browser result, unrerun dirty-session test
   precondition correction, static closeout checks, and review archive evidence.
+- `docs/AUDIT_009C3_Resize_Interaction_Verification.md` - CCPP-009C3
+  resize-coordinate synchronization implementation, installed Kaplay API
+  findings, focused unit/component checks, fresh `7 passed / 2 failed` browser
+  evidence, corrected dirty-session pass, unresolved resize browser acceptance,
+  and review archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -162,6 +167,9 @@
 - `docs/TEMP_009C2_Resume.md` - temporary CCPP-009C2 closeout checkpoint for
   compact layout playback evidence, dirty-session test precondition correction,
   verification, and packaging handoff.
+- `docs/TEMP_009C3_Resume.md` - temporary CCPP-009C3 checkpoint for resize
+  synchronization, focused checks, browser evidence, documentation, and
+  packaging handoff.
 
 ## Application Entry Points
 
@@ -293,7 +301,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   query helper.
 - `imports/ui/predictions/kaplay/` - CCPP-009B/009B1 lazy Kaplay Match Result
   preview component, host attempt controller contract, runtime adapter, and
-  CCPP-009C rooster shove motion/manifest helpers.
+  CCPP-009C rooster shove motion/manifest helpers, including CCPP-009C3
+  measured-viewport runtime replacement and pointer transform handling.
 - `imports/ui/pages/PredictionEntryPage.tsx` - standard sequential prediction
   route host, shared session host, Standard renderer, Kaplay presentation host,
   Intro, numbered steps, Review/Edit UI, and read-only locked-entry UI that
@@ -344,7 +353,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/prediction-presentation-mode.test.ts` - CCPP-009B preview
   effective-mode and preference-storage unit tests.
 - `tests/unit/prediction-presentation-host.test.ts` - CCPP-009B React DOM
-  presentation-host lifecycle tests with mocked runtime factories.
+  presentation-host lifecycle tests with mocked runtime factories, including
+  CCPP-009C3 measured resize/replacement regressions.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
@@ -374,7 +384,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   mode switching, reduced motion, delayed initialization cancellation, runtime
   failure fallback, graphics-context loss, keyboard bridge, legacy enabled-flag
   behavior, 009C/009C1/009C2 Rooster shove playback evidence, compact mobile
-  layout measurements, and dirty saved-session preservation.
+  layout measurements, CCPP-009C3 resize journey coverage, and dirty
+  saved-session preservation.
 - `tests/e2e/results.spec.ts` - browser tests for result admin provisional
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only

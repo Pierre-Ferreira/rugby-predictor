@@ -352,10 +352,16 @@ export const PredictionPresentationHost = ({
       };
 
       const startRuntime = (input: KaplayMatchResultRuntimeFactoryInput) => {
+        if (attempt.status === 'cancelled' || attempt.status === 'failed') {
+          return () => undefined;
+        }
+
         const runtimeStartId = runtimeStartCounter + 1;
         runtimeStartCounter = runtimeStartId;
         activeRuntimeStartId = runtimeStartId;
         disposeAdoptedRuntime();
+        attempt.status = 'loading';
+        updateStateForAttempt('loading', null);
 
         let localHandleDisposed = false;
         const disposeLocalHandle = (handle: KaplayMatchResultRuntimeHandle) => {

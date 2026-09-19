@@ -11,6 +11,9 @@ contact-to-push continuity, full-character exit projection, compact readability
 projection, and intended browser evidence path. CCPP-009C2 makes the compact
 stage height content-driven, propagates that stage through runtime/canvas
 sizing, and preserves fresh integrated playback and mobile layout evidence.
+CCPP-009C3 synchronizes runtime logical dimensions with measured desktop and
+compact layout changes by replacing only the current runtime generation when the
+projected stage dimensions genuinely change.
 
 The implementation proves lazy loading, mode switching, reduced-motion
 handling, failure fallback, cleanup, and shared-session integration. It does
@@ -33,6 +36,12 @@ APIs:
 - `ctx.quit()` for engine teardown.
 - `ctx.onError(...)` and `ctx.onLoadError(...)` for runtime and asset-load
   failure handling.
+- `ctx.width()` and `ctx.height()` for test-control-gated evidence of the
+  configured logical viewport.
+- `ctx.onResize(...)` exists as an observer in the installed declarations, but
+  no supported logical-size setter is declared. Resize synchronization therefore
+  uses bounded runtime replacement for logical viewport changes instead of
+  assuming an in-place Kaplay resize API.
 
 CCPP-009B does not load Kaplay from a CDN and does not replace Meteor's
 bundler.
@@ -195,6 +204,23 @@ When a saved answer is already selected, the canvas presents the selected card
 as intentionally non-hit-testable; the existing `Change my selection` action
 restores the selectable choices before another canvas choice can be made.
 
+Runtime startup waits for a positive measured canvas-shell width. React projects
+the content-driven stage from that measured width and passes the projected
+logical viewport to the runtime. Ordinary snapshot updates, focus changes,
+message changes, selection updates, restored choices, and compact-to-compact
+CSS width changes keep the existing runtime when the projected stage dimensions
+remain equal. Desktop-to-compact and compact-to-desktop breakpoint changes
+replace only the runtime generation below the shared prediction-session owner.
+
+The runtime records the transform used for browser evidence: projected stage
+coordinates render into the content rectangle inside the actual canvas CSS
+bounds. Pointer input uses the inverse of that transform. Letterbox bars,
+zero-sized measurements, and stale-stage transitions are not interactive.
+
+If resize interrupts the short shove effect, the replacement is seeded from the
+current selected snapshot and the transient effect is cancelled. The selected
+answer remains visible, but the shove is not replayed as a new selection.
+
 Intro, Tries, Conversions, Penalty Kicks, Drop Goals, Cards, First Try,
 Highest-Scoring Half, Half-Time Leader, custom questions, Review, and locked
 views use Standard in 009B.
@@ -292,6 +318,14 @@ departure, retry replacement, runtime failure, or unmount disposes it. Strict
 Mode setup/cleanup/re-setup invalidates obsolete runtime-start work without
 disposing the surviving runtime.
 
+When the measured layout crosses a breakpoint and the projected logical stage
+changes, the preview component asks the current attempt to start a new runtime
+generation. The host marks the attempt loading for that generation, disposes the
+previous adopted handle once, ignores stale callbacks, and disposes any late
+obsolete handle that resolves after a newer generation or cancellation. The
+shared `usePredictionSession(...)` owner is not remounted for these renderer
+replacements.
+
 If the runtime adapter throws after creating a Kaplay context but before
 returning a handle, it calls the same engine teardown path before rejecting.
 
@@ -383,6 +417,17 @@ was corrected after the run and was not rerun because the browser budget was
 exhausted. See
 `docs/AUDIT_009C2_Compact_Layout_Playback.md`.
 
+CCPP-009C3 adds focused projection and React lifecycle regressions for
+desktop-to-compact-to-desktop stage replacement, compact-to-compact updates
+without replacement, ordinary snapshot updates without replacement, stale
+replacement isolation, Off during replacement, late first measurement, and
+selected-answer preservation when resize interrupts motion. Its fresh focused
+browser run executed nine Kaplay cases with `7 passed / 2 failed`; the corrected
+dirty saved-session case passed, but the new resize journey and a reduced-motion
+mobile evidence path failed before a post-run measurement-deferral correction
+could be rerun. See
+`docs/AUDIT_009C3_Resize_Interaction_Verification.md`.
+
 ## Limitations
 
 - Match Result is the only Kaplay screen.
@@ -391,6 +436,10 @@ exhausted. See
   mobile evidence, but the recorded focused browser result remains `7 passed /
 1 failed`; the unrerun dirty-session test correction must not be treated as
   full browser acceptance.
+- CCPP-009C3 source and focused unit/component checks are complete, and the
+  corrected dirty-session browser case passed, but full resize browser
+  acceptance remains unresolved until the focused browser spec is rerun after
+  the measurement-deferral correction.
 - No Review/submission animation is included.
 - No FPS benchmark or automatic quality tier is included.
 - No production rollout is included.

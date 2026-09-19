@@ -75,6 +75,14 @@ normal/slowed Match Result playback and 360/390-style mobile layout, but the
 recorded focused browser run remains `7 passed / 1 failed` after an unrerun
 dirty-session test-precondition correction.
 
+CCPP-009C3 keeps the same product surface and synchronizes measured resize
+geometry below the shared prediction session. Desktop/compact breakpoint changes
+may replace only the Kaplay runtime generation; they must not clear answers,
+Review edit context, message variants, captured revision, saved baseline,
+dirty/conflict state, or submission state. The corrected dirty saved-session
+browser case passed in the fresh focused run, but full resize browser acceptance
+remains pending after the recorded `7 passed / 2 failed` result.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -262,6 +270,11 @@ Switching or falling back between experiences must preserve the player's
 answers. Kaplay initialization or runtime failure must never lose answers, block
 progression, or prevent submission. Nothing essential to successful prediction
 submission may depend on an animation completing.
+
+Renderer-only resize replacement is allowed when an animated runtime's logical
+viewport genuinely changes, but it remains below the shared session owner and
+must make no prediction write. If resize interrupts a transient animation, the
+current selected answer survives even when the visual effect is cancelled.
 
 Player-facing controls should be framed around animation, such as "Animations
 On" and "Animations Off." Implementation terms such as `kaplay` and `standard`

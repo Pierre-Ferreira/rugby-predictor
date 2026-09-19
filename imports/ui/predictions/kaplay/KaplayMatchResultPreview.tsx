@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { matchResultLabel, teamDisplayName } from '../standardPredictionState';
 import { supportsKaplayPredictionStep } from '../presentationMode';
@@ -104,9 +111,7 @@ export const KaplayMatchResultPreview = ({
   const [focusedValue, setFocusedValue] =
     useState<MatchResultChoiceValue | null>(null);
   const [selectionEffectId, setSelectionEffectId] = useState(0);
-  const [canvasCssWidth, setCanvasCssWidth] = useState(
-    MATCH_RESULT_SCENE_WIDTH,
-  );
+  const [canvasCssWidth, setCanvasCssWidth] = useState<number | null>(null);
   const choicesAreVisible = !selectedValue || choicesVisible;
   const snapshot = useMemo(
     () =>
@@ -119,15 +124,20 @@ export const KaplayMatchResultPreview = ({
   );
   const runtimeSnapshotRef = useRef(snapshot);
   const previousSessionKeyRef = useRef(sessionKey);
+  const projectedCanvasCssWidth = canvasCssWidth ?? MATCH_RESULT_SCENE_WIDTH;
+  const hasMeasuredCanvas = canvasCssWidth !== null;
   const projectedLayout = useMemo(
-    () => projectMatchResultLayout(snapshot, canvasCssWidth),
-    [canvasCssWidth, snapshot],
+    () => projectMatchResultLayout(snapshot, projectedCanvasCssWidth),
+    [projectedCanvasCssWidth, snapshot],
   );
+  const runtimeStageWidth = projectedLayout.stage.width;
+  const runtimeStageHeight = projectedLayout.stage.height;
+  const runtimeViewportKey = `${runtimeStageWidth}:${runtimeStageHeight}`;
   const canvasStyle = useMemo(
     () => ({
-      aspectRatio: `${projectedLayout.stage.width} / ${projectedLayout.stage.height}`,
+      aspectRatio: `${runtimeStageWidth} / ${runtimeStageHeight}`,
     }),
-    [projectedLayout.stage.height, projectedLayout.stage.width],
+    [runtimeStageHeight, runtimeStageWidth],
   );
 
   useEffect(() => {
@@ -169,7 +179,9 @@ export const KaplayMatchResultPreview = ({
       }
 
       setCanvasCssWidth((currentWidth) =>
-        Math.abs(currentWidth - nextWidth) >= 1 ? nextWidth : currentWidth,
+        currentWidth === null || Math.abs(currentWidth - nextWidth) >= 1
+          ? nextWidth
+          : currentWidth,
       );
     };
 
@@ -212,10 +224,14 @@ export const KaplayMatchResultPreview = ({
     [attempt],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
 
     if (!canvas) {
+      return undefined;
+    }
+
+    if (!hasMeasuredCanvas) {
       return undefined;
     }
 
@@ -226,6 +242,16 @@ export const KaplayMatchResultPreview = ({
     const stopRuntime = attempt.startRuntime({
       canvas,
       initialSnapshot,
+      initialViewport: {
+        cssWidth:
+          canvas.getBoundingClientRect().width || MATCH_RESULT_SCENE_WIDTH,
+        stage: {
+          height: runtimeStageHeight,
+          width: runtimeStageWidth,
+          x: 0,
+          y: 0,
+        },
+      },
       isSelectionAllowed: () =>
         isRuntimeMountActive &&
         attempt.isCurrent() &&
@@ -255,7 +281,15 @@ export const KaplayMatchResultPreview = ({
       isRuntimeMountActive = false;
       stopRuntime();
     };
-  }, [attempt, selectChoice, testControlsEnabled]);
+  }, [
+    attempt,
+    hasMeasuredCanvas,
+    runtimeStageHeight,
+    runtimeStageWidth,
+    runtimeViewportKey,
+    selectChoice,
+    testControlsEnabled,
+  ]);
 
   const questionId = 'kaplay-match-result-question';
   const helperId = 'kaplay-match-result-helper';

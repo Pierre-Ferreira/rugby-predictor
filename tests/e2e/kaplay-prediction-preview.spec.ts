@@ -230,7 +230,7 @@ const markStage = (
 
 const evidenceScreenshotPath = (name: string) => {
   if (!evidenceDir) {
-    return `test-results/ccpp009c2/${name}`;
+    return `test-results/ccpp009c3/${name}`;
   }
 
   const screenshotDir = join(evidenceDir, 'browser-screenshots');
@@ -241,8 +241,8 @@ const evidenceScreenshotPath = (name: string) => {
 
 const evidenceArtifactPath = (name: string) => {
   if (!evidenceDir) {
-    mkdirSync('test-results/ccpp009c2', { recursive: true });
-    return `test-results/ccpp009c2/${name}`;
+    mkdirSync('test-results/ccpp009c3', { recursive: true });
+    return `test-results/ccpp009c3/${name}`;
   }
 
   const artifactDir = join(evidenceDir, 'browser-artifacts');
@@ -252,7 +252,7 @@ const evidenceArtifactPath = (name: string) => {
 };
 
 const uniqueEmail = (label: string) =>
-  `ccpp009c2-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
+  `ccpp009c3-e2e-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}@example.test`;
 
 const uniqueLabel = (label: string) =>
   `${label} ${Date.now().toString(36)}${Math.random().toString(16).slice(2, 6)}`;
@@ -557,7 +557,29 @@ const waitForKaplayDebugLayout = async (page: Page) => {
       return (
         Boolean(layout) &&
         Array.isArray(layout?.choices) &&
-        layout.choices.length > 0
+        layout.choices.length > 0 &&
+        layout.synchronized === true &&
+        layout.viewport.renderedContentBounds !== null &&
+        layout.viewport.engine.width === layout.stage.width &&
+        layout.viewport.engine.height === layout.stage.height
+      );
+    },
+    undefined,
+    { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
+  );
+};
+
+const waitForHitTestableChoices = async (page: Page) => {
+  await waitForKaplayDebugLayout(page);
+  await page.waitForFunction(
+    () => {
+      const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
+
+      return (
+        layout?.synchronized === true &&
+        layout.selectedChoice === null &&
+        layout.choices.length === 3 &&
+        layout.choices.every((choice) => choice.hitTestable)
       );
     },
     undefined,
@@ -603,15 +625,24 @@ const clickCanvasChoice = async (page: Page, choiceIndex: 0 | 1 | 2) => {
     return {
       centerX: projectedChoice.rect.x + projectedChoice.rect.width / 2,
       centerY: projectedChoice.rect.y + projectedChoice.rect.height / 2,
+      content: layout.viewport.renderedContentBounds,
       stageHeight: layout.stage.height,
       stageWidth: layout.stage.width,
     };
   }, choiceIndex);
 
+  if (!choice.content) {
+    throw new Error('Kaplay rendered content bounds are not available.');
+  }
+
   await canvas.click({
     position: {
-      x: (choice.centerX / choice.stageWidth) * box.width,
-      y: (choice.centerY / choice.stageHeight) * box.height,
+      x:
+        choice.content.x +
+        (choice.centerX / choice.stageWidth) * choice.content.width,
+      y:
+        choice.content.y +
+        (choice.centerY / choice.stageHeight) * choice.content.height,
     },
   });
 };
@@ -630,9 +661,13 @@ const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
       }
 
       return (
+        layout.synchronized === true &&
+        layout.viewport.renderedContentBounds !== null &&
+        layout.viewport.engine.width === layout.stage.width &&
+        layout.viewport.engine.height === layout.stage.height &&
         Math.abs(
           layout.displayScale -
-            canvas.getBoundingClientRect().width / layout.stage.width,
+            layout.viewport.renderedContentBounds.width / layout.stage.width,
         ) < 0.01
       );
     },
@@ -655,6 +690,10 @@ const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
 
     return currentLayout;
   });
+  const selectedValue = await page
+    .locator('[data-testid="kaplay-match-result-choice-bridge"] input:checked')
+    .evaluate((input: HTMLInputElement) => input.value)
+    .catch(() => null);
 
   return {
     canvasCss: {
@@ -664,6 +703,7 @@ const collectKaplayLayoutEvidence = async (page: Page, label: string) => {
     label,
     layout,
     measuredAt: utcNow(),
+    selectedValue,
     viewport: page.viewportSize(),
   };
 };
@@ -1097,6 +1137,147 @@ test.describe('Kaplay prediction preview', () => {
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
       `You picked ${team2}`,
     );
+  });
+
+  test('keeps canvas coordinates synchronized across desktop compact desktop resizing', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: 900, width: 1280 });
+    const measurements: BrowserEvidenceEntry[] = [];
+    const longTeam1 = `${uniqueLabel('Cape Town Longform Rugby Football Club')} XV`;
+    const longTeam2 = `${uniqueLabel('Johannesburg Longform Rugby Football Club')} XV`;
+    const { fixtureId, team1, team2 } = await createPredictionAtMatchResult(
+      page,
+      'kaplay-resize-sync',
+      {
+        team1: longTeam1,
+        team2: longTeam2,
+      },
+    );
+
+    await waitForKaplayReady(page);
+
+    const collectResizeEvidence = async (
+      label: string,
+      screenshotName: string,
+      cropName: string,
+      observedPointerResult: string | null,
+    ) => {
+      const measurement = await collectKaplayLayoutEvidence(page, label);
+
+      await page.screenshot({
+        path: evidenceScreenshotPath(screenshotName),
+      });
+      await screenshotCanvasCrop(page, cropName);
+
+      measurements.push({
+        ...measurement,
+        observedPointerResult,
+      });
+
+      for (const choice of measurement.layout.choices) {
+        expect(choice.labelCssFontSize).toBeGreaterThanOrEqual(15.99);
+        expect(choice.targetCssHeight).toBeGreaterThanOrEqual(43.99);
+      }
+
+      expect(measurement.layout.viewport.engine).toEqual({
+        height: measurement.layout.stage.height,
+        width: measurement.layout.stage.width,
+      });
+      expect(measurement.layout.viewport.renderedContentBounds).not.toBeNull();
+    };
+
+    await collectResizeEvidence(
+      'initial desktop choices',
+      'resize-sync-desktop-initial.png',
+      'resize-sync-desktop-initial-crop.png',
+      null,
+    );
+
+    markStage(page, 'resize-sync:desktop-pointer-team2');
+    await clickCanvasChoice(page, 1);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team2}`,
+    );
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await waitForHitTestableChoices(page);
+
+    markStage(page, 'resize-sync:to-390');
+    await page.setViewportSize({ height: 760, width: 390 });
+    await waitForHitTestableChoices(page);
+    await collectResizeEvidence(
+      'compact 390 choices after desktop resize',
+      'resize-sync-compact-390.png',
+      'resize-sync-compact-390-crop.png',
+      team2,
+    );
+
+    markStage(page, 'resize-sync:compact-390-draw-pointer');
+    await clickCanvasChoice(page, 2);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked Draw',
+    );
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await waitForHitTestableChoices(page);
+
+    markStage(page, 'resize-sync:to-360');
+    await page.setViewportSize({ height: 760, width: 360 });
+    await waitForHitTestableChoices(page);
+    await collectResizeEvidence(
+      'compact 360 choices after compact resize',
+      'resize-sync-compact-360.png',
+      'resize-sync-compact-360-crop.png',
+      'draw',
+    );
+
+    markStage(page, 'resize-sync:compact-360-team1-pointer');
+    await clickCanvasChoice(page, 0);
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team1}`,
+    );
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await waitForHitTestableChoices(page);
+
+    markStage(page, 'resize-sync:return-desktop');
+    await page.setViewportSize({ height: 900, width: 1280 });
+    await waitForHitTestableChoices(page);
+    await collectResizeEvidence(
+      'desktop choices after compact return',
+      'resize-sync-desktop-returned.png',
+      'resize-sync-desktop-returned-crop.png',
+      team1,
+    );
+
+    markStage(page, 'resize-sync:desktop-keyboard-team2');
+    await page.getByRole('radio', { name: team2, exact: true }).focus();
+    await page.keyboard.press('Space');
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      `You picked ${team2}`,
+    );
+    await expect(
+      page.getByRole('radio', { name: team2, exact: true }),
+    ).toHaveAttribute('aria-checked', 'true');
+
+    await page.getByRole('button', { name: 'Change my selection' }).click();
+    await waitForHitTestableChoices(page);
+    markStage(page, 'resize-sync:record-resize-during-shove');
+    await startCanvasRecording(page);
+    await clickCanvasChoice(page, 2);
+    await page.setViewportSize({ height: 760, width: 390 });
+    await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(
+      'You picked Draw',
+    );
+    await page.waitForTimeout(1_200);
+    await stopCanvasRecording(page, 'resize-sync-during-shove.webm');
+
+    const unsavedEntry = await currentUserPredictionEntry(page, fixtureId);
+
+    expect(unsavedEntry).toBeNull();
+    expect(measurements).toHaveLength(4);
+    writeEvidenceJson('resize-interaction-measurements.json', {
+      measurements,
+      recordedAt: utcNow(),
+    });
   });
 
   test('handles Draw, Change my selection and Continue during an active shove', async ({
@@ -1558,19 +1739,7 @@ test.describe('Kaplay prediction preview', () => {
     await waitForKaplayReady(page);
     markStage(page, 'dirty-session:change-selection');
     await page.getByRole('button', { name: 'Change my selection' }).click();
-    await page.waitForFunction(
-      () => {
-        const layout = window.__RUGBY_ROOSTER_KAPLAY_LAST_LAYOUT__;
-
-        return (
-          layout?.choices.length === 3 &&
-          layout.selectedChoice === null &&
-          layout.choices.every((choice) => choice.hitTestable)
-        );
-      },
-      undefined,
-      { timeout: NAVIGATION_ATTEMPT_TIMEOUT_MS },
-    );
+    await waitForHitTestableChoices(page);
     markStage(page, 'dirty-session:canvas-choice-click');
     await clickCanvasChoice(page, 0);
     await expect(page.getByTestId('kaplay-match-result-picked')).toContainText(

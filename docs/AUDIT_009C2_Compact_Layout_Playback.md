@@ -150,12 +150,16 @@ media instead.
 
 ## Visual Evidence Inspected
 
+CCPP-009C3 correction note: the normal-speed footage shows the Rooster entering
+left-to-right. The earlier wording that described entry from the right was a
+direction typo only; the historical execution outcomes below are unchanged.
+
 The normal-speed recording is the primary integrated playback evidence.
 Closeout inspection opened and reviewed:
 
 - `match-result-shove-normal-contact-sheet.png`:
   - selectable choices;
-  - Rooster head-first entry from the right;
+  - Rooster head-first left-to-right entry;
   - leg cycling while moving;
   - contact with the rejected stack;
   - continuous push;

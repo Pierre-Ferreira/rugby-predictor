@@ -26,6 +26,11 @@ import type {
   KaplayMatchResultRuntimeFactoryInput,
 } from '../../imports/ui/predictions/kaplay/matchResultRuntime';
 import {
+  MATCH_RESULT_SCENE_HEIGHT,
+  MATCH_RESULT_SCENE_WIDTH,
+  projectMatchResultLayout,
+} from '../../imports/ui/predictions/kaplay/matchResultMotion';
+import {
   animationPreferenceStorageKey,
   type AnimationPreference,
 } from '../../imports/ui/predictions/presentationPreference';
@@ -68,14 +73,20 @@ interface MountedHost {
 }
 
 const mountedHosts: MountedHost[] = [];
+const restoreGeometryDescriptors: Array<() => void> = [];
 const restoreStorageDescriptors: Array<() => void> = [];
 const restoreMatchMediaDescriptors: Array<() => void> = [];
+let kaplayGeometryInstalled = false;
 
 afterEach(async () => {
   vi.useRealTimers();
 
   while (restoreStorageDescriptors.length > 0) {
     restoreStorageDescriptors.pop()?.();
+  }
+
+  while (restoreGeometryDescriptors.length > 0) {
+    restoreGeometryDescriptors.pop()?.();
   }
 
   while (restoreMatchMediaDescriptors.length > 0) {
@@ -208,13 +219,19 @@ const rendererState = ({
   fixtureId = 'fixture-1',
   isReadOnly = false,
   matchResult = '',
+  messageHeading = 'Who do you think will win?',
   stepId = 'match-result',
+  team1DisplayName = 'Springboks',
+  team2DisplayName = 'All Blacks',
   userId = 'user-1',
 }: {
   readonly fixtureId?: string;
   readonly isReadOnly?: boolean;
   readonly matchResult?: string;
+  readonly messageHeading?: string;
   readonly stepId?: string;
+  readonly team1DisplayName?: string;
+  readonly team2DisplayName?: string;
   readonly userId?: string;
 } = {}): PredictionSessionRendererState =>
   ({
@@ -226,7 +243,7 @@ const rendererState = ({
             message: {
               body: 'Choose the result your rugby score will agree with.',
               deduction: 'Wrong result deducts 500 points.',
-              heading: 'Who do you think will win?',
+              heading: messageHeading,
               supportingText: [],
             },
             position: { current: 1, total: 2 },
@@ -252,8 +269,8 @@ const rendererState = ({
     },
     fixture: {
       _id: fixtureId,
-      team1DisplayName: 'Springboks',
-      team2DisplayName: 'All Blacks',
+      team1DisplayName,
+      team2DisplayName,
     },
     form: {
       customAnswers: {
@@ -319,6 +336,10 @@ const renderHost = async (
     readonly strictMode?: boolean;
   } = {},
 ): Promise<MountedHost> => {
+  if (!kaplayGeometryInstalled) {
+    installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+  }
+
   const actions = createActions();
   const container = document.createElement('div');
   const controller = createRuntimeController();
@@ -409,6 +430,86 @@ const clickButton = async (container: HTMLElement, text: string) => {
   await act(async () => {
     buttonByText(container, text).click();
   });
+};
+
+const domRectForSize = (width: number, height: number): DOMRect =>
+  ({
+    bottom: height,
+    height,
+    left: 0,
+    right: width,
+    toJSON: () => ({ height, width, x: 0, y: 0 }),
+    top: 0,
+    width,
+    x: 0,
+    y: 0,
+  }) as DOMRect;
+
+const parseAspectRatio = (value: string) => {
+  const [rawWidth, rawHeight] = value.split('/').map((part) => Number(part));
+
+  return Number.isFinite(rawWidth) &&
+    Number.isFinite(rawHeight) &&
+    rawWidth > 0 &&
+    rawHeight > 0
+    ? { height: rawHeight, width: rawWidth }
+    : { height: MATCH_RESULT_SCENE_HEIGHT, width: MATCH_RESULT_SCENE_WIDTH };
+};
+
+const installKaplayMeasurementHarness = (initialWidth: number) => {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  let shellWidth = initialWidth;
+
+  Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value(this: HTMLElement) {
+      const containsKaplayCanvas = Boolean(
+        this.querySelector?.('[data-testid="kaplay-match-result-canvas"]'),
+      );
+      const isKaplayCanvas =
+        this.getAttribute?.('data-testid') === 'kaplay-match-result-canvas';
+
+      if (isKaplayCanvas) {
+        const aspect = parseAspectRatio(this.style.aspectRatio);
+
+        return domRectForSize(
+          shellWidth,
+          (shellWidth * aspect.height) / aspect.width,
+        );
+      }
+
+      if (containsKaplayCanvas) {
+        return domRectForSize(shellWidth, shellWidth);
+      }
+
+      return original.call(this);
+    },
+  });
+
+  restoreGeometryDescriptors.push(() => {
+    Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: original,
+    });
+    kaplayGeometryInstalled = false;
+  });
+  kaplayGeometryInstalled = true;
+
+  return {
+    setWidth: async (nextWidth: number) => {
+      shellWidth = nextWidth;
+
+      await act(async () => {
+        window.dispatchEvent(new Event('resize'));
+        await Promise.resolve();
+      });
+    },
+  };
+};
+
+const longTeamNames = {
+  team1DisplayName: 'Cape Town Very Long Club Name ccpp009c3a XV',
+  team2DisplayName: 'Johannesburg Equally Long Club Name ccpp009c3b XV',
 };
 
 describe('prediction animation preference storage safety', () => {
@@ -713,6 +814,302 @@ describe('prediction presentation host lifecycle', () => {
     expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
   });
 
+  it('replaces only the runtime when measured layout crosses desktop and compact stages', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'desktop runtime request',
+    );
+
+    const firstRequest = host.controller.requests[0];
+    const desktopProjection = projectMatchResultLayout(
+      firstRequest.input.initialSnapshot,
+      MATCH_RESULT_SCENE_WIDTH,
+    );
+
+    expect(firstRequest.input.initialViewport.stage).toEqual(
+      desktopProjection.stage,
+    );
+
+    const firstHandle = createRuntimeHandle();
+    await act(async () => {
+      firstRequest.deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'compact replacement request',
+    );
+
+    const compactRequest = host.controller.requests[1];
+    const compactProjection = projectMatchResultLayout(
+      compactRequest.input.initialSnapshot,
+      390,
+    );
+
+    expect(compactProjection.stage.height).toBeGreaterThan(
+      desktopProjection.stage.height,
+    );
+    expect(compactRequest.input.initialViewport.stage).toEqual(
+      compactProjection.stage,
+    );
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      firstRequest.input.onSelect('team1');
+    });
+    expect(host.actions.selectBuiltInChoice).not.toHaveBeenCalled();
+
+    const compactHandle = createRuntimeHandle();
+    await act(async () => {
+      compactRequest.deferred.resolve(compactHandle);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      compactRequest.input.onSelect('team2');
+      await Promise.resolve();
+    });
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledWith(
+      'matchResult',
+      'team2',
+    );
+
+    await host.rerender(
+      rendererState({
+        ...longTeamNames,
+        matchResult: 'team2',
+      }),
+    );
+    expect(host.controller.requests).toHaveLength(2);
+    expect(compactHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: longTeamNames.team2DisplayName,
+        selectionEffectId: 1,
+      }),
+    );
+
+    await geometry.setWidth(MATCH_RESULT_SCENE_WIDTH);
+    await waitForCondition(
+      () => host.controller.requests.length === 3,
+      'desktop replacement request',
+    );
+
+    const finalRequest = host.controller.requests[2];
+    const finalDesktopProjection = projectMatchResultLayout(
+      finalRequest.input.initialSnapshot,
+      MATCH_RESULT_SCENE_WIDTH,
+    );
+
+    expect(finalRequest.input.initialViewport.stage).toEqual(
+      finalDesktopProjection.stage,
+    );
+    expect(compactHandle.dispose).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps compact-to-compact width changes on the existing runtime when logical stage dimensions stay equal', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'desktop runtime request',
+    );
+
+    const desktopHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(desktopHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'compact runtime request',
+    );
+
+    const compactRequest = host.controller.requests[1];
+    const compactHandle = createRuntimeHandle();
+    await act(async () => {
+      compactRequest.deferred.resolve(compactHandle);
+      await Promise.resolve();
+    });
+
+    const compactStageAt390 = compactRequest.input.initialViewport.stage;
+    const compactStageAt360 = projectMatchResultLayout(
+      compactRequest.input.initialSnapshot,
+      360,
+    ).stage;
+
+    expect(compactStageAt360).toEqual(compactStageAt390);
+
+    await geometry.setWidth(360);
+    await flushReact();
+
+    expect(host.controller.requests).toHaveLength(2);
+    expect(compactHandle.dispose).not.toHaveBeenCalled();
+  });
+
+  it('updates snapshots for focus and message changes without recreating unchanged geometry', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+
+    const handle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(handle);
+      await Promise.resolve();
+    });
+
+    const team2Input = host.container.querySelector<HTMLInputElement>(
+      'input[value="team2"]',
+    );
+
+    await act(async () => {
+      team2Input?.focus();
+      await Promise.resolve();
+    });
+
+    expect(host.controller.requests).toHaveLength(1);
+    expect(handle.dispose).not.toHaveBeenCalled();
+    expect(handle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        focusedValue: 'team2',
+      }),
+    );
+
+    await host.rerender(
+      rendererState({
+        ...longTeamNames,
+        messageHeading: 'Which result survives the final whistle?',
+      }),
+    );
+    await geometry.setWidth(MATCH_RESULT_SCENE_WIDTH);
+
+    expect(host.controller.requests).toHaveLength(1);
+    expect(handle.dispose).not.toHaveBeenCalled();
+    expect(handle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        question: 'Which result survives the final whistle?',
+      }),
+    );
+  });
+
+  it('disposes obsolete replacement handles once and treats Off during replacement as safe cancellation', async () => {
+    const geometry = installKaplayMeasurementHarness(MATCH_RESULT_SCENE_WIDTH);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'runtime request',
+    );
+
+    const firstHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[0].deferred.resolve(firstHandle);
+      await Promise.resolve();
+    });
+
+    await geometry.setWidth(390);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'pending compact replacement',
+    );
+
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+
+    await clickButton(host.container, 'Off');
+    expect(host.container.textContent).toContain('Standard blank 7 revision 3');
+
+    const lateReplacementHandle = createRuntimeHandle();
+    await act(async () => {
+      host.controller.requests[1].deferred.resolve(lateReplacementHandle);
+      await Promise.resolve();
+    });
+
+    expect(lateReplacementHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(firstHandle.dispose).toHaveBeenCalledTimes(1);
+    expect(host.container.textContent).not.toContain(
+      "Animations couldn't continue.",
+    );
+  });
+
+  it('repairs a late initial measurement and preserves selection while resizing during a shove', async () => {
+    const geometry = installKaplayMeasurementHarness(390);
+    const host = await renderHost(rendererState(longTeamNames));
+
+    await waitForCondition(
+      () => host.controller.requests.length === 1,
+      'compact runtime after late measurement',
+    );
+
+    const compactRequest = host.controller.requests[0];
+    expect(compactRequest.input.initialViewport.stage).toEqual(
+      projectMatchResultLayout(compactRequest.input.initialSnapshot, 390).stage,
+    );
+
+    const compactHandle = createRuntimeHandle();
+    await act(async () => {
+      compactRequest.deferred.resolve(compactHandle);
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      compactRequest.input.onSelect('draw');
+      await Promise.resolve();
+    });
+    await host.rerender(
+      rendererState({
+        ...longTeamNames,
+        matchResult: 'draw',
+      }),
+    );
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+    expect(compactHandle.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'Draw',
+        selectionEffectId: 1,
+      }),
+    );
+
+    await geometry.setWidth(MATCH_RESULT_SCENE_WIDTH);
+    await waitForCondition(
+      () => host.controller.requests.length === 2,
+      'desktop replacement after selected compact state',
+    );
+
+    const desktopReplacement = host.controller.requests[1];
+
+    expect(desktopReplacement.input.initialSnapshot).toEqual(
+      expect.objectContaining({
+        choicePresentation: 'selected',
+        pickedLabel: 'Draw',
+        selectionEffectId: 1,
+      }),
+    );
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+    expect(compactHandle.dispose).toHaveBeenCalledTimes(1);
+
+    const desktopHandle = createRuntimeHandle();
+    await act(async () => {
+      desktopReplacement.deferred.resolve(desktopHandle);
+      await Promise.resolve();
+    });
+
+    expect(host.actions.selectBuiltInChoice).toHaveBeenCalledTimes(1);
+  });
+
   it('ignores late initialization and stale callbacks after switching Off', async () => {
     const host = await renderHost();
 
@@ -1004,30 +1401,23 @@ describe('prediction presentation host lifecycle', () => {
     expect(handle.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the surviving StrictMode setup healthy and disposes obsolete resources', async () => {
+  it('keeps the measured StrictMode runtime setup healthy', async () => {
     const host = await renderHost(rendererState(), {
       strictMode: true,
     });
 
     await waitForCondition(
-      () => host.controller.requests.length === 2,
-      'StrictMode runtime replay',
+      () => host.controller.requests.length === 1,
+      'measured StrictMode runtime request',
     );
 
-    const survivingHandle = createRuntimeHandle();
+    const handle = createRuntimeHandle();
     await act(async () => {
-      host.controller.requests[1].deferred.resolve(survivingHandle);
+      host.controller.requests[0].deferred.resolve(handle);
       await Promise.resolve();
     });
 
-    const obsoleteHandle = createRuntimeHandle();
-    await act(async () => {
-      host.controller.requests[0].deferred.resolve(obsoleteHandle);
-      await Promise.resolve();
-    });
-
-    expect(obsoleteHandle.dispose).toHaveBeenCalledTimes(1);
-    expect(survivingHandle.dispose).not.toHaveBeenCalled();
+    expect(handle.dispose).not.toHaveBeenCalled();
     expect(
       host.container.querySelector('[data-testid="kaplay-match-result-stage"]'),
     ).not.toBeNull();
