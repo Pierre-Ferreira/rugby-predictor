@@ -157,6 +157,18 @@ const matchResultRadios = (container: HTMLElement) =>
     container.querySelectorAll<HTMLInputElement>('input[name="match-result"]'),
   );
 
+const matchResultStage = (container: HTMLElement) => {
+  const stage = container.querySelector<HTMLElement>(
+    '[data-testid="react-match-result-step"] [data-motion-phase]',
+  );
+
+  if (!stage) {
+    throw new Error('Match Result stage not found.');
+  }
+
+  return stage;
+};
+
 const queryRadioByValue = (container: HTMLElement, value: string) =>
   container.querySelector<HTMLInputElement>(
     `input[type="radio"][value="${value}"]`,
@@ -227,6 +239,29 @@ const MatchResultHarness = ({
       onChoice(nextValue);
       setValue(nextValue);
     },
+  });
+};
+
+const MatchResultHostHarness = ({
+  initialValue = '',
+  onChoice,
+}: {
+  readonly initialValue?: string;
+  readonly onChoice: (value: string) => void;
+}) => {
+  const [value, setValue] = useState(initialValue);
+
+  return createElement(PredictionPresentationHost, {
+    renderExperience: (presentation) =>
+      createElement(MatchResultPredictionStep, {
+        fixture: fixture(),
+        motionEnabled: presentation.animationsEnabled,
+        value,
+        onChange: (nextValue: string) => {
+          onChoice(nextValue);
+          setValue(nextValue);
+        },
+      }),
   });
 };
 
@@ -356,7 +391,7 @@ describe('Match Result React presentation', () => {
     expect(radioByValue(mountedStep.container, 'draw').checked).toBe(false);
   });
 
-  it('updates the shared action once and settles to the selected answer only', async () => {
+  it('updates the shared action once, raises the selected answer, and settles to the hero', async () => {
     const choices: string[] = [];
     const mountedStep = await mount(
       createElement(MatchResultHarness, {
@@ -368,13 +403,50 @@ describe('Match Result React presentation', () => {
     await click(radioByValue(mountedStep.container, 'team1'));
 
     expect(choices).toEqual(['team1']);
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'revealing',
+    );
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(
+      mountedStep.container
+        .querySelector('[data-testid="match-result-choice-team1"]')
+        ?.classList.contains('rr-match-result-choice-card--selected-rise'),
+    ).toBe(true);
+    expect(
+      mountedStep.container
+        .querySelector('[data-testid="match-result-choice-team2"]')
+        ?.classList.contains(
+          'rr-match-result-choice-card--rejected-background',
+        ),
+    ).toBe(true);
+    expect(
+      buttonByText(mountedStep.container, 'Change my selection').tagName,
+    ).toBe('BUTTON');
+
+    const shoveLayer = mountedStep.container.querySelector<HTMLElement>(
+      '[data-testid="match-result-shove-layer"]',
+    );
+
+    expect(shoveLayer).not.toBeNull();
+
+    if (shoveLayer) {
+      await finishAnimation(shoveLayer);
+    }
+
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'settled',
+    );
     expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
     expect(queryRadioByValue(mountedStep.container, 'team2')).toBeNull();
     expect(queryRadioByValue(mountedStep.container, 'draw')).toBeNull();
-    expect(mountedStep.container.textContent).toContain(
-      'You picked Springboks',
-    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-selected-label"]',
+      )?.textContent,
+    ).toBe('YOU SELECTED:');
+    expect(mountedStep.container.textContent).not.toContain('You picked');
     expect(
       buttonByText(mountedStep.container, 'Change my selection').tagName,
     ).toBe('BUTTON');
@@ -401,7 +473,10 @@ describe('Match Result React presentation', () => {
 
     expect(choices).toEqual(['team2']);
     expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
-    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'revealing',
+    );
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
     expect(
       mountedStep.container.querySelector(
         '[data-testid="match-result-shove-layer"]',
@@ -431,9 +506,21 @@ describe('Match Result React presentation', () => {
     await click(radioByValue(mountedStep.container, 'draw'));
 
     expect(choices).toEqual(['draw']);
+    expect(radioByValue(mountedStep.container, 'draw').checked).toBe(true);
+
+    const shoveLayer = mountedStep.container.querySelector<HTMLElement>(
+      '[data-testid="match-result-shove-layer"]',
+    );
+
+    expect(shoveLayer).not.toBeNull();
+
+    if (shoveLayer) {
+      await finishAnimation(shoveLayer);
+    }
+
     expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(radioByValue(mountedStep.container, 'draw').checked).toBe(true);
-    expect(mountedStep.container.textContent).toContain('You picked Draw');
+    expect(mountedStep.container.textContent).toContain('YOU SELECTED:');
   });
 
   it('reselecting the current answer returns to settled without duplicate updates', async () => {
@@ -470,9 +557,20 @@ describe('Match Result React presentation', () => {
 
     expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
-    expect(mountedStep.container.textContent).toContain(
-      'You picked All Blacks',
-    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-selected-label"]',
+      )?.textContent,
+    ).toBe('YOU SELECTED:');
+    expect(mountedStep.container.textContent).toContain('All Blacks');
+    expect(
+      mountedStep.container.querySelector('.rr-match-result-hero-card'),
+    ).not.toBeNull();
+    expect(
+      mountedStep.container.querySelector(
+        '.rr-match-result-hero--settle-motion',
+      ),
+    ).toBeNull();
     expect(
       mountedStep.container.querySelector(
         '[data-testid="match-result-shove-layer"]',
@@ -499,6 +597,36 @@ describe('Match Result React presentation', () => {
       ),
     ).toBeNull();
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(mountedStep.container.textContent).toContain('YOU SELECTED:');
+
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
+
+    expect(choices).toEqual(['team1']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+  });
+
+  it('keeps the same functional flow when reduced motion suppresses animation', async () => {
+    replaceMatchMedia(true);
+
+    const choices: string[] = [];
+    const mountedStep = await mount(
+      createElement(MatchResultHostHarness, {
+        onChoice: (value) => choices.push(value),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+
+    expect(choices).toEqual(['team1']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(mountedStep.container.textContent).toContain('YOU SELECTED:');
 
     await click(buttonByText(mountedStep.container, 'Change my selection'));
 

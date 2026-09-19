@@ -235,7 +235,11 @@ const videoPath = (name: string) => {
   return join(videoDir, name);
 };
 
-const captureScreenshot = async (page: Page, name: string) => {
+const captureScreenshot = async (
+  page: Page,
+  name: string,
+  options: { readonly fullPage?: boolean } = {},
+) => {
   const path = screenshotPath(name);
 
   if (!path) {
@@ -243,7 +247,8 @@ const captureScreenshot = async (page: Page, name: string) => {
   }
 
   await page.screenshot({
-    fullPage: true,
+    animations: 'allow',
+    fullPage: options.fullPage ?? true,
     path,
   });
 };
@@ -341,7 +346,7 @@ test.describe('React prediction presentation', () => {
     await captureScreenshot(page, '010a-desktop-match-result-before.png');
 
     await page.getByRole('radio', { name: teams.team1 }).check();
-    await expect(page.getByText(`You picked ${teams.team1}`)).toBeVisible();
+    await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
     await expect(page.getByTestId('match-result-shove-layer')).toBeVisible();
     await captureScreenshot(page, '010a-desktop-match-result-selected.png');
 
@@ -389,7 +394,7 @@ test.describe('React prediction presentation', () => {
     await captureScreenshot(page, '010a-match-result-360.png');
   });
 
-  test('captures the complete normal-speed Match Result Rooster shove', async ({
+  test('captures the refined Match Result rise, shove, and selected hero', async ({
     page,
   }) => {
     const { teams } = await createFixtureAndOpenPrediction(
@@ -407,19 +412,33 @@ test.describe('React prediction presentation', () => {
       page.getByRole('button', { exact: true, name: 'On' }),
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
-    await captureScreenshot(page, '010a1-match-result-before-selection.png');
+    await captureScreenshot(page, '010a2-match-result-before-selection.png');
 
     await page.getByRole('radio', { name: teams.team1 }).check();
 
     await expect(page.getByTestId('match-result-shove-layer')).toBeVisible();
+    await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
+    await expect(page.getByTestId('match-result-choice-team1')).toHaveClass(
+      /rr-match-result-choice-card--selected-rise/,
+    );
+    await page.waitForTimeout(160);
+    await captureScreenshot(page, '010a2-match-result-selected-rise.png', {
+      fullPage: false,
+    });
+
     await expect(page.getByTestId('match-result-rooster')).toBeVisible();
-    await page.waitForTimeout(330);
-    await captureScreenshot(page, '010a1-match-result-contact-frame.png');
+    await page.waitForTimeout(470);
+    await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
+    await captureScreenshot(page, '010a2-match-result-contact-push.png', {
+      fullPage: false,
+    });
 
     await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
-      timeout: 2_000,
+      timeout: 2_500,
     });
-    await expect(page.getByText(`You picked ${teams.team1}`)).toBeVisible();
+    await expect(
+      page.getByText('YOU SELECTED:', { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Change my selection' }),
     ).toBeVisible();
@@ -435,9 +454,31 @@ test.describe('React prediction presentation', () => {
     ).toHaveCount(0);
     await captureScreenshot(
       page,
-      '010a1-match-result-settled-selected-only.png',
+      '010a2-match-result-settled-hero-desktop.png',
     );
-    await saveVideo(page, '010a1-match-result-shove-normal-speed.webm');
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    await expect(
+      page.getByText('YOU SELECTED:', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Change my selection' }),
+    ).toBeVisible();
+    await captureScreenshot(page, '010a2-match-result-settled-hero-390.png');
+
+    await page.setViewportSize({ height: 740, width: 360 });
+    await expect(
+      page.getByText('YOU SELECTED:', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Change my selection' }),
+    ).toBeVisible();
+    await captureScreenshot(page, '010a2-match-result-settled-hero-360.png');
+
+    await saveVideo(
+      page,
+      '010a2-match-result-rise-shove-hero-normal-speed.webm',
+    );
   });
 
   test('Tries numeric controls support phone input, Back/Continue retention, and toggles', async ({

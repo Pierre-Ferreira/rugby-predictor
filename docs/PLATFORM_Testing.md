@@ -108,17 +108,18 @@ Current unit test files:
 - `tests/unit/prediction-presentation-mode.test.ts` - historical CCPP-009B
   pure preview gate/effective-mode coverage plus current animation preference
   storage and reduced-motion helper tests.
-- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A/010A1 real
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A/010A1/010A2 real
   React DOM presentation-host, Match Result, and Tries tests for stable
   controls across Animations On/Off, reduced-motion suppression, initial
   three-choice Match Result radios, shared Match Result action dispatch,
-  selected-only settled state, Change restoring choices without changing the
-  answer, reselecting the current answer without duplicate updates, saved
-  selection initialization without replay, deliberate-only shove creation,
-  Off/no-shove parity, resize and Change interruption preserving the selected
-  answer, harmless sprite-load cancellation, shared Tries numeric dispatch,
-  blank/zero semantics, conversion clamping delegation, and rapid numeric
-  updates.
+  selected-card reveal/rise treatment, selected-only `YOU SELECTED:` hero
+  settled state, Change restoring choices without changing the answer,
+  reselecting the current answer without duplicate updates, saved selection
+  initialization without replay, deliberate-only shove creation, Off/no-shove
+  parity, reduced-motion functional parity, resize and Change interruption
+  preserving the selected answer, harmless sprite-load cancellation, shared
+  Tries numeric dispatch, blank/zero semantics, conversion clamping delegation,
+  and rapid numeric updates.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
   Match Result layout, shove motion, compact readability, projection,
   transformed bounds, hit testing, and resize-preservation tests.

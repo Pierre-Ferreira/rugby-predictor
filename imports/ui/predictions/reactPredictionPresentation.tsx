@@ -15,7 +15,6 @@ import {
 } from '/imports/shared/scoring';
 import {
   deriveTeamScoreFromForm,
-  matchResultLabel,
   parseFormWholeNumber,
   teamDisplayName,
   type PredictionFormState,
@@ -35,7 +34,9 @@ interface ShoveEffectState {
   readonly selectedValue: MatchResultChoiceValue;
 }
 
-type MatchResultViewMode = 'choosing' | 'settled';
+type MatchResultViewMode = 'choosing' | 'revealing' | 'settled';
+
+const matchResultMotionDurationMs = 1_200;
 
 const roosterShoveFrameUrls = [
   '/assets/rooster/match-result/frames/rooster-run-1.png',
@@ -83,13 +84,25 @@ export const MatchResultPredictionStep = ({
     ? (choices.find((choice) => choice.value === value) ?? null)
     : null;
   const [shoveEffect, setShoveEffect] = useState<ShoveEffectState | null>(null);
+  const [heroSettleMotion, setHeroSettleMotion] = useState(false);
   const [viewMode, setViewMode] = useState<MatchResultViewMode>(() =>
     isMatchResultChoiceValue(value) ? 'settled' : 'choosing',
   );
   const effectiveViewMode = selectedChoice ? viewMode : 'choosing';
   const cancelShoveEffect = useCallback(() => {
     setShoveEffect(null);
+    setHeroSettleMotion(false);
   }, []);
+  const settleShoveEffect = useCallback(
+    ({ animateHero }: { readonly animateHero: boolean }) => {
+      setShoveEffect(null);
+      setHeroSettleMotion(animateHero);
+      setViewMode((currentMode) =>
+        currentMode === 'choosing' ? currentMode : 'settled',
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     if (
@@ -113,15 +126,21 @@ export const MatchResultPredictionStep = ({
       !motionEnabled || value !== shoveEffect.selectedValue;
 
     if (obsoleteEffect) {
-      const timeout = window.setTimeout(cancelShoveEffect, 0);
+      const timeout = window.setTimeout(
+        () => settleShoveEffect({ animateHero: false }),
+        0,
+      );
 
       return () => {
         window.clearTimeout(timeout);
       };
     }
 
-    const timeout = window.setTimeout(cancelShoveEffect, 900);
-    const cancelOnResize = () => cancelShoveEffect();
+    const timeout = window.setTimeout(
+      () => settleShoveEffect({ animateHero: true }),
+      matchResultMotionDurationMs,
+    );
+    const cancelOnResize = () => settleShoveEffect({ animateHero: false });
 
     window.addEventListener('resize', cancelOnResize);
     window.addEventListener('orientationchange', cancelOnResize);
@@ -131,7 +150,7 @@ export const MatchResultPredictionStep = ({
       window.removeEventListener('resize', cancelOnResize);
       window.removeEventListener('orientationchange', cancelOnResize);
     };
-  }, [cancelShoveEffect, motionEnabled, shoveEffect, value]);
+  }, [motionEnabled, settleShoveEffect, shoveEffect, value]);
 
   const selectChoice = (nextValue: MatchResultChoiceValue) => {
     if (nextValue === value) {
@@ -141,10 +160,11 @@ export const MatchResultPredictionStep = ({
     }
 
     onChange(nextValue);
-    setViewMode('settled');
+    setHeroSettleMotion(false);
 
     if (!motionEnabled) {
       cancelShoveEffect();
+      setViewMode('settled');
       return;
     }
 
@@ -155,6 +175,7 @@ export const MatchResultPredictionStep = ({
       rejectedChoices: choices.filter((choice) => choice.value !== nextValue),
       selectedValue: nextValue,
     });
+    setViewMode('revealing');
   };
 
   const changeSelection = () => {
@@ -163,9 +184,10 @@ export const MatchResultPredictionStep = ({
     setViewMode('choosing');
   };
 
-  const selectedLabel = matchResultLabel(fixture, value);
+  const isRevealing = effectiveViewMode === 'revealing';
+  const isSettled = effectiveViewMode === 'settled';
   const activeShove =
-    effectiveViewMode === 'settled' &&
+    isRevealing &&
     motionEnabled &&
     shoveEffect &&
     value === shoveEffect.selectedValue;
@@ -173,8 +195,15 @@ export const MatchResultPredictionStep = ({
   return (
     <fieldset data-testid="react-match-result-step">
       <legend className="sr-only">Who do you think will win?</legend>
-      <div className="relative overflow-hidden rounded-md">
-        {effectiveViewMode === 'choosing' ? (
+      <div
+        className={[
+          'rr-match-result-stage',
+          isRevealing ? 'rr-match-result-stage--revealing' : '',
+          isSettled ? 'rr-match-result-stage--settled' : '',
+        ].join(' ')}
+        data-motion-phase={effectiveViewMode}
+      >
+        {effectiveViewMode === 'choosing' || isRevealing ? (
           <div className="grid gap-3 sm:grid-cols-3">
             {choices.map((choice) => {
               const checked = choice.value === value;
@@ -182,10 +211,16 @@ export const MatchResultPredictionStep = ({
               return (
                 <label
                   className={[
-                    'flex min-h-24 cursor-pointer items-center rounded-md border p-4 text-base font-black transition sm:min-h-28',
+                    'rr-match-result-choice-card flex min-h-24 cursor-pointer items-center rounded-md border p-4 text-base font-black transition sm:min-h-28',
                     checked
                       ? 'border-rooster-red bg-rooster-red text-white shadow-sm'
                       : 'border-rooster-line bg-white text-rooster-ink hover:bg-rooster-paper',
+                    isRevealing && checked
+                      ? 'rr-match-result-choice-card--selected-rise'
+                      : '',
+                    isRevealing && !checked
+                      ? 'rr-match-result-choice-card--rejected-background'
+                      : '',
                   ].join(' ')}
                   data-testid={`match-result-choice-${choice.value}`}
                   key={choice.value}
@@ -215,22 +250,35 @@ export const MatchResultPredictionStep = ({
             })}
           </div>
         ) : selectedChoice ? (
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div
+            className={[
+              'rr-match-result-hero',
+              heroSettleMotion && motionEnabled
+                ? 'rr-match-result-hero--settle-motion'
+                : '',
+            ].join(' ')}
+          >
+            <p
+              aria-hidden="true"
+              className="rr-match-result-selected-label"
+              data-testid="match-result-selected-label"
+            >
+              YOU SELECTED:
+            </p>
             <label
-              className="flex min-h-24 items-center rounded-md border border-rooster-red bg-rooster-red p-4 text-base font-black text-white shadow-sm sm:min-h-28"
+              className="rr-match-result-choice-card rr-match-result-hero-card flex items-center rounded-md border border-rooster-red bg-rooster-red font-black text-white"
               data-testid={`match-result-choice-${selectedChoice.value}`}
             >
               <input
-                aria-describedby={`${baseId}-settled-status`}
                 checked
-                className="focus-ring mr-3 h-5 w-5 shrink-0 accent-rooster-red"
+                className="focus-ring mr-3 h-6 w-6 shrink-0 accent-rooster-red sm:h-7 sm:w-7"
                 id={`${baseId}-settled-${selectedChoice.value}`}
                 name="match-result"
                 readOnly
                 type="radio"
                 value={selectedChoice.value}
               />
-              <span className="min-w-0 break-words leading-6">
+              <span className="rr-match-result-hero-card-label min-w-0 break-words">
                 {selectedChoice.label}
               </span>
             </label>
@@ -241,22 +289,16 @@ export const MatchResultPredictionStep = ({
           <MatchResultShoveOverlay
             key={shoveEffect.id}
             rejectedChoices={shoveEffect.rejectedChoices}
-            onCancel={cancelShoveEffect}
+            onAnimationComplete={() => settleShoveEffect({ animateHero: true })}
+            onCancel={() => settleShoveEffect({ animateHero: false })}
           />
         ) : null}
       </div>
 
-      {selectedChoice && effectiveViewMode === 'settled' ? (
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p
-            className="text-sm font-black text-rooster-ink"
-            id={`${baseId}-settled-status`}
-            role="status"
-          >
-            You picked {selectedLabel}
-          </p>
+      {selectedChoice && (isRevealing || isSettled) ? (
+        <div className="mt-3 flex justify-center sm:justify-end">
           <button
-            className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            className="focus-ring inline-flex min-h-10 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
             type="button"
             onClick={changeSelection}
           >
@@ -269,15 +311,17 @@ export const MatchResultPredictionStep = ({
 };
 
 const MatchResultShoveOverlay = ({
+  onAnimationComplete,
   onCancel,
   rejectedChoices,
 }: {
+  readonly onAnimationComplete: () => void;
   readonly onCancel: () => void;
   readonly rejectedChoices: readonly MatchResultChoice[];
 }) => {
   const handleAnimationEnd = (event: ReactAnimationEvent<HTMLDivElement>) => {
     if (event.currentTarget === event.target) {
-      onCancel();
+      onAnimationComplete();
     }
   };
 
