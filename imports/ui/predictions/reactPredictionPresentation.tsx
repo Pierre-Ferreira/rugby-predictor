@@ -35,6 +35,8 @@ interface ShoveEffectState {
   readonly selectedValue: MatchResultChoiceValue;
 }
 
+type MatchResultViewMode = 'choosing' | 'settled';
+
 const roosterShoveFrameUrls = [
   '/assets/rooster/match-result/frames/rooster-run-1.png',
   '/assets/rooster/match-result/frames/rooster-run-2.png',
@@ -72,11 +74,35 @@ export const MatchResultPredictionStep = ({
 }) => {
   const baseId = useId();
   const nextEffectIdRef = useRef(0);
+  const focusChoicesAfterChangeRef = useRef(false);
+  const choiceInputRefs = useRef<
+    Partial<Record<MatchResultChoiceValue, HTMLInputElement | null>>
+  >({});
   const choices = matchResultChoicesForFixture(fixture);
+  const selectedChoice = isMatchResultChoiceValue(value)
+    ? (choices.find((choice) => choice.value === value) ?? null)
+    : null;
   const [shoveEffect, setShoveEffect] = useState<ShoveEffectState | null>(null);
+  const [viewMode, setViewMode] = useState<MatchResultViewMode>(() =>
+    isMatchResultChoiceValue(value) ? 'settled' : 'choosing',
+  );
+  const effectiveViewMode = selectedChoice ? viewMode : 'choosing';
   const cancelShoveEffect = useCallback(() => {
     setShoveEffect(null);
   }, []);
+
+  useEffect(() => {
+    if (
+      !focusChoicesAfterChangeRef.current ||
+      effectiveViewMode !== 'choosing'
+    ) {
+      return;
+    }
+
+    focusChoicesAfterChangeRef.current = false;
+    const focusValue = isMatchResultChoiceValue(value) ? value : 'team1';
+    choiceInputRefs.current[focusValue]?.focus();
+  }, [effectiveViewMode, value]);
 
   useEffect(() => {
     if (!shoveEffect) {
@@ -84,7 +110,7 @@ export const MatchResultPredictionStep = ({
     }
 
     const obsoleteEffect =
-      !motionEnabled || (value !== '' && value !== shoveEffect.selectedValue);
+      !motionEnabled || value !== shoveEffect.selectedValue;
 
     if (obsoleteEffect) {
       const timeout = window.setTimeout(cancelShoveEffect, 0);
@@ -109,10 +135,13 @@ export const MatchResultPredictionStep = ({
 
   const selectChoice = (nextValue: MatchResultChoiceValue) => {
     if (nextValue === value) {
+      cancelShoveEffect();
+      setViewMode('settled');
       return;
     }
 
     onChange(nextValue);
+    setViewMode('settled');
 
     if (!motionEnabled) {
       cancelShoveEffect();
@@ -128,56 +157,85 @@ export const MatchResultPredictionStep = ({
     });
   };
 
+  const changeSelection = () => {
+    cancelShoveEffect();
+    focusChoicesAfterChangeRef.current = true;
+    setViewMode('choosing');
+  };
+
   const selectedLabel = matchResultLabel(fixture, value);
   const activeShove =
-    motionEnabled && shoveEffect && value === shoveEffect.selectedValue;
+    effectiveViewMode === 'settled' &&
+    motionEnabled &&
+    shoveEffect &&
+    value === shoveEffect.selectedValue;
 
   return (
     <fieldset data-testid="react-match-result-step">
       <legend className="sr-only">Who do you think will win?</legend>
       <div className="relative overflow-hidden rounded-md">
-        <div className="grid gap-3 sm:grid-cols-3">
-          {choices.map((choice) => {
-            const checked = choice.value === value;
-            const isRejectedDuringShove =
-              activeShove &&
-              shoveEffect.rejectedChoices.some(
-                (rejected) => rejected.value === choice.value,
-              );
+        {effectiveViewMode === 'choosing' ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {choices.map((choice) => {
+              const checked = choice.value === value;
 
-            return (
-              <label
-                className={[
-                  'flex min-h-24 cursor-pointer items-center rounded-md border p-4 text-base font-black transition sm:min-h-28',
-                  checked
-                    ? 'border-rooster-red bg-rooster-red text-white shadow-sm'
-                    : 'border-rooster-line bg-white text-rooster-ink hover:bg-rooster-paper',
-                  isRejectedDuringShove ? 'opacity-0' : '',
-                ].join(' ')}
-                data-testid={`match-result-choice-${choice.value}`}
-                key={choice.value}
-              >
-                <input
-                  checked={checked}
-                  className="focus-ring mr-3 h-5 w-5 shrink-0 accent-rooster-red"
-                  id={`${baseId}-${choice.value}`}
-                  name="match-result"
-                  type="radio"
-                  value={choice.value}
-                  onChange={() => selectChoice(choice.value)}
-                  onFocus={() => {
-                    if (isRejectedDuringShove) {
-                      cancelShoveEffect();
-                    }
-                  }}
-                />
-                <span className="min-w-0 break-words leading-6">
-                  {choice.label}
-                </span>
-              </label>
-            );
-          })}
-        </div>
+              return (
+                <label
+                  className={[
+                    'flex min-h-24 cursor-pointer items-center rounded-md border p-4 text-base font-black transition sm:min-h-28',
+                    checked
+                      ? 'border-rooster-red bg-rooster-red text-white shadow-sm'
+                      : 'border-rooster-line bg-white text-rooster-ink hover:bg-rooster-paper',
+                  ].join(' ')}
+                  data-testid={`match-result-choice-${choice.value}`}
+                  key={choice.value}
+                >
+                  <input
+                    ref={(element) => {
+                      choiceInputRefs.current[choice.value] = element;
+                    }}
+                    checked={checked}
+                    className="focus-ring mr-3 h-5 w-5 shrink-0 accent-rooster-red"
+                    id={`${baseId}-${choice.value}`}
+                    name="match-result"
+                    type="radio"
+                    value={choice.value}
+                    onChange={() => selectChoice(choice.value)}
+                    onClick={() => {
+                      if (checked) {
+                        selectChoice(choice.value);
+                      }
+                    }}
+                  />
+                  <span className="min-w-0 break-words leading-6">
+                    {choice.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        ) : selectedChoice ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label
+              className="flex min-h-24 items-center rounded-md border border-rooster-red bg-rooster-red p-4 text-base font-black text-white shadow-sm sm:min-h-28"
+              data-testid={`match-result-choice-${selectedChoice.value}`}
+            >
+              <input
+                aria-describedby={`${baseId}-settled-status`}
+                checked
+                className="focus-ring mr-3 h-5 w-5 shrink-0 accent-rooster-red"
+                id={`${baseId}-settled-${selectedChoice.value}`}
+                name="match-result"
+                readOnly
+                type="radio"
+                value={selectedChoice.value}
+              />
+              <span className="min-w-0 break-words leading-6">
+                {selectedChoice.label}
+              </span>
+            </label>
+          </div>
+        ) : null}
 
         {activeShove ? (
           <MatchResultShoveOverlay
@@ -188,10 +246,23 @@ export const MatchResultPredictionStep = ({
         ) : null}
       </div>
 
-      {isMatchResultChoiceValue(value) ? (
-        <p className="mt-3 text-sm font-black text-rooster-ink" role="status">
-          You picked {selectedLabel}
-        </p>
+      {selectedChoice && effectiveViewMode === 'settled' ? (
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p
+            className="text-sm font-black text-rooster-ink"
+            id={`${baseId}-settled-status`}
+            role="status"
+          >
+            You picked {selectedLabel}
+          </p>
+          <button
+            className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            type="button"
+            onClick={changeSelection}
+          >
+            Change my selection
+          </button>
+        </div>
       ) : null}
     </fieldset>
   );

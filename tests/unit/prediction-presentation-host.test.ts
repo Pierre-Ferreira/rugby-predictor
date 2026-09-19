@@ -152,10 +152,18 @@ const buttonByText = (container: HTMLElement, text: string) => {
   return button;
 };
 
-const radioByValue = (container: HTMLElement, value: string) => {
-  const radio = container.querySelector<HTMLInputElement>(
+const matchResultRadios = (container: HTMLElement) =>
+  Array.from(
+    container.querySelectorAll<HTMLInputElement>('input[name="match-result"]'),
+  );
+
+const queryRadioByValue = (container: HTMLElement, value: string) =>
+  container.querySelector<HTMLInputElement>(
     `input[type="radio"][value="${value}"]`,
   );
+
+const radioByValue = (container: HTMLElement, value: string) => {
+  const radio = queryRadioByValue(container, value);
 
   if (!radio) {
     throw new Error(`Radio "${value}" not found.`);
@@ -179,6 +187,12 @@ const inputByTestId = (container: HTMLElement, testId: string) => {
 const click = async (element: HTMLElement) => {
   await act(async () => {
     element.click();
+  });
+};
+
+const finishAnimation = async (element: HTMLElement) => {
+  await act(async () => {
+    element.dispatchEvent(new Event('animationend', { bubbles: true }));
   });
 };
 
@@ -328,21 +342,42 @@ describe('React prediction presentation host', () => {
 });
 
 describe('Match Result React presentation', () => {
-  it('dispatches Team 1, Team 2 and Draw choices through the shared action path', async () => {
+  it('starts with the three-choice radio group when no answer exists', async () => {
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        motionEnabled: true,
+        onChoice: vi.fn(),
+      }),
+    );
+
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(false);
+    expect(radioByValue(mountedStep.container, 'team2').checked).toBe(false);
+    expect(radioByValue(mountedStep.container, 'draw').checked).toBe(false);
+  });
+
+  it('updates the shared action once and settles to the selected answer only', async () => {
     const choices: string[] = [];
     const mountedStep = await mount(
       createElement(MatchResultHarness, {
-        motionEnabled: false,
+        motionEnabled: true,
         onChoice: (value) => choices.push(value),
       }),
     );
 
     await click(radioByValue(mountedStep.container, 'team1'));
-    await click(radioByValue(mountedStep.container, 'team2'));
-    await click(radioByValue(mountedStep.container, 'draw'));
 
-    expect(choices).toEqual(['team1', 'team2', 'draw']);
-    expect(radioByValue(mountedStep.container, 'draw').checked).toBe(true);
+    expect(choices).toEqual(['team1']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(queryRadioByValue(mountedStep.container, 'team2')).toBeNull();
+    expect(queryRadioByValue(mountedStep.container, 'draw')).toBeNull();
+    expect(mountedStep.container.textContent).toContain(
+      'You picked Springboks',
+    );
+    expect(
+      buttonByText(mountedStep.container, 'Change my selection').tagName,
+    ).toBe('BUTTON');
   });
 
   it('plays decorative shove only for a deliberate new animated choice', async () => {
@@ -361,10 +396,12 @@ describe('Match Result React presentation', () => {
       ),
     ).toBeNull();
 
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
     await click(radioByValue(mountedStep.container, 'team2'));
 
     expect(choices).toEqual(['team2']);
     expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(
       mountedStep.container.querySelector(
         '[data-testid="match-result-shove-layer"]',
@@ -372,25 +409,105 @@ describe('Match Result React presentation', () => {
     ).not.toBeNull();
   });
 
-  it('does not add shove layers when animations are Off', async () => {
+  it('Change restores choices without changing the answer, then a new choice updates correctly', async () => {
+    const choices: string[] = [];
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        initialValue: 'team1',
+        motionEnabled: true,
+        onChoice: (value) => choices.push(value),
+      }),
+    );
+
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
+
+    expect(choices).toEqual([]);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(document.activeElement).toBe(
+      radioByValue(mountedStep.container, 'team1'),
+    );
+
+    await click(radioByValue(mountedStep.container, 'draw'));
+
+    expect(choices).toEqual(['draw']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'draw').checked).toBe(true);
+    expect(mountedStep.container.textContent).toContain('You picked Draw');
+  });
+
+  it('reselecting the current answer returns to settled without duplicate updates', async () => {
+    const choices: string[] = [];
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        initialValue: 'team2',
+        motionEnabled: true,
+        onChoice: (value) => choices.push(value),
+      }),
+    );
+
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
+    await click(radioByValue(mountedStep.container, 'team2'));
+
+    expect(choices).toEqual([]);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('initializes a saved selection as settled without replaying animation', async () => {
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        initialValue: 'team2',
+        motionEnabled: true,
+        onChoice: vi.fn(),
+      }),
+    );
+
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
+    expect(mountedStep.container.textContent).toContain(
+      'You picked All Blacks',
+    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
+  });
+
+  it('keeps the same choose, settled, and Change behavior when animations are Off', async () => {
+    const choices: string[] = [];
     const mountedStep = await mount(
       createElement(MatchResultHarness, {
         motionEnabled: false,
-        onChoice: vi.fn(),
+        onChoice: (value) => choices.push(value),
       }),
     );
 
     await click(radioByValue(mountedStep.container, 'team1'));
 
+    expect(choices).toEqual(['team1']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
     expect(
       mountedStep.container.querySelector(
         '[data-testid="match-result-shove-layer"]',
       ),
     ).toBeNull();
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
+
+    expect(choices).toEqual(['team1']);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
   });
 
-  it('cancels obsolete shove effects on resize and keeps the selected answer', async () => {
+  it('cancels obsolete shove effects on resize and leaves a valid settled answer', async () => {
     const mountedStep = await mount(
       createElement(MatchResultHarness, {
         motionEnabled: true,
@@ -414,6 +531,35 @@ describe('Match Result React presentation', () => {
         '[data-testid="match-result-shove-layer"]',
       ),
     ).toBeNull();
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+  });
+
+  it('Change during an active shove removes the decoration and restores choices', async () => {
+    const choices: string[] = [];
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        motionEnabled: true,
+        onChoice: (value) => choices.push(value),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).not.toBeNull();
+
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
+
+    expect(choices).toEqual(['team1']);
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(3);
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
   });
 
@@ -444,9 +590,41 @@ describe('Match Result React presentation', () => {
     ).toBeNull();
     expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
 
+    await click(buttonByText(mountedStep.container, 'Change my selection'));
     await click(radioByValue(mountedStep.container, 'draw'));
     expect(choices).toEqual(['team1', 'draw']);
     expect(radioByValue(mountedStep.container, 'draw').checked).toBe(true);
+  });
+
+  it('settles safely when the shove animation completes normally', async () => {
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        motionEnabled: true,
+        onChoice: vi.fn(),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+    const shoveLayer = mountedStep.container.querySelector<HTMLElement>(
+      '[data-testid="match-result-shove-layer"]',
+    );
+
+    expect(shoveLayer).not.toBeNull();
+
+    if (shoveLayer) {
+      await finishAnimation(shoveLayer);
+    }
+
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
+    expect(matchResultRadios(mountedStep.container)).toHaveLength(1);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(true);
+    expect(
+      buttonByText(mountedStep.container, 'Change my selection').tagName,
+    ).toBe('BUTTON');
   });
 });
 

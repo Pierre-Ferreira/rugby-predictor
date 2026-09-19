@@ -224,6 +224,17 @@ const screenshotPath = (name: string) => {
   return join(screenshotDir, name);
 };
 
+const videoPath = (name: string) => {
+  if (!evidenceDir) {
+    return null;
+  }
+
+  const videoDir = join(evidenceDir, 'browser-videos');
+  mkdirSync(videoDir, { recursive: true });
+
+  return join(videoDir, name);
+};
+
 const captureScreenshot = async (page: Page, name: string) => {
   const path = screenshotPath(name);
 
@@ -235,6 +246,18 @@ const captureScreenshot = async (page: Page, name: string) => {
     fullPage: true,
     path,
   });
+};
+
+const saveVideo = async (page: Page, name: string) => {
+  const path = videoPath(name);
+  const video = page.video();
+
+  if (!path || !video) {
+    return;
+  }
+
+  await page.close();
+  await video.saveAs(path);
 };
 
 const createFixtureAndOpenPrediction = async (
@@ -354,6 +377,7 @@ test.describe('React prediction presentation', () => {
 
     await backButton(page).click();
     await page.getByRole('button', { exact: true, name: 'On' }).click();
+    await page.getByRole('button', { name: 'Change my selection' }).click();
     await page.getByRole('radio', { name: 'Draw' }).check();
     await expect(page.getByTestId('match-result-shove-layer')).toBeVisible();
     await page.setViewportSize({ height: 844, width: 390 });
@@ -363,6 +387,57 @@ test.describe('React prediction presentation', () => {
 
     await page.setViewportSize({ height: 740, width: 360 });
     await captureScreenshot(page, '010a-match-result-360.png');
+  });
+
+  test('captures the complete normal-speed Match Result Rooster shove', async ({
+    page,
+  }) => {
+    const { teams } = await createFixtureAndOpenPrediction(
+      page,
+      'complete-shove',
+      {
+        team1: uniqueLabel('Springboks'),
+        team2: uniqueLabel('Wallabies'),
+      },
+    );
+    const matchResultStep = page.getByTestId('react-match-result-step');
+
+    await expect(matchResultStep).toBeVisible();
+    await expect(
+      page.getByRole('button', { exact: true, name: 'On' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
+    await captureScreenshot(page, '010a1-match-result-before-selection.png');
+
+    await page.getByRole('radio', { name: teams.team1 }).check();
+
+    await expect(page.getByTestId('match-result-shove-layer')).toBeVisible();
+    await expect(page.getByTestId('match-result-rooster')).toBeVisible();
+    await page.waitForTimeout(330);
+    await captureScreenshot(page, '010a1-match-result-contact-frame.png');
+
+    await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
+      timeout: 2_000,
+    });
+    await expect(page.getByText(`You picked ${teams.team1}`)).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Change my selection' }),
+    ).toBeVisible();
+    await expect(matchResultStep.getByRole('radio')).toHaveCount(1);
+    await expect(
+      matchResultStep.getByRole('radio', { name: teams.team1 }),
+    ).toBeChecked();
+    await expect(
+      matchResultStep.getByRole('radio', { name: teams.team2 }),
+    ).toHaveCount(0);
+    await expect(
+      matchResultStep.getByRole('radio', { name: 'Draw' }),
+    ).toHaveCount(0);
+    await captureScreenshot(
+      page,
+      '010a1-match-result-settled-selected-only.png',
+    );
+    await saveVideo(page, '010a1-match-result-shove-normal-speed.webm');
   });
 
   test('Tries numeric controls support phone input, Back/Continue retention, and toggles', async ({

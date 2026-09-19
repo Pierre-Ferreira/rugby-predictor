@@ -93,6 +93,21 @@ dirty saved-session browser journey continued to pass, but resize and
 reduced-motion browser closeout remain unresolved after the permitted
 `7 passed / 2 failed` current-source browser batches.
 
+CCPP-010A makes the active prediction route use one React/HTML prediction
+experience. `usePredictionSession(...)` remains the shared owner of answers,
+navigation, validation state, saved baselines, conflict handling, and
+submission. Match Result and Tries have React-first presentation components
+with optional browser-native decoration; Kaplay remains installed but is no
+longer imported or initialized by the active prediction flow.
+
+CCPP-010A1 removes the stale player-facing `Standard prediction` Intro wording.
+The Match Result step now settles to the selected answer only after a deliberate
+choice, with a checked selected radio-card, `You picked ...` status, and a
+`Change my selection` button. Change restores the three real choices without
+changing the saved draft answer until another choice is selected. Animations On,
+Animations Off, reduced motion, resize, Back, and Continue keep the same shared
+React answer state.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.

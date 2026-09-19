@@ -545,7 +545,7 @@ const PredictionFeedback = ({
 const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
   <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
     <p className="text-sm font-black uppercase text-rooster-red">
-      Standard prediction
+      Make your prediction
     </p>
     <h2 className="mt-4 text-3xl font-black text-rooster-ink sm:text-4xl">
       {predictionIntroMessage.heading}

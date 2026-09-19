@@ -108,13 +108,17 @@ Current unit test files:
 - `tests/unit/prediction-presentation-mode.test.ts` - historical CCPP-009B
   pure preview gate/effective-mode coverage plus current animation preference
   storage and reduced-motion helper tests.
-- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A real React DOM
-  presentation-host, Match Result, and Tries tests for stable controls across
-  Animations On/Off, reduced-motion suppression, shared Match Result action
-  dispatch, deliberate-only shove creation, Off/no-shove parity, resize
-  cancellation preserving the selected answer, harmless sprite-load
-  cancellation, shared Tries numeric dispatch, blank/zero semantics, conversion
-  clamping delegation, and rapid numeric updates.
+- `tests/unit/prediction-presentation-host.test.ts` - CCPP-010A/010A1 real
+  React DOM presentation-host, Match Result, and Tries tests for stable
+  controls across Animations On/Off, reduced-motion suppression, initial
+  three-choice Match Result radios, shared Match Result action dispatch,
+  selected-only settled state, Change restoring choices without changing the
+  answer, reselecting the current answer without duplicate updates, saved
+  selection initialization without replay, deliberate-only shove creation,
+  Off/no-shove parity, resize and Change interruption preserving the selected
+  answer, harmless sprite-load cancellation, shared Tries numeric dispatch,
+  blank/zero semantics, conversion clamping delegation, and rapid numeric
+  updates.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
   Match Result layout, shove motion, compact readability, projection,
   transformed bounds, hit testing, and resize-preservation tests.
@@ -362,8 +366,11 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   into React Tries, Animations Off parity, resize interruption preserving React
   state, coherent 390px/360px layouts, Tries numeric input/toggles, Back/Continue
   retention, and handoff into existing Conversions with conversion clamping
-  still authoritative. Retained final browser evidence on 2026-09-19 records
-  `3 passed`; closeout did not rerun this browser spec.
+  still authoritative. CCPP-010A1 extends that file with the selected-only
+  settled Match Result state and one complete normal-speed Rooster shove
+  evidence case. The retained 010A1 focused browser batch on 2026-09-19 records
+  `4 passed`, with before-selection, contact-frame, settled selected-only, and
+  WebM evidence under `test-results/ccpp010a1/`.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

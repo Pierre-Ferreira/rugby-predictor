@@ -2,8 +2,9 @@
 
 ## Purpose
 
-CCPP-010A makes the active player prediction experience React-first. Real
-React/HTML controls now own prediction entry for the active route. Optional
+CCPP-010A makes the active player prediction experience React-first. CCPP-010A1
+keeps that architecture and closes small Match Result presentation follow-ups.
+Real React/HTML controls own prediction entry for the active route. Optional
 browser-native animation is a decorative layer over those same controls; it is
 not a second answer model, validation path, navigation path, or persistence
 path.
@@ -68,16 +69,30 @@ The active Match Result step renders real HTML radio controls for:
 - team two;
 - Draw.
 
-Changing a radio updates the shared session immediately. A deliberate new
-choice may create a short decorative shove overlay when animations are enabled.
-The overlay is `aria-hidden`, `pointer-events: none`, and uses no focusable
-controls. Animation completion and cancellation only remove the decorative
-overlay; they do not navigate, validate, submit, save, or clear the selected
-answer.
+When no Match Result answer exists, all three radio-card controls are present
+and keyboard usable. Choosing an answer updates the shared session immediately
+through the same React action path. The selected answer then becomes the only
+real radio-card shown in the settled state, accompanied by the `You picked ...`
+status and a real `Change my selection` button. Rejected choices are not
+focusable or announced as available choices in the settled state.
 
-Saved initial answers render as selected controls without replaying the shove.
-Animations Off and reduced-motion states keep the same answer controls and
-session validation.
+`Change my selection` returns immediately to the three real radio-card choices.
+It preserves the current answer until another choice is deliberately selected,
+does not dirty or update the answer merely by opening the choices, and cancels
+any obsolete decorative shove layer. Selecting the already-current answer again
+returns to the settled selected-only state without dispatching another domain
+update or starting a new shove.
+
+A deliberate new choice may create a short decorative shove overlay when
+animations are enabled. The overlay is `aria-hidden`, `pointer-events: none`,
+and uses no focusable controls. Animation completion, resize/orientation
+cancellation, Animations Off, reduced motion, Back/Continue navigation, and
+sprite-load failure only remove the decorative overlay; they do not navigate,
+validate, submit, save, or clear the selected answer.
+
+Saved initial answers render directly as the selected-only settled state without
+replaying the shove. Animations Off and reduced-motion states keep the same
+choose, settled, and Change behavior and the same session validation.
 
 ## Tries
 
