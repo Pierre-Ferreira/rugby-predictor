@@ -1,19 +1,14 @@
 import {
-  type CSSProperties,
-  type ChangeEvent,
-  type AnimationEvent as ReactAnimationEvent,
   useCallback,
   useEffect,
   useId,
   useRef,
   useState,
+  type CSSProperties,
+  type ChangeEvent,
+  type AnimationEvent as ReactAnimationEvent,
 } from 'react';
 
-import type { FixtureDocument } from '/imports/shared/fixtures';
-import {
-  teamScoreComponentRugbyPoints,
-  type TeamSide,
-} from '/imports/shared/scoring';
 import {
   deriveTeamScoreFromForm,
   parseFormWholeNumber,
@@ -21,6 +16,11 @@ import {
   type PredictionFormState,
   type TeamPredictionForm,
 } from './standardPredictionState';
+import type { FixtureDocument } from '/imports/shared/fixtures';
+import {
+  teamScoreComponentRugbyPoints,
+  type TeamSide,
+} from '/imports/shared/scoring';
 
 type MatchResultChoiceValue = 'draw' | 'team1' | 'team2';
 
@@ -54,7 +54,7 @@ interface MatchResultRevealGeometry {
 
 type MatchResultViewMode = 'choosing' | 'revealing' | 'settled';
 
-const matchResultMotionDurationMs = 1_200;
+const matchResultMotionDurationMs = 1_800;
 const matchResultMinimumClearancePx = 16;
 const roosterSpriteAspectRatio = 268 / 276;
 

@@ -16,6 +16,13 @@ No prediction/session/domain logic, server behavior, scoring logic, Tries
 behavior, Kaplay, canvas, duplicate answer state, or later prediction steps were
 changed.
 
+Timing closeout note: the revised true-underpass package was reviewed at a
+1200ms cadence. After that review, the user requested that the Rooster run "just
+a little slower across the page." The final verified cadence is now 1800ms. The
+selected-card geometry, lane geometry, measured clearance requirement,
+rejected-control hiding behavior, and settled hero layout were not changed for
+this timing closeout.
+
 ## Implementation
 
 - `imports/ui/predictions/reactPredictionPresentation.tsx`
@@ -34,7 +41,8 @@ changed.
     choices, with compact and settled-state adjustments.
   - Animates the selected card to the measured upper tier before rooster travel.
   - Holds rooster entry until after the lift/readable moment, then moves through
-    measured underpass, contact, push, and exit points.
+    measured underpass, contact, push, and exit points over a slightly slower
+    1800ms cadence.
   - Keeps the decorative layer pointer-inert and clips only the shove layer, not
     the lifted selected card.
 - `tests/e2e/react-prediction-presentation.spec.ts`
@@ -48,13 +56,17 @@ changed.
 - `tests/unit/prediction-presentation-host.test.ts`
   - Covers the variable-driven lift CSS, revealing-stage space, delayed rooster
     underpass timing, and hidden rejected real controls.
+  - Verifies the 1800ms cadence across selected-rise, decorative-layer,
+    rejected-pack, Rooster travel, sprite-frame CSS, and the React settle timer.
 
 ## Evidence
 
-Final retained evidence lives under:
+Original reviewed evidence for the accepted true-underpass implementation used
+the prior 1200ms cadence. Fresh replacement evidence for the final 1800ms source
+lives under:
 
 ```text
-test-results/ccpp010a3-revised
+test-results/ccpp010a3-1800ms
 ```
 
 Key artifacts:
@@ -74,7 +86,7 @@ Key artifacts:
 - `browser-videos/010a3-match-result-lift-clean-shove-normal-speed.webm`
 - `browser-measurements/010a3-match-result-lift-clean-shove-measurements.json`
 
-Objective geometry from the retained JSON:
+Objective geometry from the fresh 1800ms retained JSON:
 
 - Desktop selected top before: `822`; lifted top: `774`; lift:
   `48` CSS px.
@@ -84,11 +96,13 @@ Objective geometry from the retained JSON:
   `150` CSS px.
 - 390px selected lifted bottom: `405`; rooster transit top: `494`;
   clearance: `89` CSS px.
-- 360px selected top before: `591`; lifted top: `333`; lift:
+- 360px selected top before: `647`; lifted top: `389`; lift:
   `258` CSS px.
-- 360px selected lifted bottom: `429`; rooster transit top: `518`;
+- 360px selected lifted bottom: `485`; rooster transit top: `574`;
   clearance: `89` CSS px.
 - Required clearance in the test: `16` CSS px.
+- Fresh normal-speed WebM duration: `9.44s`; previous 1400ms WebM: `7.64s`;
+  previous 1200ms reviewed WebM: `6.68s`.
 
 Rejected-control evidence:
 
@@ -118,15 +132,19 @@ Manual inspection of retained screenshots:
 Focused checks run:
 
 - `meteor npm exec vitest run --config vitest.config.mts tests/unit/prediction-presentation-host.test.ts`
-  - Passed: 18 tests.
+  - Passed: 19 tests.
 - `meteor npm run typecheck`
   - Passed.
-- `RUGBY_ROOSTER_E2E_EVIDENCE_DIR=test-results/ccpp010a3-revised npm run test:e2e -- tests/e2e/react-prediction-presentation.spec.ts -g "captures the CCPP-010A3 Match Result lift and clean shove" --workers=1 --retries=0`
-  - Sandboxed run exited before executing tests and recorded no failed tests.
-  - Approved local-browser runs were used to correct and retain visual evidence.
-  - Final run passed: 1 Chromium test.
-
-Static closeout checks are recorded in the final task response.
+- `RUGBY_ROOSTER_E2E_EVIDENCE_DIR=test-results/ccpp010a3-1800ms npm run test:e2e -- tests/e2e/react-prediction-presentation.spec.ts -g "captures the CCPP-010A3 Match Result lift and clean shove" --workers=1 --retries=0`
+  - Approved local-browser run passed: 1 Chromium test.
+- `npm run lint`
+  - Passed.
+- `npm run lint:project`
+  - Passed.
+- `./node_modules/.bin/prettier --check client/main.css docs/AUDIT_010A3_Match_Result_Lift_Clean_Shove.md docs/PLATFORM_React_Prediction_Experience.md docs/TEMP_010A3_Resume.md imports/ui/predictions/reactPredictionPresentation.tsx tests/e2e/react-prediction-presentation.spec.ts tests/unit/prediction-presentation-host.test.ts`
+  - Passed.
+- `git diff --check`
+  - Passed.
 
 ## Architecture Notes
 

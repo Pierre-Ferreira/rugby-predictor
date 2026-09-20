@@ -110,7 +110,7 @@
     border-color: rgb(var(--color-rooster-sun));
     outline: 2px solid rgb(var(--color-rooster-sun) / 0.75);
     outline-offset: 2px;
-    animation: rr-match-result-selected-rise 1200ms
+    animation: rr-match-result-selected-rise 1800ms
       cubic-bezier(0.22, 1, 0.36, 1) both;
     box-shadow: 0 20px 44px rgb(22 31 38 / 0.28);
   }
@@ -168,7 +168,7 @@
     z-index: 12;
     pointer-events: none;
     overflow: hidden;
-    animation: rr-match-result-layer-life 1200ms linear both;
+    animation: rr-match-result-layer-life 1800ms linear both;
   }
 
   .rr-match-result-shove-pack {
@@ -178,7 +178,7 @@
     display: grid;
     width: var(--rr-match-result-pack-width);
     gap: 0.5rem;
-    animation: rr-match-result-shove-pack 1200ms linear both;
+    animation: rr-match-result-shove-pack 1800ms linear both;
   }
 
   .rr-match-result-shove-card {
@@ -210,7 +210,7 @@
     top: 0;
     width: var(--rr-match-result-rooster-size);
     aspect-ratio: 276 / 268;
-    animation: rr-match-result-rooster-travel 1200ms linear both;
+    animation: rr-match-result-rooster-travel 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame {
@@ -223,35 +223,35 @@
   }
 
   .rr-match-result-rooster-frame-0 {
-    animation: rr-match-result-rooster-frame-0 1200ms linear both;
+    animation: rr-match-result-rooster-frame-0 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-1 {
-    animation: rr-match-result-rooster-frame-1 1200ms linear both;
+    animation: rr-match-result-rooster-frame-1 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-2 {
-    animation: rr-match-result-rooster-frame-2 1200ms linear both;
+    animation: rr-match-result-rooster-frame-2 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-3 {
-    animation: rr-match-result-rooster-frame-3 1200ms linear both;
+    animation: rr-match-result-rooster-frame-3 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-4 {
-    animation: rr-match-result-rooster-frame-4 1200ms linear both;
+    animation: rr-match-result-rooster-frame-4 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-5 {
-    animation: rr-match-result-rooster-frame-5 1200ms linear both;
+    animation: rr-match-result-rooster-frame-5 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-6 {
-    animation: rr-match-result-rooster-frame-6 1200ms linear both;
+    animation: rr-match-result-rooster-frame-6 1800ms linear both;
   }
 
   .rr-match-result-rooster-frame-7 {
-    animation: rr-match-result-rooster-frame-7 1200ms linear both;
+    animation: rr-match-result-rooster-frame-7 1800ms linear both;
   }
 
   @media (max-width: 520px) {

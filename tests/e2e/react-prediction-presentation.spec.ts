@@ -620,7 +620,7 @@ test.describe('React prediction presentation', () => {
     await expect(page.getByTestId('match-result-choice-team1')).toHaveClass(
       /rr-match-result-choice-card--selected-rise/,
     );
-    await page.waitForTimeout(280);
+    await page.waitForTimeout(380);
     const desktopLift = await choiceBounds(page, 'team1');
     const desktopLiftGeometry = await matchResultUnderpassGeometry(
       page,
@@ -696,7 +696,7 @@ test.describe('React prediction presentation', () => {
       fullPage: false,
     });
 
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(260);
     await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
     const desktopContactState = await revealControlState(page, 'team1', [
       'team2',
@@ -740,7 +740,7 @@ test.describe('React prediction presentation', () => {
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
     const mobile390Before = await choiceBounds(page, 'team2');
     await page.getByRole('radio', { name: teams.team2 }).check();
-    await page.waitForTimeout(280);
+    await page.waitForTimeout(380);
     const mobile390Lift = await choiceBounds(page, 'team2');
     const mobile390LiftDisplacement = mobile390Before.top - mobile390Lift.top;
     const mobile390Layout = await page.evaluate(() => ({
@@ -799,7 +799,7 @@ test.describe('React prediction presentation', () => {
     await expect(matchResultStep.getByRole('radio')).toHaveCount(3);
     const mobile360Before = await choiceBounds(page, 'draw');
     await page.getByRole('radio', { name: 'Draw' }).check();
-    await page.waitForTimeout(280);
+    await page.waitForTimeout(380);
     const mobile360Lift = await choiceBounds(page, 'draw');
     const mobile360LiftDisplacement = mobile360Before.top - mobile360Lift.top;
     const mobile360Layout = await page.evaluate(() => ({

@@ -12,6 +12,11 @@ Do not begin Tries, Conversions, Penalties, Drop Goals, Cards, custom
 questions, Review, quiz, Kaplay, canvas, server, scoring, prediction-session, or
 architecture work from this checkpoint.
 
+The reviewed true-underpass implementation was accepted at 1200ms. After review,
+the user requested the Rooster run slightly slower across the page. The final
+verified cadence is 1800ms, with geometry, clearance, rejected-control hiding,
+and the settled hero unchanged.
+
 ## Implementation Status
 
 - [x] Selected answer updates immediately through the shared session.
@@ -21,6 +26,7 @@ architecture work from this checkpoint.
 - [x] Rooster entry waits until after lift completion and a brief readable
       moment.
 - [x] Rooster transit lane is below the selected card with measured clearance.
+- [x] Rooster/rejected-card travel uses a slightly slower 1800ms cadence.
 - [x] During reveal, rejected real controls remain layout-preserving but are
       `visibility:hidden`, disabled, `aria-hidden`, and noninteractive.
 - [x] Decorative rejected copies remain `aria-hidden`, pointer-inert, and
@@ -37,7 +43,7 @@ architecture work from this checkpoint.
 Final evidence folder:
 
 ```text
-test-results/ccpp010a3-revised
+test-results/ccpp010a3-1800ms
 ```
 
 Key artifacts:
@@ -61,14 +67,14 @@ Measured retained clearance:
 
 - Desktop: selected bottom `886`, rooster top `975`, clearance `89`.
 - 390px: selected bottom `405`, rooster top `494`, clearance `89`.
-- 360px: selected bottom `429`, rooster top `518`, clearance `89`.
+- 360px: selected bottom `485`, rooster top `574`, clearance `89`.
 - Required clearance: `16` CSS px.
 
 Measured retained lift:
 
 - Desktop: top `822` -> `774`, displacement `48`.
 - 390px: top `459` -> `309`, displacement `150`.
-- 360px: top `591` -> `333`, displacement `258`.
+- 360px: top `647` -> `389`, displacement `258`.
 
 Clean shove evidence:
 
@@ -81,13 +87,17 @@ Clean shove evidence:
 ## Checks Run
 
 - `meteor npm exec vitest run --config vitest.config.mts tests/unit/prediction-presentation-host.test.ts`
-  - Passed: 18 tests.
+  - Passed: 19 tests.
 - `meteor npm run typecheck`
   - Passed.
 - Focused browser evidence command:
-  `RUGBY_ROOSTER_E2E_EVIDENCE_DIR=test-results/ccpp010a3-revised npm run test:e2e -- tests/e2e/react-prediction-presentation.spec.ts -g "captures the CCPP-010A3 Match Result lift and clean shove" --workers=1 --retries=0`
-  - Sandboxed attempt exited before tests with no failed test recorded.
-  - Approved local-browser runs were used to correct the visual evidence.
-  - Final run passed: 1 Chromium test.
-
-Run static closeout checks before packaging or handoff.
+  `RUGBY_ROOSTER_E2E_EVIDENCE_DIR=test-results/ccpp010a3-1800ms npm run test:e2e -- tests/e2e/react-prediction-presentation.spec.ts -g "captures the CCPP-010A3 Match Result lift and clean shove" --workers=1 --retries=0`
+  - Approved local-browser run passed: 1 Chromium test.
+- `npm run lint`
+  - Passed.
+- `npm run lint:project`
+  - Passed.
+- `./node_modules/.bin/prettier --check client/main.css docs/AUDIT_010A3_Match_Result_Lift_Clean_Shove.md docs/PLATFORM_React_Prediction_Experience.md docs/TEMP_010A3_Resume.md imports/ui/predictions/reactPredictionPresentation.tsx tests/e2e/react-prediction-presentation.spec.ts tests/unit/prediction-presentation-host.test.ts`
+  - Passed.
+- `git diff --check`
+  - Passed.

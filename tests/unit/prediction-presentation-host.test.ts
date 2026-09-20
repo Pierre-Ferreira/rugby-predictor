@@ -408,8 +408,75 @@ describe('Match Result React presentation', () => {
       /@keyframes rr-match-result-rooster-travel[\s\S]*35%[\s\S]*var\(--rr-match-result-rooster-entry-left\)[\s\S]*52%[\s\S]*var\(--rr-match-result-rooster-underpass-left\)[\s\S]*64%[\s\S]*var\(--rr-match-result-rooster-contact-left\)/,
     );
     expect(css).toMatch(
+      /\.rr-match-result-stage \.rr-match-result-choice-card--selected-rise[\s\S]*animation: rr-match-result-selected-rise 1800ms/,
+    );
+    expect(css).toMatch(
+      /\.rr-match-result-shove-layer[\s\S]*animation: rr-match-result-layer-life 1800ms linear both;/,
+    );
+    expect(css).toMatch(
+      /\.rr-match-result-rooster[\s\S]*animation: rr-match-result-rooster-travel 1800ms linear both;/,
+    );
+    expect(css).toMatch(
+      /\.rr-match-result-shove-pack[\s\S]*animation: rr-match-result-shove-pack 1800ms linear both;/,
+    );
+    for (let index = 0; index < 8; index += 1) {
+      expect(css).toMatch(
+        new RegExp(
+          `\\.rr-match-result-rooster-frame-${index}[\\s\\S]*animation: rr-match-result-rooster-frame-${index} 1800ms linear both;`,
+        ),
+      );
+    }
+    expect(css).toMatch(
       /\.rr-match-result-stage \.rr-match-result-choice-card--rejected-hidden[\s\S]*visibility: hidden;[\s\S]*pointer-events: none;/,
     );
+  });
+
+  it('keeps React reveal settling aligned to the 1800ms CSS cadence', async () => {
+    vi.useFakeTimers();
+
+    const mountedStep = await mount(
+      createElement(MatchResultHarness, {
+        motionEnabled: true,
+        onChoice: vi.fn(),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'revealing',
+    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).not.toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_799);
+    });
+
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'revealing',
+    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).not.toBeNull();
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
+      'settled',
+    );
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="match-result-shove-layer"]',
+      ),
+    ).toBeNull();
   });
 
   it('starts with the three-choice radio group when no answer exists', async () => {

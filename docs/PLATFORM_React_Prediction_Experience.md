@@ -80,10 +80,13 @@ two-level arrangement, the selected real radio-card moves into an upper tier,
 and the Rooster enters only after that lift has completed. The Rooster then runs
 through a measured lane underneath the selected card with visible clearance
 before contacting and pushing decorative rejected-choice copies away over a
-roughly 1.2 second sequence. The selected answer is not pushed or moved away.
+roughly 1.8 second sequence. The selected answer is not pushed or moved away.
 During this reveal, the original rejected real radio-card elements may remain
 mounted only for layout continuity; they are visually hidden, disabled,
 `aria-hidden`, and noninteractive while the decorative copies represent them.
+The 1.8 second cadence is shared by the React settle timer, selected-rise CSS,
+decorative layer lifetime, rejected-pack shove, Rooster travel, and sprite-frame
+sequence. The separate final hero settle flourish remains a short transition.
 The settled state then shows the selected answer as a larger hero card with the
 exact label `YOU SELECTED:` above it and a real `Change my selection` button.
 Rejected choices are not focusable or announced as available choices in the
