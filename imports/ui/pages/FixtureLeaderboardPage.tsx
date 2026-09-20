@@ -30,6 +30,7 @@ import { AppLink } from '../components/AppLink';
 import {
   fixtureDetailPath,
   fixturePredictionPath,
+  fixtureScoreBreakdownPath,
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
@@ -539,9 +540,17 @@ const LeaderboardStatusPanel = ({
             {body}
           </p>
           {leaderboard.currentUserParticipating ? (
-            <p className="mt-3 text-sm font-black text-rooster-ink">
-              {"You're in."}
-            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <p className="text-sm font-black text-rooster-ink">
+                {"You're in."}
+              </p>
+              <AppLink
+                className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                to={fixtureScoreBreakdownPath(leaderboard.fixtureId)}
+              >
+                View my score
+              </AppLink>
+            </div>
           ) : null}
           {leaderboard.resultRevision !== null ? (
             <p className="mt-2 text-xs font-bold uppercase text-rooster-muted">

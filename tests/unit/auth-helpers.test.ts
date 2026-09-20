@@ -35,6 +35,12 @@ describe('auth helpers', () => {
     expect(resolveSafeReturnPath('/games/fixture_1/predict')).toBe(
       '/games/fixture_1/predict',
     );
+    expect(resolveSafeReturnPath('/games/fixture_1/leaderboard')).toBe(
+      '/games/fixture_1/leaderboard',
+    );
+    expect(resolveSafeReturnPath('/games/fixture_1/my-score')).toBe(
+      '/games/fixture_1/my-score',
+    );
     expect(resolveSafeReturnPath('/fixtures/fixture_1?tab=bad')).toBe(
       '/fixtures/fixture_1',
     );

@@ -66,6 +66,11 @@ fixture by reusing the accepted CCPP-011A player fixture-score projection.
 Leaderboards are derived, not persisted, and use privacy-safe fixture-scoped
 player aliases until a proper public display-name feature exists.
 
+CCPP-011C adds the signed-in player's own score-breakdown route for one
+fixture. It reuses `predictions.getMyFixtureScore` and the accepted CCPP-011A
+projection, so prediction correctness, deductions, pending counts, Void, and
+zero floor remain scoring-engine/projection concerns rather than UI formulas.
+
 CCPP-009C1 corrects the development-only Kaplay Match Result presentation
 without changing prediction rules or saved data. The Rooster shove now keeps
 contact-to-push motion continuous in the pure projection, calculates exit from
@@ -134,7 +139,8 @@ tries remain authoritative.
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict` and
-`/games/:fixtureId/leaderboard`.
+`/games/:fixtureId/leaderboard`. Current-user leaderboard and saved-prediction
+contexts can link to `/games/:fixtureId/my-score`.
 
 Anonymous visitors can browse fixtures and open the prediction route. The route
 uses the existing passwordless sign-in flow and a validated `returnTo` path back
@@ -158,6 +164,8 @@ Signed-in verified players see:
 - Their saved entry when revisiting the route.
 - A fixture leaderboard route with awaiting-result, provisional `If it ended
 now`, final, and cancelled states.
+- Their own fixture score breakdown route with awaiting-result, provisional
+  `If it ended now`, final, and cancelled states.
 
 ## Supported Prediction Fields
 
@@ -400,7 +408,7 @@ prediction flow, Review/submission animation, or final visual acceptance.
 
 - Permanent lock policy after rescheduling.
 - Match results and final scoring persistence.
-- Leaderboards and league aggregation.
+- League aggregation and cross-fixture competition policy.
 - Prize, venue, sponsorship, and competition rules.
 - Whether Kaplay is used later for genuine gameplay, such as a possible
   half-time quiz. That idea remains unimplemented.

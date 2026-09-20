@@ -5,6 +5,7 @@ export type RouteId =
   | 'authEmailLink'
   | 'gameDetail'
   | 'fixtureLeaderboard'
+  | 'fixtureScoreBreakdown'
   | 'predictionEntry'
   | 'games'
   | 'home'
@@ -69,6 +70,8 @@ export const notFoundRoute: AppRoute = {
 const gameDetailPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}$/;
 const fixtureLeaderboardPattern =
   /^\/games\/[a-zA-Z0-9_-]{1,128}\/leaderboard$/;
+const fixtureScoreBreakdownPattern =
+  /^\/games\/[a-zA-Z0-9_-]{1,128}\/my-score$/;
 const predictionEntryPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}\/predict$/;
 const adminFixtureResultsPattern =
   /^\/admin\/fixtures\/[a-zA-Z0-9_-]{1,128}\/results$/;
@@ -102,6 +105,15 @@ export const resolveRoute = (pathname: string): AppRoute => {
     return {
       id: 'fixtureLeaderboard',
       label: 'Leaderboard',
+      layout: 'public',
+      path: normalizedPath,
+    };
+  }
+
+  if (fixtureScoreBreakdownPattern.test(normalizedPath)) {
+    return {
+      id: 'fixtureScoreBreakdown',
+      label: 'My Score',
       layout: 'public',
       path: normalizedPath,
     };

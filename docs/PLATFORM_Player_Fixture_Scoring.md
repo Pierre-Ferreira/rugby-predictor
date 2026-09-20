@@ -1,10 +1,10 @@
 # Rugby Rooster Player Fixture Scoring Platform
 
-CCPP-011A adds deterministic player fixture-score projection. It does not add a
-leaderboard, ranking UI, score persistence, score jobs, public result
-publication, or player-facing breakdown screen. CCPP-011B later consumes this
-projection for a derived fixture leaderboard without adding a second scoring
-path.
+CCPP-011A adds deterministic player fixture-score projection. It does not add
+score persistence, score jobs, or public result publication. CCPP-011B consumes
+this projection for a derived fixture leaderboard without adding a second
+scoring path, and CCPP-011C consumes the same projection for the signed-in
+player's own score breakdown.
 
 ## Model
 
@@ -55,8 +55,9 @@ Shared source lives under `imports/shared/playerFixtureScores/`.
 - `components`
 
 Component rows keep stable engine data: question key, question ID, question
-type, component status, deduction, label, and the engine item array. They do not
-generate polished prose; player-facing explanation is deferred to CCPP-011C.
+type, component status, deduction, label, and the engine item array. CCPP-011C
+maps those components into player-facing labels and rows without recalculating
+score totals or deductions.
 
 ## Lifecycle
 
@@ -119,7 +120,25 @@ saved predictions server-side, then ranks the resulting 011A projections in
 memory. Result corrections naturally update leaderboard scores and places on
 the next leaderboard request.
 
-## Future Use
+## Score Breakdown Reuse
 
-CCPP-011C can use `components` and engine item data for player-facing score
-breakdowns.
+CCPP-011C reuses the owner-only `predictions.getMyFixtureScore` method for the
+signed-in player's own `/games/:fixtureId/my-score` page. The page calls the
+existing method again for manual Refresh and visible-page polling, so result
+corrections are reflected without a page reload.
+
+The score-breakdown view model consumes this projection as authority. It
+handles presentation concerns such as prediction sequence order, team names,
+custom question labels, custom Choice stable-option label resolution,
+Pending/Void/resolved display, and zero-floor explanation. It does not call
+scoring primitives, calculate deductions, decide correctness independently, or
+rebuild `currentScore` / `finalScore`.
+
+Item-level status is preserved. A partially pending team component can display
+one resolved team row with its deduction and another team row as Pending. Blank
+official observations stay Pending; explicit observed zero values remain
+resolved zeros.
+
+The authoritative `team-score` component remains visible in 011C as a
+`Predicted Score` section after Drop Goals. The UI labels the existing
+projection data and does not recalculate the derived rugby score deduction.

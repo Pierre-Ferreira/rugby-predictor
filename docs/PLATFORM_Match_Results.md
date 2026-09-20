@@ -226,4 +226,6 @@ CCPP-011B consumes:
 
 The fixture leaderboard remains derived and recalculates from the current result
 revision on demand. Broader league settlement, batching/caching, and public
-score breakdowns remain outside CCPP-011B.
+score breakdowns remain outside CCPP-011B. CCPP-011C adds the current player's
+own score-breakdown route by reusing the owner-only score projection; it still
+does not add public result publication or score persistence.

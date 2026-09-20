@@ -157,6 +157,13 @@ Current unit test files:
   scores, Draw semantics, zero floor, custom Number/Choice with Void,
   cancelled fixtures, revision metadata, and inconsistent canonical input
   failure.
+- `tests/unit/player-score-breakdown.test.ts` - CCPP-011C pure score-breakdown
+  view-model tests for awaiting/provisional/final/cancelled/no-prediction
+  summaries, zero-floor display, built-in label resolution, item-level
+  partially pending team rows, card grouping, custom Number and Choice label
+  resolution from the fixture ruleset, custom Void, disabled-question omission,
+  prediction-sequence ordering, and the derived `Predicted Score` treatment for
+  the authoritative team-score component.
 - `tests/unit/fixture-leaderboard.test.ts` - CCPP-011B pure fixture
   leaderboard tests for descending sort, standard competition ranking
   (`1,2,2,4` and `1,1,3`), zero-score ties, deterministic tie ordering,
@@ -317,6 +324,13 @@ The current browser suite covers:
   pending indicators removed, 390px/360px no-horizontal-overflow checks, and a
   same-page route change to another published fixture to ensure stale rows and
   revision text are not retained.
+- Player score-breakdown browser coverage in
+  `tests/e2e/player-score-breakdown.spec.ts`: one signed-in player journey
+  through provisional `If it ended now`, current score, starting points,
+  resolved deduction, pending count, correct/no-deduction row, deduction row,
+  Pending row, a partially pending multi-item Tries section, result correction
+  via Refresh without page reload, final score, zero pending, custom Void
+  presentation, and 390px/360px no-horizontal-overflow checks.
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.

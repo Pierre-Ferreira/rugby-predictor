@@ -43,6 +43,7 @@ import { AppLink } from '../components/AppLink';
 import {
   fixtureDetailPath,
   fixtureLeaderboardPath,
+  fixtureScoreBreakdownPath,
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
@@ -1768,6 +1769,12 @@ const ReadOnlyPrediction = ({
           <p className="mt-2 text-sm font-bold text-rooster-muted">
             Saved revision {entry.revision}.
           </p>
+          <AppLink
+            className="focus-ring mt-4 inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            to={fixtureScoreBreakdownPath(fixture._id)}
+          >
+            View my score
+          </AppLink>
           <div className="mt-5">
             <PredictionReviewSummary
               activeSteps={activeSteps}

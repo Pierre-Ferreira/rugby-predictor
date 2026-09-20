@@ -75,6 +75,9 @@ Cancelled fixtures return a non-score `cancelled` projection for a user with a
 saved prediction. CCPP-011A does not define refund, abandoned-match, or
 competition policy for cancelled fixtures.
 
+CCPP-011C uses this same method for the current player's score-breakdown page.
+It does not add a second score-breakdown method or a client-side scoring path.
+
 `predictions.getFixtureLeaderboard` accepts `{ fixtureId, offset?, limit? }`
 and returns a derived `FixtureLeaderboardProjection` for a published fixture.
 The method requires a verified signed-in player but the viewer does not need to
@@ -175,10 +178,13 @@ Route:
 
 - `/games/:fixtureId/predict` - prediction entry and saved-entry view.
 - `/games/:fixtureId/leaderboard` - fixture leaderboard.
+- `/games/:fixtureId/my-score` - signed-in player's own fixture score
+  breakdown.
 
 Source paths:
 
 - `imports/ui/pages/PredictionEntryPage.tsx`
+- `imports/ui/pages/PlayerScoreBreakdownPage.tsx`
 - `imports/ui/predictions/predictionSession.ts`
 - `imports/ui/predictions/standardPredictionState.ts`
 - `imports/ui/predictions/PredictionPresentationHost.tsx`
@@ -229,6 +235,21 @@ kickoff passing. Server checks remain authoritative.
 The fixture leaderboard page also uses a 15-second visible-page refresh while
 the leaderboard is awaiting results or provisional. It stops automatic refresh
 once final/cancelled and keeps the last successful data if a refresh fails.
+
+The player score-breakdown page uses the same owner-only score method for
+initial load, manual Refresh, and roughly 15-second visible-page polling while
+the projection is awaiting results or provisional. It stops automatic refresh
+once final/cancelled, hidden, or unmounted. If a refresh fails after a
+successful load, the last-good breakdown remains visible and an inline refresh
+failure status is shown.
+
+The score-breakdown view model is pure presentation mapping over the CCPP-011A
+projection. It orders sections, resolves team labels and custom Choice option
+labels from stable IDs, preserves item-level Pending/Void/resolved states, and
+displays zero-floor explanation from projection totals. It does not calculate
+deductions or rebuild scores. The authoritative `team-score` component is shown
+as a `Predicted Score` section after Drop Goals rather than being hidden or
+recomputed in the UI.
 
 When `isReadOnly` becomes true because scheduled kickoff has passed or the
 fixture is cancelled, the read-only saved-entry view derives its review values

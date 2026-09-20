@@ -42,6 +42,10 @@
   fixture-score projection, canonical input sources, lifecycle statuses,
   Pending versus zero, custom Void, revision behavior, owner-only method, and
   CCPP-011B leaderboard reuse boundary.
+- `docs/PLATFORM_Player_Score_Breakdown.md` - CCPP-011C signed-in player's own
+  score-breakdown route, CCPP-011A projection authority, item-level Pending,
+  Void, zero-floor, team-score presentation, refresh behavior, and deferred
+  scope.
 - `docs/PLATFORM_Fixture_Leaderboard.md` - CCPP-011B derived fixture
   leaderboard lifecycle, ranking, privacy labels, pagination, route, refresh
   policy, and deferrals.
@@ -166,6 +170,9 @@
 - `docs/AUDIT_011B_Fixture_Leaderboard.md` - CCPP-011B derived fixture
   leaderboard, ranking rule, privacy labels, route, tests, browser evidence,
   and EOMD archive evidence.
+- `docs/AUDIT_011C_Player_Score_Breakdown.md` - CCPP-011C owner-only score
+  breakdown, route, projection reuse, retained browser evidence, verification,
+  and EOMD archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -250,6 +257,9 @@
 - `docs/TEMP_011B_Resume.md` - temporary CCPP-011B checkpoint for fixture
   leaderboard implementation, verification, documentation, and packaging
   handoff.
+- `docs/TEMP_011C_Resume.md` - temporary CCPP-011C checkpoint for player score
+  breakdown implementation, retained browser evidence, final verification, and
+  packaging handoff.
 
 ## Application Entry Points
 
@@ -283,6 +293,7 @@
 - `/games/:fixtureId` - `imports/ui/pages/GameDetailPage.tsx` in the public layout for published fixture details.
 - `/games/:fixtureId/predict` - `imports/ui/pages/PredictionEntryPage.tsx` in the public layout for player prediction entry and saved-entry revisit.
 - `/games/:fixtureId/leaderboard` - `imports/ui/pages/FixtureLeaderboardPage.tsx` in the public layout for derived fixture leaderboards.
+- `/games/:fixtureId/my-score` - `imports/ui/pages/PlayerScoreBreakdownPage.tsx` in the public layout for the signed-in player's own fixture score breakdown.
 - `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout, including the admin-specific `mode=admin` request mode used from `/admin`.
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
 - `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
@@ -320,7 +331,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/validation.ts` - ruleset, prediction, and observation validation.
 - `imports/shared/scoring/engine.ts` - fixture scoring function.
 - `imports/shared/playerFixtureScores/` - serializable player fixture-score
-  projection types, errors, and pure adapter around the scoring engine.
+  projection types, errors, pure adapter around the scoring engine, and
+  CCPP-011C score-breakdown view-model mapping.
 
 ## Match Result Entry Points
 
@@ -346,6 +358,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/server/playerFixtureScores/playerFixtureScores.app-test.ts` -
   isolated integration coverage for score method authorization and lifecycle
   projection.
+- `imports/ui/pages/PlayerScoreBreakdownPage.tsx` - signed-in player's own
+  score-breakdown route with immediate load, manual Refresh, visible-page
+  polling, final/cancelled stop conditions, last-good refresh-failure display,
+  and projection-driven rows.
 
 ## Fixture Leaderboard Entry Points
 
@@ -502,6 +518,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   regression tests.
 - `tests/unit/fixture-leaderboard-privacy.test.ts` - fixture-scoped alias and
   opaque row ID privacy tests.
+- `tests/unit/player-score-breakdown.test.ts` - pure CCPP-011C score-breakdown
+  view-model tests for lifecycle summaries, item-level Pending, custom
+  Number/Choice/Void, zero floor, section ordering, and team-score presentation.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
   fixture, fixture leaderboard, match result, player fixture-score, and
   prediction integration suites.
@@ -555,6 +574,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/fixture-leaderboard.spec.ts` - focused browser test for the
   player-facing fixture leaderboard provisional, correction, final, current-user
   highlight, shared-place, and 390px/360px responsive states.
+- `tests/e2e/player-score-breakdown.spec.ts` - focused browser test for the
+  player-facing score breakdown provisional, correction, final, custom Void,
+  item-level partially pending Tries, and 390px/360px responsive states.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 - `tests/support/kaplay-layout-evidence.ts` - CCPP-009C3B browser evidence
   helper for reading the required Kaplay Match Result semantic bridge while

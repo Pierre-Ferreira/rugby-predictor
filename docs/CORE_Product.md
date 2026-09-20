@@ -99,7 +99,26 @@ Out of scope for this product:
 - Bounded pagination, current-player highlighting, manual refresh, and
   visible-page refresh for awaiting/provisional leaderboards.
 - No leagues, cumulative totals, average scores, prizes, QR redemption, AI
-  commentary, score breakdown UI, persistent ranking cache, or animation work.
+  commentary, persistent ranking cache, or animation work.
+
+## Implemented In CCPP-011C
+
+- Signed-in player's own fixture score breakdown route at
+  `/games/:fixtureId/my-score`.
+- Reuse of the owner-only CCPP-011A projection through
+  `predictions.getMyFixtureScore`; no second scoring path or duplicate formula.
+- Awaiting-result, provisional `If it ended now`, final, cancelled, and
+  no-prediction states.
+- Item-level Pending display, so one team row can resolve with a deduction
+  while another row in the same section remains Pending.
+- Blank/Pending, explicit zero, custom Number, custom Choice stable-option
+  labels, custom Void, and zero-floor explanations.
+- The authoritative team-score component is shown as a `Predicted Score`
+  section after Drop Goals without recalculating deductions in the UI.
+- Manual Refresh and visible-page refresh for awaiting/provisional states, with
+  last-good breakdown retained after refresh failure.
+- No AI commentary, leagues, prizes, another user's breakdown, score
+  persistence, background jobs, live event ingestion, or animation work.
 
 ## Agreed Product Direction
 

@@ -797,10 +797,48 @@ Implemented:
 
 Not implemented:
 
-- CCPP-011C score-breakdown UI.
 - Leagues, tournaments, cumulative totals, average scores, prizes, QR
   redemption, AI commentary, persistent ranking cache, background jobs, live
   event ingestion, or animation work.
+
+## CCPP-011C Scope
+
+Milestone status: implemented for the signed-in player's own fixture score
+breakdown. Platform details live in
+`docs/PLATFORM_Player_Score_Breakdown.md`, and verification evidence is recorded
+in `docs/AUDIT_011C_Player_Score_Breakdown.md`.
+
+Implemented:
+
+- Player-facing `/games/:fixtureId/my-score` route.
+- Reuse of the existing owner-only `predictions.getMyFixtureScore` method.
+- Reuse of the accepted CCPP-011A `PlayerFixtureScoreProjection` as score,
+  deduction, status, pending-count, Void, and zero-floor authority.
+- Pure shared presentation view model for section order, team labels, custom
+  question labels, custom Choice stable-option label resolution, lifecycle
+  summary rows, item-level Pending/Void/resolved display, and zero-floor copy.
+- Item-level partially pending display, so a resolved team row can show its
+  actual value and deduction while another team row remains Pending in the same
+  section.
+- Authoritative `team-score` component shown as a `Predicted Score` section
+  after Drop Goals without recalculating the deduction in UI.
+- Immediate load, manual Refresh, and roughly 15-second visible-page polling
+  while awaiting/provisional, with polling stopped on final/cancelled/hidden/
+  unmounted.
+- Last-good breakdown retention on refresh failure.
+- Links from current-user leaderboard participation and saved/read-only
+  prediction context.
+- Focused pure unit coverage and retained focused browser evidence for
+  provisional, correction, final, custom Void, partially pending Tries, and
+  390px/360px responsive states.
+
+Not implemented:
+
+- AI explanations or commentary.
+- Leagues, tournaments, cumulative totals, prizes, or QR redemption.
+- Another user's score breakdown.
+- Score persistence/cache, background score jobs, or live event ingestion.
+- Animation work.
 
 ## Roadmap Discipline
 

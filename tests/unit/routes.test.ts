@@ -52,6 +52,14 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves public player score breakdown routes under games', () => {
+    expect(resolveRoute('/games/abc_123/my-score')).toMatchObject({
+      id: 'fixtureScoreBreakdown',
+      layout: 'public',
+      path: '/games/abc_123/my-score',
+    });
+  });
+
   it('resolves admin fixture result routes', () => {
     expect(resolveRoute('/admin/fixtures/abc_123/results')).toMatchObject({
       id: 'adminFixtureResults',

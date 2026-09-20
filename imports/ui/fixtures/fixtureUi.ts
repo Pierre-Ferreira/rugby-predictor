@@ -33,5 +33,8 @@ export const fixturePredictionPath = (fixtureId: string): string =>
 export const fixtureLeaderboardPath = (fixtureId: string): string =>
   `/games/${fixtureId}/leaderboard`;
 
+export const fixtureScoreBreakdownPath = (fixtureId: string): string =>
+  `/games/${fixtureId}/my-score`;
+
 export const fixtureResultsPath = (fixtureId: string): string =>
   `/admin/fixtures/${fixtureId}/results`;

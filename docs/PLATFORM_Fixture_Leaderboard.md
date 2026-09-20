@@ -162,6 +162,8 @@ path. It shows:
 - final rows without pending counts;
 - shared place numbers for ties;
 - visible current-user highlighting with a `YOU` badge;
+- a `View my score` link for the signed-in participating player, pointing to
+  `/games/:fixtureId/my-score`;
 - `Your position` when the current user is outside the loaded page;
 - `Load more` pagination;
 - manual refresh.
@@ -178,6 +180,10 @@ refresh stops on final/cancelled.
 
 ## Deferred
 
-CCPP-011B does not implement leagues, tournaments, cumulative totals, average
-scores, prizes, QR redemption, AI commentary, score-breakdown UI, persistent
-score caches, background jobs, or leaderboard animations.
+CCPP-011B itself does not implement leagues, tournaments, cumulative totals,
+average scores, prizes, QR redemption, AI commentary, score-breakdown UI,
+persistent score caches, background jobs, or leaderboard animations.
+
+CCPP-011C adds the separate current-player score-breakdown route. It does not
+change CCPP-011B leaderboard ranking, pagination, privacy labels, or projection
+shape.
