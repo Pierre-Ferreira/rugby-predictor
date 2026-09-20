@@ -29,8 +29,8 @@
   revision/submission/discard handling, and renderer-local state.
 - `docs/PLATFORM_React_Prediction_Experience.md` - active React-first
   prediction controls, optional browser animation, Match Result selected-only
-  settled behavior, score-building numeric presentation contracts, and
-  superseded Kaplay status.
+  settled behavior, score-building numeric presentation contracts, Cards/First
+  Try presentation contracts, and superseded Kaplay status.
 - `docs/PLATFORM_Kaplay_Predictions.md` - CCPP-009B/009B4 development/test
   Kaplay prediction availability, lazy runtime, effective-mode policy,
   one-screen Match Result support, fallback, cleanup, accessibility bridge,
@@ -149,6 +149,10 @@
   numeric reaction/personality layer, cumulative score feedback, conversion
   limit response, native spinner suppression, Match Result 1400ms restoration,
   verification, and EOMD archive evidence.
+- `docs/AUDIT_010C_Cards_First_Try.md` - CCPP-010C React-first Cards and First
+  Try presentation, Yellow/Red reaction behavior, existing First Try
+  consistency ownership, retained browser evidence, verification, and EOMD
+  archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -225,6 +229,9 @@
 - `docs/TEMP_010B1_Resume.md` - temporary CCPP-010B1 checkpoint for numeric
   animation/personality implementation, browser evidence, verification,
   documentation, and packaging handoff.
+- `docs/TEMP_010C_Resume.md` - temporary CCPP-010C checkpoint for Cards and
+  First Try implementation state, retained browser evidence, closeout checks,
+  and packaging handoff.
 
 ## Application Entry Points
 
@@ -345,10 +352,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   only Animations preference, reduced-motion observation, and React
   presentation options.
 - `imports/ui/predictions/reactPredictionPresentation.tsx` - React-first Match
-  Result and score-building numeric controls with optional decorative browser
-  animation, selected-only Match Result settled state, Change restoration, and
-  reusable numeric card/stepper presentation, including CCPP-010B1 card/value,
-  score, personality, and conversion-limit reaction state.
+  Result, score-building numeric, Cards, and First Try controls with optional
+  decorative browser animation, selected-only Match Result settled state,
+  Change restoration, reusable numeric/card stepper presentation, CCPP-010B1
+  numeric card/value/score/personality and conversion-limit reaction state, and
+  CCPP-010C Cards/categorical reaction state.
 - `imports/ui/predictions/presentationMode.ts` - CCPP-009B/009B4 development
   availability, isolated test-control setting, supported-step, and
   effective-mode policy helpers.
@@ -465,7 +473,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   preference parity, mobile layouts, absence of active Kaplay canvas/import
   requests, conversion clamping, value retention, and Drop Goals
   result-consistency blocking, including CCPP-010B1 Animations-On numeric
-  reaction video/screenshots.
+  reaction video/screenshots and CCPP-010C Cards/First Try retained
+  video/screenshots.
 - `tests/e2e/kaplay-layout-evidence-helper.spec.ts` - lightweight CCPP-009C3B
   Playwright regression for required Match Result bridge and optional checked
   radio evidence reads without launching the Meteor app.

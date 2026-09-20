@@ -53,9 +53,10 @@ and locked read-only Review rendering consume that active list.
 CCPP-010A moves the active Match Result and Tries presentation to dedicated
 React-first components without changing the sequence. CCPP-010B extends that
 React-first numeric treatment to Conversions, Successful Penalty Kicks, and Drop
-Goals. Intro is still outside numbered progress, Match Result remains step 1
-when enabled, Tries remains step 2 when enabled, and Continue still advances to
-the next actual sequence item. Unsupported or later steps do not reset, skip, or
+Goals. CCPP-010C extends the React-first presentation layer to Cards and First
+Try. Intro is still outside numbered progress, Match Result remains step 1 when
+enabled, Tries remains step 2 when enabled, and Continue still advances to the
+next actual sequence item. Unsupported or later steps do not reset, skip, or
 auto-answer questions for animation; they render through the existing React
 sequence.
 
@@ -143,6 +144,17 @@ reaction layer may pulse the value, card, contextual copy, conversion-limit
 helper, and predicted-score-so-far display, but it never validates, stores, or
 submits answers. Rapid changes cancel/restart the cosmetic reaction so latest
 state wins.
+
+CCPP-010C keeps Cards and First Try on the same state rules. Cards dispatch
+Yellow Cards and Red Cards changes through `changeTeamNumericField(...)`; they
+do not combine those fields or alter predicted rugby score derivation. Their
+yellow/red markers, capped stacks, and reaction copy are presentation-only, and
+the latest card reaction clears obsolete card-field copy during rapid changes.
+First Try dispatches through `selectBuiltInChoice('firstTry', value)` from real
+radio controls. `No Tries Today!` is a full-size option, but its availability
+and forced-selection behavior still come from the existing try-total
+consistency helper. The presentation consumes the existing first-try constraint
+state and does not create independent automatic rules.
 
 Result consistency warnings are shown only after score-producing categories are
 known. The warning never changes the selected result or score inputs. From that

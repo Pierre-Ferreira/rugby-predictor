@@ -585,6 +585,120 @@
     appearance: none;
   }
 
+  .rr-cards-team-card {
+    position: relative;
+  }
+
+  .rr-card-field {
+    position: relative;
+    transform-origin: center;
+    border-color: rgb(var(--color-rooster-line));
+    will-change: transform;
+  }
+
+  .rr-card-field--yellow {
+    box-shadow: inset 0.25rem 0 0 rgb(var(--color-rooster-sun));
+  }
+
+  .rr-card-field--red {
+    box-shadow: inset 0.25rem 0 0 rgb(var(--color-rooster-red));
+  }
+
+  .rr-card-field--yellow[data-reaction-active='true'] {
+    border-color: rgb(var(--color-rooster-sun));
+    box-shadow:
+      inset 0.25rem 0 0 rgb(var(--color-rooster-sun)),
+      0 0 0 2px rgb(var(--color-rooster-sun) / 0.48),
+      0 12px 26px rgb(249 196 64 / 0.2);
+  }
+
+  .rr-card-field--red[data-reaction-active='true'] {
+    border-color: rgb(var(--color-rooster-red));
+    box-shadow:
+      inset 0.25rem 0 0 rgb(var(--color-rooster-red)),
+      0 0 0 2px rgb(var(--color-rooster-red) / 0.42),
+      0 14px 30px rgb(204 49 42 / 0.2);
+  }
+
+  .rr-card-marker,
+  .rr-card-stack-marker {
+    display: inline-block;
+    border: 1px solid rgb(22 31 38 / 0.28);
+    border-radius: 0.125rem;
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .rr-card-marker {
+    width: 1.1rem;
+    height: 1.55rem;
+    box-shadow: 0 0.25rem 0.7rem rgb(22 31 38 / 0.14);
+  }
+
+  .rr-card-marker--yellow,
+  .rr-card-stack-marker--yellow {
+    background: rgb(var(--color-rooster-sun));
+  }
+
+  .rr-card-marker--red,
+  .rr-card-stack-marker--red {
+    background: rgb(var(--color-rooster-red));
+  }
+
+  .rr-card-stack-marker {
+    width: 0.72rem;
+    height: 1rem;
+  }
+
+  .rr-card-value-pulse {
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .rr-card-reaction-copy,
+  .rr-categorical-reaction-copy {
+    opacity: 0;
+    transform: translateY(0.15rem);
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+
+  .rr-card-reaction-copy[data-reaction-active='true'],
+  .rr-categorical-reaction-copy[data-reaction-active='true'] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .rr-categorical-choice-card {
+    position: relative;
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .rr-categorical-choice-card--secondary {
+    opacity: 0.72;
+  }
+
+  .rr-categorical-choice-card--neutral:not(
+    .rr-categorical-choice-card--selected
+  ) {
+    border-style: dashed;
+  }
+
+  .rr-categorical-choice-card--neutral[data-selected='true'] {
+    border-color: rgb(var(--color-rooster-ink));
+    background: rgb(var(--color-rooster-ink));
+    color: white;
+  }
+
+  .rr-categorical-choice-card[data-reaction-active='true'] {
+    border-color: rgb(var(--color-rooster-sun));
+    box-shadow:
+      0 0 0 3px rgb(var(--color-rooster-sun) / 0.5),
+      0 14px 30px rgb(22 31 38 / 0.14);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .rr-match-result-stage .rr-match-result-choice-card--selected-rise,
     .rr-match-result-hero.rr-match-result-hero--settle-motion
@@ -600,7 +714,13 @@
     .rr-numeric-team-card,
     .rr-numeric-score,
     .rr-numeric-value-pulse,
-    .rr-numeric-reaction-copy {
+    .rr-numeric-reaction-copy,
+    .rr-card-field,
+    .rr-card-marker,
+    .rr-card-value-pulse,
+    .rr-card-reaction-copy,
+    .rr-categorical-choice-card,
+    .rr-categorical-reaction-copy {
       transition: none;
     }
   }

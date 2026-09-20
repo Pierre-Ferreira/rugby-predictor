@@ -11,8 +11,10 @@ React-first numeric language from Tries to Conversions, Successful Penalty
 Kicks, and Drop Goals. CCPP-010B1 keeps that architecture, makes the numeric
 steps visibly reactive/personable, suppresses native number spinners on the
 custom steppers, and restores the Match Result reveal cadence to the accepted
-1400ms timing after an accidental 1800ms regression. Real React/HTML controls
-own prediction entry for the active route.
+1400ms timing after an accidental 1800ms regression. CCPP-010C adds the
+React-first Cards and First Try player experience, including card-specific
+presentation reactions and a reusable non-Match-Result categorical choice
+pattern. Real React/HTML controls own prediction entry for the active route.
 Optional browser-native animation is a decorative layer over those same
 controls; it is not a second answer model, validation path, navigation path, or
 persistence path.
@@ -29,8 +31,8 @@ prototype work:
 - Kaplay remains installed as an available capability for future genuine
   gameplay if a later milestone chooses it.
 
-The half-time quiz remains only a future idea. It is not implemented by
-CCPP-010A.
+The half-time quiz remains only a future idea. It is not implemented by the
+CCPP-010 React presentation milestones through CCPP-010C.
 
 ## Source Map
 
@@ -41,14 +43,15 @@ CCPP-010A.
   Animations On/Off preference, reduced-motion observation, and presentation
   options passed into the React renderer.
 - `imports/ui/predictions/reactPredictionPresentation.tsx` contains the
-  React-first Match Result and score-building numeric presentations.
+  React-first Match Result, score-building numeric, Cards, and First Try
+  presentations.
 - `imports/ui/predictions/presentationPreference.ts` owns resilient
   browser-storage handling for the animation preference.
 - `imports/ui/predictions/reducedMotion.ts` observes the browser
   `prefers-reduced-motion` media query.
-- `client/main.css` contains the optional Match Result shove/Rooster frame CSS
-  plus the browser-native numeric reaction and native spinner-suppression
-  styles.
+- `client/main.css` contains the optional Match Result shove/Rooster frame CSS,
+  browser-native numeric/card/categorical reaction styles, and native
+  spinner-suppression styles.
 - `public/assets/rooster/match-result/frames/` contains the stacked PNG frames
   used by the browser animation.
 
@@ -186,13 +189,91 @@ number-spinner controls are hidden for the Rugby Rooster numeric steppers while
 preserving the number input, keyboard entry, `inputMode`, `min`, `max`, and
 step semantics.
 
+## Cards
+
+CCPP-010C moves the active Cards step to a React-first two-team presentation.
+Cards remain two separate predicted values per team:
+
+- Yellow Cards.
+- Red Cards.
+
+The presentation reads only the enabled card questions from the fixture ruleset
+and receives player-facing deduction/supporting copy from the resolved shared
+message layer. It does not duplicate the default card deduction or change the
+scoring engine. Each card value still updates through:
+
+```ts
+changeTeamNumericField(side, 'yellowCards' | 'redCards', value);
+```
+
+The Cards UI reuses the accepted numeric stepper semantics: decrement, direct
+typing, increment, rapid replacement, blank draft handling, zero floor, hidden
+native spinners, and no arbitrary UI maximum. Those edits remain session-owned
+through the same shared action path. Team cards stack on narrow screens and
+keep fixture team names in labels and accessible control names such as
+`Increase Springboks yellow cards`.
+
+Yellow and Red have distinct DOM/CSS visual signatures. Yellow fields use a
+yellow card marker, yellow accent rail, capped marker stack, and a lighter
+flip/slide reaction. Red fields use a red marker, red accent rail, capped stack,
+and a snappier impact reaction. The markers are decorative. Reaction copy is
+short and presentation-only; one shared active Cards reaction key means the
+latest Yellow/Red field reaction clears the previous one so rapid edits do not
+leave obsolete responses. Card marker stacks cap at four individual markers and
+collapse to a compact `x N` presentation for larger values.
+
+Cards do not change the predicted rugby match score. The team card keeps the
+current derived predicted rugby score visible, but it stays static when card
+counts change. Cards affect Rugby Rooster prediction accuracy/scoring only.
+
+Animations Off and reduced motion keep the same controls, labels, values,
+deduction copy, validation, and navigation while suppressing card movement and
+reaction state.
+
+## First Try
+
+CCPP-010C also moves First Try to a reusable React categorical-choice
+presentation for non-Match-Result questions. Match Result remains a special
+hero/shove interaction; First Try uses a lighter card pop/lift that settles in
+under a second.
+
+The First Try options are:
+
+- fixture Team 1 name;
+- fixture Team 2 name;
+- `No Tries Today!`.
+
+The presentation renders real radio controls and dispatches deliberate changes
+through:
+
+```ts
+selectBuiltInChoice('firstTry', value);
+```
+
+`No Tries Today!` is a full-size legitimate choice, not helper text. Existing
+first-try consistency remains owned by the shared form/session helpers. The
+component consumes the current allowed/disabled state from
+`firstTryConstraintForForm(...)`, and the session continues to apply
+`enforceFirstTryConsistency(...)` when tries or First Try change. For example,
+zero predicted tries for both teams still forces `No Tries Today!`; when both
+teams have predicted tries, team options remain available and `No Tries
+Today!` is disabled by the existing product rule.
+
+With Animations On, a deliberate new choice updates shared state immediately,
+then shows a short selected-choice reaction and contextual copy such as
+`Backing them to strike first.` or `No tries? Brave call.` Rapid re-selection
+replaces the cosmetic response, so the latest checked radio and selected card
+are the only active state. Animations Off and reduced motion keep the same
+radio choices, checked semantics, consistency helper, navigation, and
+validation while suppressing decorative motion/reaction state.
+
 ## Remaining Sequence
 
-After CCPP-010B, Match Result plus the four score-building numeric steps use
-the React-first presentation components. Cards, First Try, Highest-Scoring
-Half, Half-Time Leader, custom questions, Review, edit, submit, revise,
-discard, conflict recovery, and locked saved-entry display remain on the
-existing React sequence and shared session.
+After CCPP-010C, Match Result, the four score-building numeric steps, Cards,
+and First Try use React-first presentation components. Later categorical
+questions remain pending: Highest-Scoring Half, Half-Time Leader, custom
+questions, Review, edit, submit, revise, discard, conflict recovery, and locked
+saved-entry display remain on the existing React sequence and shared session.
 
 No server prediction method changes are part of this milestone.
 
@@ -210,9 +291,9 @@ historical prototype/deferred-cleanup code:
 - `imports/ui/predictions/presentationMode.ts`
 - Kaplay-focused unit and browser specs
 
-Do not reconnect those modules to the active prediction route during 010A
-closeout. A later cleanup milestone may remove or archive prediction-specific
-Kaplay code once review needs are satisfied.
+Do not reconnect those modules to the active prediction route during React
+prediction closeouts. A later cleanup milestone may remove or archive
+prediction-specific Kaplay code once review needs are satisfied.
 
 ## Historical Continuity
 

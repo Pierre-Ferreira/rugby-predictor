@@ -690,6 +690,43 @@ Not implemented:
 - New mascot artwork, canvas, Kaplay gameplay, animation-owned answer state,
   server methods, scoring rules, or persistence changes.
 
+## CCPP-010C Scope
+
+Milestone status: implemented for React-first Cards and First Try presentation.
+Platform details live in `docs/PLATFORM_React_Prediction_Experience.md`, and
+verification evidence is recorded in
+`docs/AUDIT_010C_Cards_First_Try.md`.
+
+Implemented:
+
+- Cards use React-first team panels with separate Yellow Cards and Red Cards
+  numeric fields for Team 1 and Team 2.
+- Cards reuse the accepted shared numeric stepper mechanics for direct typing,
+  blank drafts, decrement/increment buttons, zero floor, hidden native spinners,
+  rapid changes, and no arbitrary maximum.
+- Yellow and Red Cards have distinct decorative markers, capped marker stacks,
+  and presentation-only reactions.
+- One active Cards reaction key means the latest Yellow/Red response wins and
+  stale field copy clears during rapid changes.
+- Card counts do not alter the predicted rugby match score.
+- First Try uses real React radio controls for Team 1, Team 2, and
+  `No Tries Today!`.
+- `No Tries Today!` is a full-size legitimate option while remaining governed
+  by the existing first-try consistency helper.
+- Animations On adds cosmetic Cards/First Try reactions; Animations Off and
+  reduced motion keep the same controls and domain behavior.
+- Focused component tests, retained focused browser evidence, normal-speed
+  WebM, contact sheet, documentation, and review packaging are recorded in the
+  audit.
+
+Not implemented:
+
+- Highest-Scoring Half, Half-Time Leader, custom-question, or Review redesign.
+- CCPP-010D.
+- New mascot artwork, canvas, Kaplay prediction runtime work, quiz/gameplay,
+  animation-owned answer state, server methods, scoring rules, or persistence
+  changes.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

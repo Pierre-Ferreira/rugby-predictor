@@ -285,6 +285,21 @@ const numericScore = (page: Page, prefix: string, side: 'team1' | 'team2') =>
 const numericReaction = (page: Page, prefix: string, side: 'team1' | 'team2') =>
   page.getByTestId(`${prefix}-${side}-reaction`);
 
+const cardField = (
+  page: Page,
+  side: 'team1' | 'team2',
+  kind: 'red' | 'yellow',
+) => page.getByTestId(`cards-${side}-${kind}-field`);
+
+const cardReaction = (
+  page: Page,
+  side: 'team1' | 'team2',
+  kind: 'red' | 'yellow',
+) => page.getByTestId(`cards-${side}-${kind}-reaction`);
+
+const firstTryChoice = (page: Page, value: 'no-tries' | 'team1' | 'team2') =>
+  page.getByTestId(`first-try-choice-${value}`);
+
 const expectNumericChangeReaction = async (
   page: Page,
   prefix: string,
@@ -316,6 +331,21 @@ const expectNumericChangeReaction = async (
       'true',
     );
   }
+};
+
+const expectCardReaction = async (
+  page: Page,
+  side: 'team1' | 'team2',
+  kind: 'red' | 'yellow',
+) => {
+  await expect(cardField(page, side, kind)).toHaveAttribute(
+    'data-reaction-active',
+    'true',
+  );
+  await expect(cardField(page, side, kind)).toHaveAttribute(
+    'data-card-kind',
+    kind,
+  );
 };
 
 const pageWidthState = async (page: Page) =>
@@ -1298,5 +1328,301 @@ test.describe('React prediction presentation', () => {
       page,
       '010b1-numeric-animation-personality-normal-speed.webm',
     );
+  });
+
+  test('CCPP-010C Cards and First Try React reactions stay state-owned', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: 1000, width: 1280 });
+    const { teams } = await createFixtureAndOpenPrediction(
+      page,
+      'cards-first-try-010c',
+      {
+        team1: uniqueLabel('Springboks'),
+        team2: uniqueLabel('All Blacks'),
+      },
+    );
+    const measurements: Record<string, unknown> = {};
+
+    await expect(
+      page.getByRole('button', { exact: true, name: 'On' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('radio', { name: 'Draw' }).check();
+    await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
+      timeout: 2_000,
+    });
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-tries-step')).toBeVisible();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team2} tries` })
+      .click();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} tries` })
+      .click();
+    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('1');
+    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('1');
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-conversions-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-penalty-kicks-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await expect(continueButton(page)).toBeEnabled();
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-cards-step')).toBeVisible();
+    await expect(
+      teamNumberInput(page, teams.team1, 'yellow cards'),
+    ).toHaveValue('0');
+    await expect(teamNumberInput(page, teams.team1, 'red cards')).toHaveValue(
+      '0',
+    );
+    await expect(page.getByTestId('cards-team1-score')).toHaveText('5');
+    await captureScreenshot(page, '010c-cards-desktop.png');
+
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} yellow cards` })
+      .click();
+    await expect(
+      teamNumberInput(page, teams.team1, 'yellow cards'),
+    ).toHaveValue('1');
+    await expectCardReaction(page, 'team1', 'yellow');
+    await expect(cardReaction(page, 'team1', 'yellow')).toContainText(
+      /Into the book\.|Ref's reaching for the pocket\.|Careful now\./,
+    );
+    await expect(page.getByTestId('cards-team1-score')).toHaveText('5');
+    await captureScreenshot(page, '010c-yellow-card-reaction.png');
+    await page.waitForTimeout(260);
+
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} red cards` })
+      .click();
+    await expect(teamNumberInput(page, teams.team1, 'red cards')).toHaveValue(
+      '1',
+    );
+    await expectCardReaction(page, 'team1', 'red');
+    await expect(cardReaction(page, 'team1', 'red')).toContainText(
+      /OFF!|Early shower\?|That changes things\./,
+    );
+    await expect(page.getByTestId('cards-team1-score')).toHaveText('5');
+    await captureScreenshot(page, '010c-red-card-reaction.png');
+    await page.waitForTimeout(300);
+
+    const team2YellowIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team2} yellow cards`,
+    });
+    await team2YellowIncrement.click();
+    await team2YellowIncrement.click();
+    await team2YellowIncrement.click();
+    await expect(
+      teamNumberInput(page, teams.team2, 'yellow cards'),
+    ).toHaveValue('3');
+    await expectCardReaction(page, 'team2', 'yellow');
+    await teamNumberInput(page, teams.team2, 'red cards').fill('2');
+    await expect(teamNumberInput(page, teams.team2, 'red cards')).toHaveValue(
+      '2',
+    );
+    await expectCardReaction(page, 'team2', 'red');
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    await captureScreenshot(page, '010c-cards-390.png');
+    measurements.cards390 = await pageWidthState(page);
+    expect(
+      (measurements.cards390 as { clientWidth: number; scrollWidth: number })
+        .scrollWidth,
+    ).toBeLessThanOrEqual(
+      (measurements.cards390 as { clientWidth: number; scrollWidth: number })
+        .clientWidth + 1,
+    );
+
+    await page.setViewportSize({ height: 740, width: 360 });
+    await captureScreenshot(page, '010c-cards-360.png');
+    measurements.cards360 = await pageWidthState(page);
+    expect(
+      (measurements.cards360 as { clientWidth: number; scrollWidth: number })
+        .scrollWidth,
+    ).toBeLessThanOrEqual(
+      (measurements.cards360 as { clientWidth: number; scrollWidth: number })
+        .clientWidth + 1,
+    );
+
+    await page.setViewportSize({ height: 1000, width: 1280 });
+    await backButton(page).click();
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-cards-step')).toBeVisible();
+    await expect(
+      teamNumberInput(page, teams.team1, 'yellow cards'),
+    ).toHaveValue('1');
+    await expect(teamNumberInput(page, teams.team1, 'red cards')).toHaveValue(
+      '1',
+    );
+    await expect(
+      teamNumberInput(page, teams.team2, 'yellow cards'),
+    ).toHaveValue('3');
+    await expect(teamNumberInput(page, teams.team2, 'red cards')).toHaveValue(
+      '2',
+    );
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-first-try-step')).toBeVisible();
+    await expect(page.getByRole('radio', { name: teams.team1 })).toBeVisible();
+    await expect(page.getByRole('radio', { name: teams.team2 })).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'No Tries Today!' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'No Tries Today!' }),
+    ).toBeDisabled();
+    await captureScreenshot(page, '010c-first-try-initial-three-choices.png');
+
+    await page.getByRole('radio', { name: teams.team1 }).check();
+    await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
+    await expect(firstTryChoice(page, 'team1')).toHaveAttribute(
+      'data-selected',
+      'true',
+    );
+    await expect(firstTryChoice(page, 'team2')).toHaveAttribute(
+      'data-selected',
+      'false',
+    );
+    await expect(firstTryChoice(page, 'team1')).toHaveAttribute(
+      'data-reaction-active',
+      'true',
+    );
+    await expect(page.getByTestId('first-try-reaction')).toContainText(
+      /First blood\?|Backing them to strike first\.|Fast start\?/,
+    );
+    await page.waitForTimeout(160);
+    await captureScreenshot(page, '010c-first-try-team-selected.png');
+    await page.waitForTimeout(430);
+
+    await page.getByRole('radio', { name: teams.team2 }).check();
+    await expect(page.getByRole('radio', { name: teams.team2 })).toBeChecked();
+    await expect(firstTryChoice(page, 'team2')).toHaveAttribute(
+      'data-selected',
+      'true',
+    );
+    await expect(firstTryChoice(page, 'team1')).toHaveAttribute(
+      'data-selected',
+      'false',
+    );
+    await expect(firstTryChoice(page, 'team2')).toHaveAttribute(
+      'data-reaction-active',
+      'true',
+    );
+    await page.waitForTimeout(160);
+    await captureScreenshot(page, '010c-first-try-team2-selected.png');
+    await page.waitForTimeout(430);
+    await continueButton(page).click();
+    await expect(backButton(page)).toBeVisible();
+    await backButton(page).click();
+    await expect(page.getByRole('radio', { name: teams.team2 })).toBeChecked();
+
+    await backButton(page).click();
+    await expect(page.getByTestId('react-cards-step')).toBeVisible();
+    await backButton(page).click();
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await backButton(page).click();
+    await expect(page.getByTestId('react-penalty-kicks-step')).toBeVisible();
+    await backButton(page).click();
+    await expect(page.getByTestId('react-conversions-step')).toBeVisible();
+    await backButton(page).click();
+    await expect(page.getByTestId('react-tries-step')).toBeVisible();
+
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team1} tries` })
+      .click();
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team2} tries` })
+      .click();
+    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('0');
+    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('0');
+
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-conversions-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-penalty-kicks-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-cards-step')).toBeVisible();
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-first-try-step')).toBeVisible();
+    await expect(
+      page.getByRole('radio', { name: 'No Tries Today!' }),
+    ).toBeChecked();
+    await expect(firstTryChoice(page, 'no-tries')).toHaveAttribute(
+      'data-selected',
+      'true',
+    );
+    await captureScreenshot(page, '010c-first-try-no-tries-selected.png');
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    await captureScreenshot(page, '010c-first-try-390.png');
+    measurements.firstTry390 = await pageWidthState(page);
+    expect(
+      (
+        measurements.firstTry390 as {
+          clientWidth: number;
+          scrollWidth: number;
+        }
+      ).scrollWidth,
+    ).toBeLessThanOrEqual(
+      (
+        measurements.firstTry390 as {
+          clientWidth: number;
+          scrollWidth: number;
+        }
+      ).clientWidth + 1,
+    );
+
+    await page.setViewportSize({ height: 740, width: 360 });
+    await captureScreenshot(page, '010c-first-try-360.png');
+    measurements.firstTry360 = await pageWidthState(page);
+    expect(
+      (
+        measurements.firstTry360 as {
+          clientWidth: number;
+          scrollWidth: number;
+        }
+      ).scrollWidth,
+    ).toBeLessThanOrEqual(
+      (
+        measurements.firstTry360 as {
+          clientWidth: number;
+          scrollWidth: number;
+        }
+      ).clientWidth + 1,
+    );
+
+    await continueButton(page).click();
+    await expect(backButton(page)).toBeVisible();
+    await backButton(page).click();
+    await expect(
+      page.getByRole('radio', { name: 'No Tries Today!' }),
+    ).toBeChecked();
+
+    measurements.finalValues = {
+      cards: {
+        team1: {
+          red: '1',
+          yellow: '1',
+        },
+        team2: {
+          red: '2',
+          yellow: '3',
+        },
+      },
+      firstTry: 'no-tries',
+      tries: {
+        team1: '0',
+        team2: '0',
+      },
+    };
+    writeMeasurement('010c-cards-first-try-measurements.json', measurements);
+    await saveVideo(page, '010c-cards-first-try-normal-speed.webm');
   });
 });

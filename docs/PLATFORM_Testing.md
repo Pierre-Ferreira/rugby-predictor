@@ -128,7 +128,15 @@ Current unit test files:
   decrements, rapid replacement/coalescing, Conversions cap feedback and
   Animations Off parity, Penalty Kick and Drop Goal score reactions, direct
   typing reactions, unmount cleanup, reduced-motion suppression, native spinner
-  CSS, and the restored 1400ms Match Result timing contract.
+  CSS, and the restored 1400ms Match Result timing contract. CCPP-010C adds
+  focused Cards coverage for Yellow/Red increment and decrement, direct typing,
+  zero floor, Team 1/Team 2 isolation, rapid/latest reaction replacement,
+  Animations Off, reduced motion, cleanup, capped visual stacks, and no
+  predicted-rugby-score change from card counts. It also adds First Try
+  coverage for Team 1, Team 2, and `No Tries Today!` radio selection, shared
+  action dispatch, rapid re-selection, saved/current rendering, existing
+  first-try consistency behavior, Animations On, Animations Off, reduced
+  motion, and cleanup on navigation/unmount.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
   Match Result layout, shove motion, compact readability, projection,
   transformed bounds, hit testing, and resize-preservation tests.
@@ -386,7 +394,17 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   adds a focused Animations-On numeric reaction journey with normal-speed WebM
   evidence, Tries/Conversions/Penalty Kicks/Drop Goals reaction screenshots,
   conversion-limit feedback, cumulative score-building evidence, and 390px/360px
-  overflow checks. The retained 010A1 focused browser batch on 2026-09-19
+  overflow checks. CCPP-010C adds one focused Animations-On journey through
+  Match Result, Tries, Conversions, Penalty Kicks, Drop Goals, Cards, and First
+  Try. It captures Yellow and Red card reaction screenshots, desktop/390px/360px
+  Cards screenshots, First Try initial/team-selected/Team2-selected/
+  No-Tries-selected and 390px/360px screenshots, final value/overflow
+  measurements, a normal-speed WebM, and a contact sheet under
+  `test-results/ccpp010c/`. The closeout audit records that earlier browser
+  runs exposed and corrected the First Try setup order, stale Yellow reaction
+  copy, Red marker spacing, selected-state screenshot timing, and short
+  evidence holds before the final retained pass. The retained 010A1 focused
+  browser batch on 2026-09-19
   records `4 passed`, with before-selection, contact-frame, settled
   selected-only, and WebM evidence under `test-results/ccpp010a1/`.
 

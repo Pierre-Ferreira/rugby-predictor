@@ -17,23 +17,32 @@ import {
   resolvePredictionStepMessage,
   type PredictionMessageId,
 } from '../../imports/shared/predictions';
-import type { RulesetSnapshot, TeamSide } from '../../imports/shared/scoring';
+import type {
+  FirstTryAnswer,
+  RulesetSnapshot,
+  TeamSide,
+} from '../../imports/shared/scoring';
 import { defaultRuleset } from '../../imports/shared/scoring';
 import {
   PredictionPresentationHost,
   type PredictionPresentationOptions,
 } from '../../imports/ui/predictions/PredictionPresentationHost';
 import {
+  CardsPredictionStep,
   ConversionsPredictionStep,
   DropGoalsPredictionStep,
+  FirstTryPredictionStep,
   MatchResultPredictionStep,
   PenaltyKicksPredictionStep,
   TriesPredictionStep,
 } from '../../imports/ui/predictions/reactPredictionPresentation';
 import {
   emptyFormForRuleset,
+  enforceFirstTryConsistency,
+  firstTryConstraintForForm,
   setTeamPredictionField,
   type PredictionFormState,
+  type TeamPredictionForm,
 } from '../../imports/ui/predictions/standardPredictionState';
 
 (
@@ -524,6 +533,139 @@ const NumericStepHarness = ({
   }
 
   return createElement(TriesPredictionStep, props);
+};
+
+type CardHarnessField = Extract<
+  keyof TeamPredictionForm,
+  'redCards' | 'yellowCards'
+>;
+
+const CardsHarness = ({
+  initialForm,
+  motionEnabled,
+  onTeamChange,
+  showRedCards = true,
+  showYellowCards = true,
+}: {
+  readonly initialForm?: PredictionFormOverrides;
+  readonly motionEnabled: boolean;
+  readonly onTeamChange?: (
+    side: TeamSide,
+    field: CardHarnessField,
+    value: string,
+    form: PredictionFormState,
+  ) => void;
+  readonly showRedCards?: boolean;
+  readonly showYellowCards?: boolean;
+}) => {
+  const [form, setForm] = useState<PredictionFormState>(() =>
+    formWithOverrides(initialForm),
+  );
+  const changeCard = (
+    side: TeamSide,
+    field: CardHarnessField,
+    value: string,
+  ) => {
+    setForm((currentForm) => {
+      const result = setTeamPredictionField(currentForm, side, field, value);
+
+      onTeamChange?.(side, field, value, result.form);
+
+      return result.form;
+    });
+  };
+
+  return createElement(CardsPredictionStep, {
+    deductionText: 'Cards use the ruleset deduction copy.',
+    fixture: fixture(),
+    form,
+    motionEnabled,
+    showRedCards,
+    showYellowCards,
+    supportingText: ['Predict 0 and they receive 1? Ruleset copy applies.'],
+    onChange: changeCard,
+  });
+};
+
+const FirstTryHarness = ({
+  initialForm,
+  motionEnabled,
+  onChoice,
+}: {
+  readonly initialForm?: PredictionFormOverrides;
+  readonly motionEnabled: boolean;
+  readonly onChoice?: (
+    value: FirstTryAnswer,
+    form: PredictionFormState,
+  ) => void;
+}) => {
+  const [form, setForm] = useState<PredictionFormState>(
+    () => enforceFirstTryConsistency(formWithOverrides(initialForm)).form,
+  );
+  const constraint = firstTryConstraintForForm(form);
+  const options: readonly {
+    readonly disabled?: boolean;
+    readonly label: string;
+    readonly value: FirstTryAnswer;
+  }[] = (
+    [
+      { label: 'Springboks', value: 'team1' },
+      { label: 'All Blacks', value: 'team2' },
+      { label: 'No Tries Today!', value: 'no-tries' },
+    ] as const
+  ).map((option) => ({
+    ...option,
+    disabled: !constraint.allowedAnswers.includes(option.value),
+  }));
+
+  const changeFirstTry = (value: FirstTryAnswer) => {
+    setForm((currentForm) => {
+      const result = enforceFirstTryConsistency({
+        ...currentForm,
+        firstTry: value,
+      });
+
+      onChoice?.(value, result.form);
+
+      return result.form;
+    });
+  };
+
+  return createElement(
+    'div',
+    null,
+    createElement(FirstTryPredictionStep, {
+      constraintMessage: constraint.message,
+      fixture: fixture(),
+      motionEnabled,
+      options,
+      value: form.firstTry,
+      onChange: changeFirstTry,
+      onEditTries: () => {
+        setForm((currentForm) => {
+          const team1Result = setTeamPredictionField(
+            currentForm,
+            'team1',
+            'tries',
+            '0',
+          );
+          const team2Result = setTeamPredictionField(
+            team1Result.form,
+            'team2',
+            'tries',
+            '0',
+          );
+
+          return team2Result.form;
+        });
+      },
+    }),
+    createElement(
+      'output',
+      { 'data-testid': 'first-try-value' },
+      form.firstTry,
+    ),
+  );
 };
 
 describe('React prediction presentation host', () => {
@@ -1742,5 +1884,459 @@ describe('React numeric scoring presentation family', () => {
       elementByTestId(mountedStep.container, 'penalty-kicks-team1-card').dataset
         .reactionActive,
     ).toBe('false');
+  });
+});
+
+describe('Cards React presentation', () => {
+  it('updates yellow and red card fields independently without changing predicted rugby score', async () => {
+    const calls: Array<{
+      field: CardHarnessField;
+      side: TeamSide;
+      value: string;
+    }> = [];
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        initialForm: {
+          team1: { tries: '1', yellowCards: '0', redCards: '0' },
+          team2: { yellowCards: '0', redCards: '0' },
+        },
+        motionEnabled: false,
+        onTeamChange: (side, field, value) =>
+          calls.push({ field, side, value }),
+      }),
+    );
+
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-score').textContent,
+    ).toBe('5');
+
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team1-yellow-increment'),
+    );
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team1-red-increment'),
+    );
+    await changeInput(
+      inputByTestId(mountedStep.container, 'cards-team2-yellow-input'),
+      '3',
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team1-yellow-input').value,
+    ).toBe('1');
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team1-red-input').value,
+    ).toBe('1');
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team2-yellow-input').value,
+    ).toBe('3');
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team2-red-input').value,
+    ).toBe('0');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-score').textContent,
+    ).toBe('5');
+    expect(calls).toEqual([
+      { field: 'yellowCards', side: 'team1', value: '1' },
+      { field: 'redCards', side: 'team1', value: '1' },
+      { field: 'yellowCards', side: 'team2', value: '3' },
+    ]);
+  });
+
+  it('preserves blank typing and prevents card decrement below zero', async () => {
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        initialForm: {
+          team1: { yellowCards: '0' },
+        },
+        motionEnabled: false,
+      }),
+    );
+    const input = inputByTestId(
+      mountedStep.container,
+      'cards-team1-yellow-input',
+    );
+    const decrement = buttonByTestId(
+      mountedStep.container,
+      'cards-team1-yellow-decrement',
+    );
+
+    expect(decrement.disabled).toBe(true);
+    await changeInput(input, '');
+
+    expect(input.value).toBe('');
+    expect(decrement.disabled).toBe(true);
+  });
+
+  it('coalesces rapid yellow-card reactions and caps the visual stack', async () => {
+    vi.useFakeTimers();
+    const { animate, cancel } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        motionEnabled: true,
+      }),
+    );
+    const increment = buttonByTestId(
+      mountedStep.container,
+      'cards-team1-yellow-increment',
+    );
+
+    await click(increment);
+    await click(increment);
+    await click(increment);
+    await click(increment);
+    await click(increment);
+
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team1-yellow-input').value,
+    ).toBe('5');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionActive,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionDirection,
+    ).toBe('increase');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-reaction')
+        .textContent,
+    ).toMatch(/Into the book\.|Ref's reaching for the pocket\.|Careful now\./);
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-stack')
+        .textContent,
+    ).toContain('x 5');
+    expect(animate.mock.calls.length).toBeGreaterThanOrEqual(15);
+    expect(cancel.mock.calls.length).toBeGreaterThanOrEqual(12);
+
+    await act(async () => {
+      vi.advanceTimersByTime(379);
+    });
+
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionActive,
+    ).toBe('true');
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionActive,
+    ).toBe('false');
+  });
+
+  it('uses a distinct red-card reaction signature', async () => {
+    replaceAnimate();
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team2-red-increment'),
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, 'cards-team2-red-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team2-red-field').dataset
+        .cardKind,
+    ).toBe('red');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team2-red-reaction')
+        .textContent,
+    ).toMatch(/OFF!|Early shower\?|That changes things\./);
+  });
+
+  it('clears the previous card-field reaction when a different card changes', async () => {
+    replaceAnimate();
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team1-yellow-increment'),
+    );
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionActive,
+    ).toBe('true');
+
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team1-red-increment'),
+    );
+
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-field').dataset
+        .reactionActive,
+    ).toBe('false');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-yellow-reaction')
+        .textContent,
+    ).toBe('');
+    expect(
+      elementByTestId(mountedStep.container, 'cards-team1-red-field').dataset
+        .reactionActive,
+    ).toBe('true');
+  });
+
+  it('keeps Animations Off and reduced motion functional without card reaction state', async () => {
+    const { animate } = replaceAnimate();
+    const offStep = await mount(
+      createElement(CardsHarness, {
+        motionEnabled: false,
+      }),
+    );
+
+    await click(buttonByTestId(offStep.container, 'cards-team1-red-increment'));
+
+    expect(
+      inputByTestId(offStep.container, 'cards-team1-red-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(offStep.container, 'cards-team1-red-field').dataset
+        .reactionActive,
+    ).toBe('false');
+
+    replaceMatchMedia(true);
+    const reducedStep = await mount(
+      createElement(PredictionPresentationHost, {
+        renderExperience: (presentation) =>
+          createElement(CardsHarness, {
+            motionEnabled: presentation.animationsEnabled,
+          }),
+      }),
+    );
+
+    await click(
+      buttonByTestId(reducedStep.container, 'cards-team2-yellow-increment'),
+    );
+
+    expect(
+      inputByTestId(reducedStep.container, 'cards-team2-yellow-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(reducedStep.container, 'cards-team2-yellow-field').dataset
+        .reactionActive,
+    ).toBe('false');
+    expect(animate).not.toHaveBeenCalled();
+  });
+
+  it('cleans card reaction timers and animations on unmount', async () => {
+    vi.useFakeTimers();
+    const { cancel } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(CardsHarness, {
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'cards-team1-yellow-increment'),
+    );
+
+    mounted.pop();
+    await mountedStep.unmount();
+
+    expect(cancel).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('First Try React presentation', () => {
+  it('selects Team 1 and Team 2 through real shared radio actions', async () => {
+    const calls: FirstTryAnswer[] = [];
+    const mountedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          team1: { tries: '1' },
+          team2: { tries: '1' },
+        },
+        motionEnabled: false,
+        onChoice: (value) => calls.push(value),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+    await click(radioByValue(mountedStep.container, 'team2'));
+
+    expect(calls).toEqual(['team1', 'team2']);
+    expect(radioByValue(mountedStep.container, 'team1').checked).toBe(false);
+    expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
+    expect(radioByValue(mountedStep.container, 'no-tries').disabled).toBe(true);
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-value').textContent,
+    ).toBe('team2');
+  });
+
+  it('selects No Tries Today as a full-size third option when consistency allows it', async () => {
+    const calls: FirstTryAnswer[] = [];
+    const mountedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          team1: { tries: '' },
+          team2: { tries: '' },
+        },
+        motionEnabled: false,
+        onChoice: (value) => calls.push(value),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'no-tries'));
+
+    expect(calls).toEqual(['no-tries']);
+    expect(radioByValue(mountedStep.container, 'no-tries').checked).toBe(true);
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-choice-no-tries')
+        .dataset.selected,
+    ).toBe('true');
+  });
+
+  it('renders saved and forced consistency answers without inventing new rules', async () => {
+    const savedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          firstTry: 'team2',
+          team1: { tries: '1' },
+          team2: { tries: '1' },
+        },
+        motionEnabled: false,
+      }),
+    );
+
+    expect(radioByValue(savedStep.container, 'team2').checked).toBe(true);
+
+    const forcedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          firstTry: 'team1',
+          team1: { tries: '0' },
+          team2: { tries: '0' },
+        },
+        motionEnabled: false,
+      }),
+    );
+
+    expect(radioByValue(forcedStep.container, 'no-tries').checked).toBe(true);
+    expect(
+      elementByTestId(forcedStep.container, 'first-try-value').textContent,
+    ).toBe('no-tries');
+    expect(forcedStep.container.textContent).toContain(
+      'Based on your predicted tries.',
+    );
+  });
+
+  it('shows a quick selection reaction and lets rapid re-selection end on the latest answer', async () => {
+    const { animate, cancel } = replaceAnimate();
+    const calls: FirstTryAnswer[] = [];
+    const mountedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          team1: { tries: '1' },
+          team2: { tries: '1' },
+        },
+        motionEnabled: true,
+        onChoice: (value) => calls.push(value),
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-choice-team1').dataset
+        .reactionActive,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-reaction').textContent,
+    ).toMatch(/First blood\?|Backing them to strike first\.|Fast start\?/);
+
+    await click(radioByValue(mountedStep.container, 'team2'));
+
+    expect(calls).toEqual(['team1', 'team2']);
+    expect(radioByValue(mountedStep.container, 'team2').checked).toBe(true);
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-choice-team1').dataset
+        .selected,
+    ).toBe('false');
+    expect(
+      elementByTestId(mountedStep.container, 'first-try-choice-team2').dataset
+        .reactionActive,
+    ).toBe('true');
+    expect(animate).toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('keeps Animations Off and reduced motion functional without selection motion', async () => {
+    const { animate } = replaceAnimate();
+    const offStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          team1: { tries: '1' },
+          team2: { tries: '1' },
+        },
+        motionEnabled: false,
+      }),
+    );
+
+    await click(radioByValue(offStep.container, 'team1'));
+
+    expect(radioByValue(offStep.container, 'team1').checked).toBe(true);
+    expect(
+      elementByTestId(offStep.container, 'first-try-reaction').textContent,
+    ).toBe('');
+
+    mounted.pop();
+    await offStep.unmount();
+
+    replaceMatchMedia(true);
+    const reducedStep = await mount(
+      createElement(PredictionPresentationHost, {
+        renderExperience: (presentation) =>
+          createElement(FirstTryHarness, {
+            initialForm: {
+              team1: { tries: '1' },
+              team2: { tries: '1' },
+            },
+            motionEnabled: presentation.animationsEnabled,
+          }),
+      }),
+    );
+
+    await click(radioByValue(reducedStep.container, 'team2'));
+
+    expect(radioByValue(reducedStep.container, 'team2').checked).toBe(true);
+    expect(animate).not.toHaveBeenCalled();
+    expect(
+      elementByTestId(reducedStep.container, 'first-try-reaction').textContent,
+    ).toBe('');
+  });
+
+  it('cleans first-try reaction timers and animations on navigation away', async () => {
+    vi.useFakeTimers();
+    const { cancel } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(FirstTryHarness, {
+        initialForm: {
+          team1: { tries: '1' },
+          team2: { tries: '1' },
+        },
+        motionEnabled: true,
+      }),
+    );
+
+    await click(radioByValue(mountedStep.container, 'team1'));
+
+    mounted.pop();
+    await mountedStep.unmount();
+
+    expect(cancel).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });

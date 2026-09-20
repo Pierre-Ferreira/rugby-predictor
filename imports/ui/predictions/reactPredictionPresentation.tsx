@@ -21,6 +21,7 @@ import {
 import type { FixtureDocument } from '/imports/shared/fixtures';
 import {
   teamScoreComponentRugbyPoints,
+  type FirstTryAnswer,
   type TeamSide,
 } from '/imports/shared/scoring';
 
@@ -1451,5 +1452,939 @@ const NumericStepper = ({
         </button>
       </div>
     </div>
+  );
+};
+
+type CardPredictionField = 'redCards' | 'yellowCards';
+type CardKind = 'red' | 'yellow';
+type CardReactionDirection = 'decrease' | 'increase';
+
+interface CardFieldDefinition {
+  readonly accentLabel: string;
+  readonly field: CardPredictionField;
+  readonly kind: CardKind;
+  readonly label: string;
+  readonly testIdSegment: string;
+}
+
+interface CardReactionState {
+  readonly direction: CardReactionDirection;
+  readonly id: number;
+  readonly kind: CardKind;
+  readonly message: string;
+}
+
+interface CardReactionTargets {
+  readonly activeReaction: CardReactionState | null;
+  readonly setFieldElement: (element: HTMLElement | null) => void;
+  readonly setMarkerElement: (element: HTMLElement | null) => void;
+  readonly setValueElement: (element: HTMLElement | null) => void;
+}
+
+const cardFields = [
+  {
+    accentLabel: 'yellow',
+    field: 'yellowCards',
+    kind: 'yellow',
+    label: 'Yellow Cards',
+    testIdSegment: 'yellow',
+  },
+  {
+    accentLabel: 'red',
+    field: 'redCards',
+    kind: 'red',
+    label: 'Red Cards',
+    testIdSegment: 'red',
+  },
+] as const satisfies readonly CardFieldDefinition[];
+
+const cardReactionDurationMs = 380;
+
+const cardReactionMessage = (
+  kind: CardKind,
+  direction: CardReactionDirection,
+  nextValue: number | null,
+): string => {
+  if (direction === 'decrease') {
+    return kind === 'yellow' ? 'Careful now.' : 'Back from the brink.';
+  }
+
+  const yellowMessages = [
+    'Into the book.',
+    "Ref's reaching for the pocket.",
+    'Careful now.',
+  ];
+  const redMessages = ['OFF!', 'Early shower?', 'That changes things.'];
+  const messages = kind === 'yellow' ? yellowMessages : redMessages;
+  const index = Math.max(0, nextValue ?? 0) % messages.length;
+
+  return messages[index] ?? messages[0];
+};
+
+const useCardChangeReaction = ({
+  activeReactionKey,
+  kind,
+  motionEnabled,
+  reactionKey,
+  value,
+}: {
+  readonly activeReactionKey: string | null;
+  readonly kind: CardKind;
+  readonly motionEnabled: boolean;
+  readonly reactionKey: string;
+  readonly value: string;
+}): CardReactionTargets => {
+  const animationRefs = useRef<Animation[]>([]);
+  const fieldElementRef = useRef<HTMLElement | null>(null);
+  const markerElementRef = useRef<HTMLElement | null>(null);
+  const nextReactionIdRef = useRef(0);
+  const previousAcceptedRef = useRef<{
+    readonly initialized: boolean;
+    readonly value: number | null;
+  }>({
+    initialized: false,
+    value: null,
+  });
+  const timeoutRef = useRef<number | null>(null);
+  const valueElementRef = useRef<HTMLElement | null>(null);
+  const [reaction, setReaction] = useState<CardReactionState | null>(null);
+
+  const cancelAnimations = useCallback(() => {
+    for (const animation of animationRefs.current) {
+      animation.cancel();
+    }
+
+    animationRefs.current = [];
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const playReaction = useCallback(
+    (nextReaction: CardReactionState) => {
+      cancelAnimations();
+
+      if (!motionEnabled) {
+        return;
+      }
+
+      const animations: Animation[] = [];
+      const isIncrease = nextReaction.direction === 'increase';
+      const fieldAnimation = playElementAnimation(
+        fieldElementRef.current,
+        [
+          { transform: 'translateY(0) scale(1)' },
+          {
+            transform:
+              kind === 'red' && isIncrease
+                ? 'translateY(-0.08rem) scale(1.045)'
+                : 'translateY(-0.16rem) scale(1.025)',
+          },
+          { transform: 'translateY(0) scale(1)' },
+        ],
+        {
+          duration: kind === 'red' && isIncrease ? 320 : cardReactionDurationMs,
+          easing:
+            kind === 'red' && isIncrease
+              ? 'cubic-bezier(0.2, 0, 0.2, 1)'
+              : 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+        },
+      );
+
+      if (fieldAnimation) {
+        animations.push(fieldAnimation);
+      }
+
+      const markerAnimation =
+        kind === 'yellow'
+          ? playElementAnimation(
+              markerElementRef.current,
+              [
+                { transform: 'translateY(0) rotateX(0deg)' },
+                {
+                  transform: isIncrease
+                    ? 'translateY(-0.65rem) rotateX(64deg)'
+                    : 'translateY(0.25rem) rotateX(-32deg)',
+                },
+                { transform: 'translateY(0) rotateX(0deg)' },
+              ],
+              {
+                duration: cardReactionDurationMs,
+                easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+              },
+            )
+          : playElementAnimation(
+              markerElementRef.current,
+              [
+                { transform: 'translateY(0) scale(1)' },
+                {
+                  transform: isIncrease
+                    ? 'translateY(-0.2rem) scale(1.24)'
+                    : 'translateY(0.2rem) scale(0.9)',
+                },
+                { transform: 'translateY(0) scale(1)' },
+              ],
+              {
+                duration: kind === 'red' && isIncrease ? 300 : 340,
+                easing:
+                  kind === 'red' && isIncrease
+                    ? 'cubic-bezier(0.17, 0.67, 0.21, 1.44)'
+                    : 'cubic-bezier(0.2, 0, 0.2, 1)',
+              },
+            );
+
+      if (markerAnimation) {
+        animations.push(markerAnimation);
+      }
+
+      const valueAnimation = playElementAnimation(
+        valueElementRef.current,
+        [
+          { transform: 'translateY(0) scale(1)' },
+          {
+            transform: isIncrease
+              ? 'translateY(-0.32rem) scale(1.16)'
+              : 'translateY(0.2rem) scale(0.94)',
+          },
+          { transform: 'translateY(0) scale(1)' },
+        ],
+        {
+          duration: cardReactionDurationMs,
+          easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+        },
+      );
+
+      if (valueAnimation) {
+        animations.push(valueAnimation);
+      }
+
+      animationRefs.current = animations;
+    },
+    [cancelAnimations, kind, motionEnabled],
+  );
+
+  const startReaction = useCallback(
+    ({
+      direction,
+      nextValue,
+    }: {
+      readonly direction: CardReactionDirection;
+      readonly nextValue: number | null;
+    }) => {
+      if (!motionEnabled) {
+        return;
+      }
+
+      clearTimer();
+
+      const nextReaction = {
+        direction,
+        id: nextReactionIdRef.current + 1,
+        kind,
+        message: cardReactionMessage(kind, direction, nextValue),
+      } satisfies CardReactionState;
+
+      nextReactionIdRef.current = nextReaction.id;
+      setReaction(nextReaction);
+      playReaction(nextReaction);
+      timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = null;
+        setReaction((current) =>
+          current?.id === nextReaction.id ? null : current,
+        );
+      }, cardReactionDurationMs);
+    },
+    [clearTimer, kind, motionEnabled, playReaction],
+  );
+
+  useEffect(() => {
+    if (motionEnabled) {
+      return undefined;
+    }
+
+    clearTimer();
+    cancelAnimations();
+
+    const timeout = window.setTimeout(() => {
+      setReaction(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [cancelAnimations, clearTimer, motionEnabled]);
+
+  useEffect(() => {
+    if (activeReactionKey === reactionKey) {
+      return;
+    }
+
+    clearTimer();
+    cancelAnimations();
+    const timeout = window.setTimeout(() => {
+      setReaction(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [activeReactionKey, cancelAnimations, clearTimer, reactionKey]);
+
+  useEffect(
+    () => () => {
+      clearTimer();
+      cancelAnimations();
+    },
+    [cancelAnimations, clearTimer],
+  );
+
+  useEffect(() => {
+    const parsedValue = parseFormWholeNumber(value);
+    const previous = previousAcceptedRef.current;
+
+    previousAcceptedRef.current = {
+      initialized: true,
+      value: parsedValue,
+    };
+
+    if (
+      !previous.initialized ||
+      parsedValue === null ||
+      previous.value === parsedValue
+    ) {
+      return;
+    }
+
+    if (activeReactionKey !== reactionKey) {
+      return;
+    }
+
+    startReaction({
+      direction:
+        previous.value !== null && parsedValue < previous.value
+          ? 'decrease'
+          : 'increase',
+      nextValue: parsedValue,
+    });
+  }, [activeReactionKey, reactionKey, startReaction, value]);
+
+  return {
+    activeReaction: activeReactionKey === reactionKey ? reaction : null,
+    setFieldElement: (element) => {
+      fieldElementRef.current = element;
+    },
+    setMarkerElement: (element) => {
+      markerElementRef.current = element;
+    },
+    setValueElement: (element) => {
+      valueElementRef.current = element;
+    },
+  };
+};
+
+export const CardsPredictionStep = ({
+  deductionText = null,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  showRedCards,
+  showYellowCards,
+  supportingText = [],
+}: {
+  readonly deductionText?: string | null;
+  readonly fixture: FixtureDocument;
+  readonly form: PredictionFormState;
+  readonly motionEnabled: boolean;
+  readonly onChange: (
+    side: TeamSide,
+    field: CardPredictionField,
+    value: string,
+  ) => void;
+  readonly showRedCards: boolean;
+  readonly showYellowCards: boolean;
+  readonly supportingText?: readonly string[];
+}) => {
+  const [activeReactionKey, setActiveReactionKey] = useState<string | null>(
+    null,
+  );
+  const activeFields = cardFields.filter(
+    (field) =>
+      (field.kind === 'yellow' && showYellowCards) ||
+      (field.kind === 'red' && showRedCards),
+  );
+  const changeCard = (
+    side: TeamSide,
+    field: CardPredictionField,
+    value: string,
+  ) => {
+    setActiveReactionKey(`${side}:${field}`);
+    onChange(side, field, value);
+  };
+
+  return (
+    <div className="grid gap-4" data-testid="react-cards-step">
+      {deductionText || supportingText.length > 0 ? (
+        <div className="rounded-md border border-rooster-line bg-rooster-paper p-3">
+          {deductionText ? (
+            <p className="text-sm font-semibold leading-6 text-rooster-muted">
+              {deductionText}
+            </p>
+          ) : null}
+          {supportingText.map((text) => (
+            <p
+              className="mt-2 text-sm font-semibold leading-6 text-rooster-muted"
+              key={text}
+            >
+              {text}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <div className="grid gap-4 md:grid-cols-2">
+        {(['team1', 'team2'] as const).map((side) => (
+          <CardsTeamPanel
+            activeFields={activeFields}
+            activeReactionKey={activeReactionKey}
+            fixture={fixture}
+            form={form}
+            key={side}
+            motionEnabled={motionEnabled}
+            side={side}
+            onChange={changeCard}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const CardsTeamPanel = ({
+  activeReactionKey,
+  activeFields,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  side,
+}: {
+  readonly activeReactionKey: string | null;
+  readonly activeFields: readonly CardFieldDefinition[];
+  readonly fixture: FixtureDocument;
+  readonly form: PredictionFormState;
+  readonly motionEnabled: boolean;
+  readonly onChange: (
+    side: TeamSide,
+    field: CardPredictionField,
+    value: string,
+  ) => void;
+  readonly side: TeamSide;
+}) => {
+  const score = deriveTeamScoreFromForm(form[side], fixture, side);
+  const teamName = teamDisplayName(fixture, side);
+
+  return (
+    <section
+      className="rr-cards-team-card h-full rounded-md border border-rooster-line bg-rooster-paper p-4 transition focus-within:border-rooster-red/70 focus-within:ring-2 focus-within:ring-rooster-red/20"
+      data-testid={`cards-${side}-team-card`}
+    >
+      <p className="text-xs font-black uppercase text-rooster-muted">
+        Predicted rugby score
+      </p>
+      <p
+        className="mt-1 text-4xl font-black text-rooster-ink"
+        data-testid={`cards-${side}-score`}
+      >
+        {score.score === null ? '-' : score.score}
+      </p>
+      <h3 className="mt-1 break-words text-lg font-black text-rooster-ink">
+        {teamName}
+      </h3>
+      {score.message ? (
+        <p className="mt-2 text-xs font-semibold leading-5 text-rooster-muted">
+          {score.message}
+        </p>
+      ) : null}
+      <p className="mt-3 text-xs font-semibold leading-5 text-rooster-muted">
+        Cards affect prediction accuracy, not the predicted rugby score.
+      </p>
+      <div className="mt-4 grid gap-3">
+        {activeFields.map((field) => (
+          <CardPredictionControl
+            activeReactionKey={activeReactionKey}
+            field={field}
+            key={field.field}
+            motionEnabled={motionEnabled}
+            reactionKey={`${side}:${field.field}`}
+            teamName={teamName}
+            testIdPrefix={`cards-${side}-${field.testIdSegment}`}
+            value={form[side][field.field]}
+            onChange={(value) => onChange(side, field.field, value)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+};
+
+const CardPredictionControl = ({
+  activeReactionKey,
+  field,
+  motionEnabled,
+  onChange,
+  reactionKey,
+  teamName,
+  testIdPrefix,
+  value,
+}: {
+  readonly activeReactionKey: string | null;
+  readonly field: CardFieldDefinition;
+  readonly motionEnabled: boolean;
+  readonly onChange: (value: string) => void;
+  readonly reactionKey: string;
+  readonly teamName: string;
+  readonly testIdPrefix: string;
+  readonly value: string;
+}) => {
+  const inputId = useId();
+  const reactionHandles = useCardChangeReaction({
+    activeReactionKey,
+    kind: field.kind,
+    motionEnabled,
+    reactionKey,
+    value,
+  });
+  const { activeReaction, setFieldElement, setMarkerElement, setValueElement } =
+    reactionHandles;
+  const inputLabel = `${teamName} ${field.accentLabel} cards`;
+  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextValue = normalizeWholeNumberDraft(event.target.value);
+
+    if (nextValue === null) {
+      return;
+    }
+
+    onChange(nextValue);
+  };
+
+  return (
+    <section
+      className={[
+        'rr-card-field rounded-md border bg-white p-3 transition',
+        `rr-card-field--${field.kind}`,
+      ].join(' ')}
+      data-card-kind={field.kind}
+      data-reaction-active={activeReaction ? 'true' : 'false'}
+      data-reaction-direction={activeReaction?.direction ?? undefined}
+      data-testid={`${testIdPrefix}-field`}
+      ref={setFieldElement}
+    >
+      <div className="flex items-start gap-5">
+        <span
+          aria-hidden="true"
+          className={[
+            'rr-card-marker mt-0.5 shrink-0',
+            `rr-card-marker--${field.kind}`,
+          ].join(' ')}
+          data-testid={`${testIdPrefix}-marker`}
+          ref={setMarkerElement}
+        />
+        <div className="min-w-0 flex-1">
+          <CardValuePulse targetRef={setValueElement}>
+            <NumericStepper
+              ariaLabel={inputLabel}
+              id={inputId}
+              label={field.label}
+              testIdPrefix={testIdPrefix}
+              value={value}
+              onChange={onChange}
+              onInputChange={handleInputChange}
+            />
+          </CardValuePulse>
+          <CardCountVisualization
+            kind={field.kind}
+            testIdPrefix={testIdPrefix}
+            value={value}
+          />
+          <p
+            aria-hidden="true"
+            className={[
+              'rr-card-reaction-copy mt-2 min-h-5 text-sm font-black',
+              field.kind === 'yellow' ? 'text-rooster-ink' : 'text-rooster-red',
+            ].join(' ')}
+            data-reaction-active={activeReaction ? 'true' : 'false'}
+            data-reaction-direction={activeReaction?.direction ?? undefined}
+            data-testid={`${testIdPrefix}-reaction`}
+          >
+            {activeReaction?.message ?? ''}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const CardValuePulse = ({
+  children,
+  targetRef,
+}: {
+  readonly children: ReactNode;
+  readonly targetRef: (element: HTMLElement | null) => void;
+}) => (
+  <div className="rr-card-value-pulse" ref={targetRef}>
+    {children}
+  </div>
+);
+
+const CardCountVisualization = ({
+  kind,
+  testIdPrefix,
+  value,
+}: {
+  readonly kind: CardKind;
+  readonly testIdPrefix: string;
+  readonly value: string;
+}) => {
+  const parsed = parseFormWholeNumber(value);
+
+  if (parsed === null) {
+    return null;
+  }
+
+  if (parsed === 0) {
+    return (
+      <p
+        aria-hidden="true"
+        className="mt-2 text-xs font-bold text-rooster-muted"
+        data-testid={`${testIdPrefix}-stack`}
+      >
+        No cards
+      </p>
+    );
+  }
+
+  if (parsed >= 5) {
+    return (
+      <div
+        aria-hidden="true"
+        className="rr-card-stack mt-2 flex items-center gap-1.5"
+        data-testid={`${testIdPrefix}-stack`}
+      >
+        <span
+          className={[
+            'rr-card-stack-marker',
+            `rr-card-stack-marker--${kind}`,
+          ].join(' ')}
+        />
+        <span className="text-xs font-black text-rooster-muted">
+          x {parsed}
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      aria-hidden="true"
+      className="rr-card-stack mt-2 flex items-center gap-1.5"
+      data-testid={`${testIdPrefix}-stack`}
+    >
+      {Array.from({ length: parsed }, (_, index) => (
+        <span
+          className={[
+            'rr-card-stack-marker',
+            `rr-card-stack-marker--${kind}`,
+          ].join(' ')}
+          key={index}
+        />
+      ))}
+    </div>
+  );
+};
+
+interface CategoricalChoiceOption {
+  readonly accent?: 'neutral' | 'team';
+  readonly disabled?: boolean;
+  readonly label: string;
+  readonly value: string;
+}
+
+interface CategoricalReactionState {
+  readonly id: number;
+  readonly message: string;
+  readonly value: string;
+}
+
+const categoricalReactionDurationMs = 680;
+
+const firstTryReactionMessage = (value: string, id: number): string => {
+  const teamMessages = [
+    'First blood?',
+    'Backing them to strike first.',
+    'Fast start?',
+  ];
+  const noTryMessages = [
+    'No tries? Brave call.',
+    'All boot, no dot-down?',
+    'Defences on top?',
+  ];
+  const messages = value === 'no-tries' ? noTryMessages : teamMessages;
+
+  return messages[id % messages.length] ?? messages[0];
+};
+
+export const FirstTryPredictionStep = ({
+  constraintMessage = null,
+  fixture,
+  motionEnabled,
+  onChange,
+  onEditTries,
+  options,
+  value,
+}: {
+  readonly constraintMessage?: string | null;
+  readonly fixture: FixtureDocument;
+  readonly motionEnabled: boolean;
+  readonly onChange: (value: FirstTryAnswer) => void;
+  readonly onEditTries: () => void;
+  readonly options: readonly {
+    readonly disabled?: boolean;
+    readonly label: string;
+    readonly value: FirstTryAnswer;
+  }[];
+  readonly value: string;
+}) => (
+  <div className="grid gap-4" data-testid="react-first-try-step">
+    <CategoricalChoicePresentation
+      label="Who will score the first try?"
+      name="first-try"
+      motionEnabled={motionEnabled}
+      options={options.map((option) => ({
+        ...option,
+        accent: option.value === 'no-tries' ? 'neutral' : 'team',
+      }))}
+      reactionMessage={firstTryReactionMessage}
+      testIdPrefix="first-try"
+      value={value}
+      onChange={(nextValue) => onChange(nextValue as FirstTryAnswer)}
+    />
+    {constraintMessage ? (
+      <div className="rounded-md border border-rooster-line bg-rooster-paper p-3 text-sm font-semibold text-rooster-muted">
+        {constraintMessage}
+        <button
+          className="focus-ring ml-2 min-h-9 rounded-md border border-rooster-line bg-white px-3 text-xs font-black text-rooster-ink transition hover:bg-rooster-paper"
+          type="button"
+          onClick={onEditTries}
+        >
+          Edit tries
+        </button>
+      </div>
+    ) : null}
+    <p className="sr-only">
+      First try choices are {teamDisplayName(fixture, 'team1')},{' '}
+      {teamDisplayName(fixture, 'team2')}, and No Tries Today.
+    </p>
+  </div>
+);
+
+const CategoricalChoicePresentation = ({
+  label,
+  motionEnabled,
+  name,
+  onChange,
+  options,
+  reactionMessage,
+  testIdPrefix,
+  value,
+}: {
+  readonly label: string;
+  readonly motionEnabled: boolean;
+  readonly name: string;
+  readonly onChange: (value: string) => void;
+  readonly options: readonly CategoricalChoiceOption[];
+  readonly reactionMessage: (value: string, id: number) => string;
+  readonly testIdPrefix: string;
+  readonly value: string;
+}) => {
+  const baseId = useId();
+  const animationRefs = useRef<Animation[]>([]);
+  const choiceRefs = useRef<Record<string, HTMLLabelElement | null>>({});
+  const nextReactionIdRef = useRef(0);
+  const timeoutRef = useRef<number | null>(null);
+  const [reaction, setReaction] = useState<CategoricalReactionState | null>(
+    null,
+  );
+
+  const cancelAnimations = useCallback(() => {
+    for (const animation of animationRefs.current) {
+      animation.cancel();
+    }
+
+    animationRefs.current = [];
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const startReaction = useCallback(
+    (nextValue: string) => {
+      if (!motionEnabled) {
+        return;
+      }
+
+      clearTimer();
+      cancelAnimations();
+
+      const nextId = nextReactionIdRef.current + 1;
+      const nextReaction = {
+        id: nextId,
+        message: reactionMessage(nextValue, nextId),
+        value: nextValue,
+      } satisfies CategoricalReactionState;
+      const selectedElement = choiceRefs.current[nextValue];
+      const selectedAnimation = playElementAnimation(
+        selectedElement,
+        [
+          { transform: 'translateY(0) scale(1)' },
+          { transform: 'translateY(-0.45rem) scale(1.035)' },
+          { transform: 'translateY(0) scale(1)' },
+        ],
+        {
+          duration: categoricalReactionDurationMs,
+          easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+        },
+      );
+
+      nextReactionIdRef.current = nextId;
+      animationRefs.current = selectedAnimation ? [selectedAnimation] : [];
+      setReaction(nextReaction);
+      timeoutRef.current = window.setTimeout(() => {
+        timeoutRef.current = null;
+        setReaction((current) =>
+          current?.id === nextReaction.id ? null : current,
+        );
+      }, categoricalReactionDurationMs);
+    },
+    [cancelAnimations, clearTimer, motionEnabled, reactionMessage],
+  );
+
+  const selectChoice = (option: CategoricalChoiceOption) => {
+    if (option.disabled || option.value === value) {
+      return;
+    }
+
+    onChange(option.value);
+    startReaction(option.value);
+  };
+
+  useEffect(() => {
+    if (motionEnabled) {
+      return undefined;
+    }
+
+    clearTimer();
+    cancelAnimations();
+
+    const timeout = window.setTimeout(() => {
+      setReaction(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [cancelAnimations, clearTimer, motionEnabled]);
+
+  useEffect(() => {
+    if (!reaction || reaction.value === value) {
+      return;
+    }
+
+    clearTimer();
+    cancelAnimations();
+    const timeout = window.setTimeout(() => {
+      setReaction(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [cancelAnimations, clearTimer, reaction, value]);
+
+  useEffect(
+    () => () => {
+      clearTimer();
+      cancelAnimations();
+    },
+    [cancelAnimations, clearTimer],
+  );
+
+  const visibleReaction = reaction?.value === value ? reaction : null;
+
+  return (
+    <fieldset className="rr-categorical-choice-group">
+      <legend className="sr-only">{label}</legend>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {options.map((option) => {
+          const checked = option.value === value;
+          const reactionActive = visibleReaction?.value === option.value;
+
+          return (
+            <label
+              className={[
+                'rr-categorical-choice-card flex min-h-20 cursor-pointer items-center rounded-md border p-4 text-sm font-black transition',
+                checked
+                  ? 'border-rooster-red bg-rooster-red text-white shadow-sm'
+                  : 'border-rooster-line bg-white text-rooster-ink hover:bg-rooster-paper',
+                checked ? 'rr-categorical-choice-card--selected' : '',
+                value && !checked
+                  ? 'rr-categorical-choice-card--secondary'
+                  : '',
+                option.accent === 'neutral'
+                  ? 'rr-categorical-choice-card--neutral'
+                  : 'rr-categorical-choice-card--team',
+                option.disabled ? 'cursor-not-allowed opacity-60' : '',
+              ].join(' ')}
+              data-reaction-active={reactionActive ? 'true' : 'false'}
+              data-selected={checked ? 'true' : 'false'}
+              data-testid={`${testIdPrefix}-choice-${option.value}`}
+              key={option.value}
+              ref={(element) => {
+                choiceRefs.current[option.value] = element;
+              }}
+            >
+              <input
+                checked={checked}
+                className="focus-ring mr-3 h-4 w-4 shrink-0 accent-rooster-red"
+                disabled={option.disabled}
+                id={`${baseId}-${option.value}`}
+                name={name}
+                type="radio"
+                value={option.value}
+                onChange={() => selectChoice(option)}
+              />
+              <span className="min-w-0 break-words leading-6">
+                {option.label}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+      <p
+        aria-hidden="true"
+        className="rr-categorical-reaction-copy mt-3 min-h-5 text-sm font-black text-rooster-red"
+        data-reaction-active={visibleReaction ? 'true' : 'false'}
+        data-testid={`${testIdPrefix}-reaction`}
+      >
+        {visibleReaction?.message ?? ''}
+      </p>
+    </fieldset>
   );
 };

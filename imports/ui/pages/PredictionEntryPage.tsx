@@ -49,7 +49,6 @@ import {
 import {
   customAnswerDisplayValue,
   deriveScoresFromForm,
-  deriveTeamScoreFromForm,
   emptyFormForRuleset,
   firstTryConstraintForForm,
   firstTryLabel,
@@ -76,8 +75,10 @@ import {
   type PredictionPresentationOptions,
 } from '../predictions/PredictionPresentationHost';
 import {
+  CardsPredictionStep,
   ConversionsPredictionStep,
   DropGoalsPredictionStep,
+  FirstTryPredictionStep,
   MatchResultPredictionStep,
   PenaltyKicksPredictionStep,
   TriesPredictionStep,
@@ -613,8 +614,10 @@ const PredictionStepView = ({
   const forwardNavigationDisabled = !state.navigation.canContinue;
   const message = currentStep.message;
   const position = currentStep.position;
-  const rendersNumericScoringFamily =
-    !customQuestion && isReactNumericScoringStep(currentStep.step.id);
+  const embedsStepMessage =
+    !customQuestion &&
+    (isReactNumericScoringStep(currentStep.step.id) ||
+      currentStep.step.id === 'cards');
 
   if (!BuiltInStepContent && !customQuestion) {
     return null;
@@ -635,12 +638,12 @@ const PredictionStepView = ({
             {message.body}
           </p>
         ) : null}
-        {message.deduction && !rendersNumericScoringFamily ? (
+        {message.deduction && !embedsStepMessage ? (
           <p className="mt-3 max-w-3xl text-sm leading-6 text-rooster-muted">
             {message.deduction}
           </p>
         ) : null}
-        {message.supportingText.length > 0 && !rendersNumericScoringFamily ? (
+        {message.supportingText.length > 0 && !embedsStepMessage ? (
           <div className="mt-3 grid gap-2">
             {message.supportingText.map((text) => (
               <p
@@ -898,46 +901,20 @@ const CardsStep = ({
   fixture,
   form,
   onTeamFieldChange,
+  presentation,
   ruleset,
+  stepMessage,
 }: PredictionStepContentProps) => (
-  <TeamPredictionGrid>
-    {(['team1', 'team2'] as const).map((side) => {
-      const teamName = teamDisplayName(fixture, side);
-      const score = deriveTeamScoreFromForm(form[side], fixture, side);
-
-      return (
-        <TeamPredictionPanel
-          key={side}
-          score={score.score}
-          scoreMessage={score.message}
-          teamName={teamName}
-        >
-          <div className="grid gap-3">
-            {isBuiltInEnabled(ruleset, 'yellow-cards') ? (
-              <NumericPredictionControl
-                inputLabel={`${teamName} yellow cards`}
-                label="Yellow cards"
-                onChange={(value) =>
-                  onTeamFieldChange(side, 'yellowCards', value)
-                }
-                supportingText="Cards do not alter the predicted rugby score."
-                value={form[side].yellowCards}
-              />
-            ) : null}
-            {isBuiltInEnabled(ruleset, 'red-cards') ? (
-              <NumericPredictionControl
-                inputLabel={`${teamName} red cards`}
-                label="Red cards"
-                onChange={(value) => onTeamFieldChange(side, 'redCards', value)}
-                supportingText="Cards do not alter the predicted rugby score."
-                value={form[side].redCards}
-              />
-            ) : null}
-          </div>
-        </TeamPredictionPanel>
-      );
-    })}
-  </TeamPredictionGrid>
+  <CardsPredictionStep
+    deductionText={stepMessage.deduction}
+    fixture={fixture}
+    form={form}
+    motionEnabled={presentation.animationsEnabled}
+    showRedCards={isBuiltInEnabled(ruleset, 'red-cards')}
+    showYellowCards={isBuiltInEnabled(ruleset, 'yellow-cards')}
+    supportingText={stepMessage.supportingText}
+    onChange={(side, field, value) => onTeamFieldChange(side, field, value)}
+  />
 );
 
 const FirstTryStep = ({
@@ -945,6 +922,7 @@ const FirstTryStep = ({
   form,
   onChoiceChange,
   onEditStep,
+  presentation,
 }: PredictionStepContentProps) => {
   const constraint = firstTryConstraintForForm(form);
   const options: readonly {
@@ -963,28 +941,15 @@ const FirstTryStep = ({
   }));
 
   return (
-    <div className="grid gap-4">
-      <PredictionChoiceGroup
-        label="Who will score the first try?"
-        name="first-try"
-        onChange={(value) => onChoiceChange('firstTry', value)}
-        options={options}
-        selectedLabel={firstTryLabel(fixture, form.firstTry)}
-        value={form.firstTry}
-      />
-      {constraint.message ? (
-        <div className="rounded-md border border-rooster-line bg-rooster-paper p-3 text-sm font-semibold text-rooster-muted">
-          {constraint.message}
-          <button
-            className="focus-ring ml-2 min-h-9 rounded-md border border-rooster-line bg-white px-3 text-xs font-black text-rooster-ink transition hover:bg-rooster-paper"
-            type="button"
-            onClick={() => onEditStep('tries')}
-          >
-            Edit tries
-          </button>
-        </div>
-      ) : null}
-    </div>
+    <FirstTryPredictionStep
+      constraintMessage={constraint.message}
+      fixture={fixture}
+      motionEnabled={presentation.animationsEnabled}
+      options={options}
+      value={form.firstTry}
+      onChange={(value) => onChoiceChange('firstTry', value)}
+      onEditTries={() => onEditStep('tries')}
+    />
   );
 };
 
@@ -1104,38 +1069,6 @@ const CustomQuestionExplanation = ({
       </p>
     </section>
   </div>
-);
-
-const TeamPredictionGrid = ({ children }: { readonly children: ReactNode }) => (
-  <div className="grid gap-4 md:grid-cols-2">{children}</div>
-);
-
-const TeamPredictionPanel = ({
-  children,
-  score,
-  scoreMessage,
-  teamName,
-}: {
-  readonly children: ReactNode;
-  readonly score: number | null;
-  readonly scoreMessage: string | null;
-  readonly teamName: string;
-}) => (
-  <section className="rounded-md border border-rooster-line bg-rooster-paper p-4">
-    <p className="text-xs font-black uppercase text-rooster-muted">
-      Predicted rugby score
-    </p>
-    <p className="mt-1 text-4xl font-black text-rooster-ink">
-      {score === null ? '-' : score}
-    </p>
-    <h3 className="mt-1 text-lg font-black text-rooster-ink">{teamName}</h3>
-    {scoreMessage ? (
-      <p className="mt-2 text-xs font-semibold leading-5 text-rooster-muted">
-        {scoreMessage}
-      </p>
-    ) : null}
-    <div className="mt-4">{children}</div>
-  </section>
 );
 
 const NumericPredictionControl = ({
