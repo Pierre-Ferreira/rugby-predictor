@@ -38,6 +38,10 @@
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
   revision handling, final confirmation, and custom Void scoring preparation.
+- `docs/PLATFORM_Player_Fixture_Scoring.md` - CCPP-011A derived player
+  fixture-score projection, canonical input sources, lifecycle statuses,
+  Pending versus zero, custom Void, revision behavior, owner-only method, and
+  leaderboard/breakdown deferrals.
 - `docs/PLATFORM_Prediction_Sequence.md` - CCPP-007 standard prediction
   sequence/message architecture, active-step navigation, dynamic custom
   question steps, and Review edit destinations.
@@ -153,6 +157,9 @@
   Try presentation, Yellow/Red reaction behavior, existing First Try
   consistency ownership, retained browser evidence, verification, and EOMD
   archive evidence.
+- `docs/AUDIT_011A_Player_Fixture_Score.md` - CCPP-011A derived player
+  fixture-score projection, owner-only score method, tests, verification, and
+  EOMD archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -232,13 +239,16 @@
 - `docs/TEMP_010C_Resume.md` - temporary CCPP-010C checkpoint for Cards and
   First Try implementation state, retained browser evidence, closeout checks,
   and packaging handoff.
+- `docs/TEMP_011A_Resume.md` - temporary CCPP-011A checkpoint for derived
+  player fixture-score projection, tests, documentation, and packaging handoff.
 
 ## Application Entry Points
 
 - `client/main.html` - HTML shell and document title.
 - `client/main.tsx` - React startup and CSS import.
 - `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
-- `server/main.ts` - Meteor server startup plus auth, fixture, match result, prediction, and PWA server-module imports.
+- `server/main.ts` - Meteor server startup plus auth, fixture, match result,
+  player fixture-score, prediction, and PWA server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
 - `imports/api/matchResults/collection.ts` - shared Meteor match result collection.
 - `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
@@ -246,6 +256,8 @@
 - `imports/server/matchResults/` - result methods, admin publications,
   unique fixture index, revision handling, final confirmation, and isolated
   result test helper.
+- `imports/server/playerFixtureScores/` - owner-only player fixture-score
+  method, canonical score-loading service, and isolated method tests.
 - `imports/server/predictions/` - prediction submit method, private publications, indexes, and isolated prediction test helper.
 - `imports/server/pwa/server.ts` - manifest content-type hook for `/site.webmanifest`.
 - `public/site.webmanifest` - minimal PWA manifest that launches at `/games`.
@@ -293,6 +305,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/errors.ts` - structured scoring validation error.
 - `imports/shared/scoring/validation.ts` - ruleset, prediction, and observation validation.
 - `imports/shared/scoring/engine.ts` - fixture scoring function.
+- `imports/shared/playerFixtureScores/` - serializable player fixture-score
+  projection types, errors, and pure adapter around the scoring engine.
 
 ## Match Result Entry Points
 
@@ -307,6 +321,17 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/pages/AdminFixtureResultsPage.tsx` - admin result entry, derived
   rugby score display, custom settlement/Void UI, final confirmation, read-only
   final summary, and result conflict reload.
+
+## Player Fixture Score Entry Points
+
+- `imports/server/playerFixtureScores/service.ts` - server-owned loading of
+  fixture, current user's prediction, and current match result before
+  projection.
+- `imports/server/playerFixtureScores/server.ts` - authenticated
+  `predictions.getMyFixtureScore` Meteor method.
+- `imports/server/playerFixtureScores/playerFixtureScores.app-test.ts` -
+  isolated integration coverage for score method authorization and lifecycle
+  projection.
 
 ## Fixture Entry Points
 

@@ -184,6 +184,12 @@ First-try observations are semantically checked against supplied try totals when
 
 ## Future Integration Responsibilities
 
+CCPP-011A adds the first server-side consumer for player fixture-score
+projection. `imports/shared/playerFixtureScores/` adapts canonical persisted
+fixture, prediction, and result documents into `scoreFixture(...)` and returns a
+serializable projection. The adapter still treats this engine as authoritative:
+no deduction constants or scoring formulas are duplicated in the server method.
+
 Server-side milestones must still implement:
 
 - Immutable database storage for fixture ruleset snapshots.

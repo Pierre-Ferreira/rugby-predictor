@@ -152,6 +152,11 @@ Current unit test files:
   envelope validation, malformed incoming statuses, built-in Void rejection,
   custom Void shape, unknown nested observation fields, and server-owned
   provisional/final lifecycle normalization.
+- `tests/unit/player-fixture-score.test.ts` - CCPP-011A player fixture-score
+  projection tests for awaiting-result, provisional pending handling, final
+  scores, Draw semantics, zero floor, custom Number/Choice with Void,
+  cancelled fixtures, revision metadata, and inconsistent canonical input
+  failure.
 
 Commands:
 
@@ -527,9 +532,15 @@ The integration suite includes coverage for:
   rejection, disabled/unknown observation rejection, custom Void final
   confirmation, final read-only enforcement, and admin-only result
   publications.
+- Player fixture-score method authorization, no-prediction `null` contract,
+  owner-only access, no-result `awaiting_result`, provisional scoring,
+  Pending-versus-zero score projection through real result normalization,
+  result-revision recalculation without prediction mutation, final score with
+  custom Void, and cancelled fixture non-score behavior.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
-the existing auth, fixture, prediction, and match result integration suites.
+the existing auth, fixture, prediction, match result, and player fixture-score
+integration suites.
 
 Future Meteor/database integration tests must cover:
 

@@ -212,12 +212,17 @@ and the active MongoDB identity matches the expected test environment.
 
 ## Future Integration
 
-Future scoring and leaderboard milestones can consume:
+CCPP-011A consumes match results for owner-only player fixture-score projection.
+The score method fetches `match_results` server-side and returns only the
+derived current user's score projection. It does not add a public result
+publication, expose admin metadata to players, or mutate result documents.
+
+Future leaderboard milestones can also consume:
 
 - fixture published ruleset snapshot;
 - stored result observations;
 - custom Void status;
 - if-ended-now/final scoring modes in the shared engine.
 
-They must still design persisted player scores, leaderboard settlement,
-correction/reopen workflows, and any public provisional presentation.
+They must still design leaderboard settlement, ranking, batching/caching, and
+any public provisional presentation.

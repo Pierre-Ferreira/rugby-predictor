@@ -727,6 +727,41 @@ Not implemented:
   animation-owned answer state, server methods, scoring rules, or persistence
   changes.
 
+## CCPP-011A Scope
+
+Milestone status: implemented for derived player fixture-score projection.
+Platform details live in `docs/PLATFORM_Player_Fixture_Scoring.md`, and
+verification evidence is recorded in
+`docs/AUDIT_011A_Player_Fixture_Score.md`.
+
+Current roadmap direction pauses animation/UI refinement and prioritizes the
+competitive loop:
+
+Prediction -> Match Result -> Player Fixture Score -> Fixture Leaderboard.
+
+Implemented:
+
+- Shared serializable `PlayerFixtureScoreProjection` types and adapter.
+- Deterministic projection from persisted prediction, frozen fixture ruleset
+  snapshot, and current match result through the existing scoring engine.
+- Explicit `awaiting_result`, `provisional`, `final`, and `cancelled`
+  lifecycle states.
+- Provisional scoring that deducts only resolved components while exposing
+  pending counts.
+- Final scoring through existing engine final mode and zero floor.
+- Custom Number/Choice support, including custom Void as non-pending
+  zero-deduction.
+- Prediction and result revision metadata in the projection.
+- Owner-only `predictions.getMyFixtureScore` Meteor method with `null` for no
+  saved prediction.
+- Focused unit and isolated server integration coverage.
+
+Not implemented:
+
+- Fixture leaderboard, rankings, ties/shared placings, league standings, score
+  persistence/cache, recalculation workers, player score card UI, score
+  breakdown UI, AI commentary, live event ingestion, or animation work.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

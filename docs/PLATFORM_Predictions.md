@@ -47,8 +47,9 @@ option IDs from the frozen snapshot.
 Player prediction method:
 
 - `predictions.submit`
+- `predictions.getMyFixtureScore`
 
-The method accepts only:
+`predictions.submit` accepts only:
 
 - `fixtureId`
 - `prediction`
@@ -61,6 +62,17 @@ The server derives `userId` from the authenticated Meteor invocation.
 The method requires an authenticated verified account through the existing
 verified-player authorization convention. Anonymous and unverified attempts are
 rejected.
+
+`predictions.getMyFixtureScore` accepts a fixture ID and returns the signed-in
+verified player's derived `PlayerFixtureScoreProjection`, or `null` when that
+player has no saved prediction for the fixture. It never accepts a user ID,
+prediction payload, result payload, observed values, or deduction data from the
+client. The server fetches the current user's prediction and the canonical match
+result before calling the shared projection adapter.
+
+Cancelled fixtures return a non-score `cancelled` projection for a user with a
+saved prediction. CCPP-011A does not define refund, abandoned-match, or
+competition policy for cancelled fixtures.
 
 ## Fixture Eligibility
 
@@ -170,6 +182,8 @@ Source paths:
 - `imports/ui/fixtures/fixtureUi.ts`
 - `imports/shared/routes.ts`
 - `imports/shared/auth/redirects.ts`
+- `imports/shared/playerFixtureScores/`
+- `imports/server/playerFixtureScores/`
 
 The page subscribes to the public fixture detail and, when authenticated, to the
 private fixture context plus current user's entry. Route loading,
