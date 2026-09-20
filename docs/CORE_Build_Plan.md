@@ -762,6 +762,46 @@ Not implemented:
   persistence/cache, recalculation workers, player score card UI, score
   breakdown UI, AI commentary, live event ingestion, or animation work.
 
+## CCPP-011B Scope
+
+Milestone status: implemented for a derived fixture leaderboard. Platform
+details live in `docs/PLATFORM_Fixture_Leaderboard.md`, and verification
+evidence is recorded in `docs/AUDIT_011B_Fixture_Leaderboard.md`.
+
+Current roadmap direction keeps animation/presentation polish paused and
+prioritizes the competitive loop:
+
+Prediction -> Match Result -> Player Fixture Score -> Fixture Leaderboard.
+
+Implemented:
+
+- Shared `FixtureLeaderboardProjection` types and pure ranking builder.
+- Reuse of the accepted CCPP-011A player fixture-score projection for every
+  eligible saved prediction.
+- Derived-only leaderboard with no collection, score cache, background job, or
+  prediction mutation.
+- Explicit `awaiting_result`, `provisional`, `final`, and `cancelled`
+  lifecycle states.
+- Standard competition ranking with shared places such as `1,2,2,4`.
+- Deterministic fixture-scoped opaque row ordering inside ties.
+- Temporary privacy-safe fixture-scoped aliases because no explicit public
+  display-name field exists yet.
+- Authenticated `predictions.getFixtureLeaderboard` Meteor method with bounded
+  `offset` / `limit` pagination.
+- Current-user row highlighting and separate `currentUserRow` when outside the
+  loaded page.
+- Player-facing `/games/:fixtureId/leaderboard` route with manual refresh,
+  visible-page 15-second refresh for awaiting/provisional states, Load more,
+  and responsive 390px/360px presentation.
+- Focused unit, isolated server integration, and focused browser coverage.
+
+Not implemented:
+
+- CCPP-011C score-breakdown UI.
+- Leagues, tournaments, cumulative totals, average scores, prizes, QR
+  redemption, AI commentary, persistent ranking cache, background jobs, live
+  event ingestion, or animation work.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

@@ -193,7 +193,8 @@ These policies remain outside CCPP-003:
 
 - Extra-time treatment. The engine scores the supplied observation set. Whether observations are regulation-time or extra-time-inclusive must be decided upstream before match-event integration.
 - Submission deadlines and reopening.
-- Leaderboard tie-breaking and shared prizes.
+- League/cross-fixture tie-breaking and shared prizes. CCPP-011B fixture
+  leaderboards use standard competition ranking with shared places.
 - Cancelled or abandoned fixtures.
 - League aggregation across different question configurations.
 - Detailed card-event normalization, including second-yellow-to-red handling.

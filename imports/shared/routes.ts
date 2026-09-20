@@ -4,6 +4,7 @@ export type RouteId =
   | 'adminFixtureResults'
   | 'authEmailLink'
   | 'gameDetail'
+  | 'fixtureLeaderboard'
   | 'predictionEntry'
   | 'games'
   | 'home'
@@ -66,6 +67,8 @@ export const notFoundRoute: AppRoute = {
 };
 
 const gameDetailPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}$/;
+const fixtureLeaderboardPattern =
+  /^\/games\/[a-zA-Z0-9_-]{1,128}\/leaderboard$/;
 const predictionEntryPattern = /^\/games\/[a-zA-Z0-9_-]{1,128}\/predict$/;
 const adminFixtureResultsPattern =
   /^\/admin\/fixtures\/[a-zA-Z0-9_-]{1,128}\/results$/;
@@ -90,6 +93,15 @@ export const resolveRoute = (pathname: string): AppRoute => {
     return {
       id: 'predictionEntry',
       label: 'Prediction',
+      layout: 'public',
+      path: normalizedPath,
+    };
+  }
+
+  if (fixtureLeaderboardPattern.test(normalizedPath)) {
+    return {
+      id: 'fixtureLeaderboard',
+      label: 'Leaderboard',
       layout: 'public',
       path: normalizedPath,
     };

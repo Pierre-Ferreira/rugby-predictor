@@ -42,6 +42,7 @@ import { SignInRequiredState } from '../components/AuthStates';
 import { AppLink } from '../components/AppLink';
 import {
   fixtureDetailPath,
+  fixtureLeaderboardPath,
   fixtureStatusClassName,
   fixtureStatusLabel,
   kickoffLabel,
@@ -451,12 +452,20 @@ const FixtureHeader = ({
   readonly isLockedByKickoff: boolean;
 }) => (
   <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-    <AppLink
-      className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
-      to={fixtureDetailPath(fixture._id)}
-    >
-      Back to fixture
-    </AppLink>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <AppLink
+        className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
+        to={fixtureDetailPath(fixture._id)}
+      >
+        Back to fixture
+      </AppLink>
+      <AppLink
+        className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+        to={fixtureLeaderboardPath(fixture._id)}
+      >
+        Leaderboard
+      </AppLink>
+    </div>
     <div className="mt-5 flex flex-wrap items-center gap-2">
       <span
         className={[

@@ -86,6 +86,21 @@ Out of scope for this product:
 - No results, leaderboards, leagues, custom-question administration, AI,
   service-worker caching, or Kaplay implementation.
 
+## Implemented In CCPP-011B
+
+- Player fixture leaderboard route at `/games/:fixtureId/leaderboard`.
+- Derived ranking for one fixture using saved predictions, current match
+  result, and the accepted CCPP-011A player fixture-score projection.
+- Awaiting-result, provisional `If it ended now`, final, and cancelled
+  leaderboard states.
+- Standard competition ranking for fixture ties, such as `1,2,2,4`.
+- Temporary privacy-safe fixture-scoped player aliases until a proper public
+  display-name feature exists.
+- Bounded pagination, current-player highlighting, manual refresh, and
+  visible-page refresh for awaiting/provisional leaderboards.
+- No leagues, cumulative totals, average scores, prizes, QR redemption, AI
+  commentary, score breakdown UI, persistent ranking cache, or animation work.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
@@ -108,7 +123,8 @@ These require precise specifications before implementation:
 - Extra-time treatment. CCPP-003 scores the supplied observation set only; whether upstream observations are regulation-time or extra-time-inclusive remains unresolved before match-event integration.
 - Permanent prediction locking policy independent of the fixture's current
   scheduled kickoff.
-- Leaderboard tie-breaking.
+- League, prize, and cross-fixture tie policies. Fixture leaderboard ties use
+  standard competition ranking from CCPP-011B.
 - Detailed optional question configuration constraints.
 - Account deletion, support, and long-term email preference lifecycle beyond sign-in access.
 - Platform-admin management UI and audit policy.

@@ -61,6 +61,11 @@ CCPP-008B adds admin match-result and prediction-question settlement in
 settlements, including custom Void, but it still does not persist player Rugby
 Rooster scores or leaderboards.
 
+CCPP-011B adds the first fixture leaderboard. It ranks saved predictions for one
+fixture by reusing the accepted CCPP-011A player fixture-score projection.
+Leaderboards are derived, not persisted, and use privacy-safe fixture-scoped
+player aliases until a proper public display-name feature exists.
+
 CCPP-009C1 corrects the development-only Kaplay Match Result presentation
 without changing prediction rules or saved data. The Rooster shove now keeps
 contact-to-push motion continuous in the pure projection, calculates exit from
@@ -128,7 +133,8 @@ tries remain authoritative.
 
 ## Player Flow
 
-Published fixture detail pages link to `/games/:fixtureId/predict`.
+Published fixture detail pages link to `/games/:fixtureId/predict` and
+`/games/:fixtureId/leaderboard`.
 
 Anonymous visitors can browse fixtures and open the prediction route. The route
 uses the existing passwordless sign-in flow and a validated `returnTo` path back
@@ -150,6 +156,8 @@ Signed-in verified players see:
   and Edit actions.
 - A success confirmation after create or revision.
 - Their saved entry when revisiting the route.
+- A fixture leaderboard route with awaiting-result, provisional `If it ended
+now`, final, and cancelled states.
 
 ## Supported Prediction Fields
 

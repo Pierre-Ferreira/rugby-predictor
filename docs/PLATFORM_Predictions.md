@@ -48,6 +48,7 @@ Player prediction method:
 
 - `predictions.submit`
 - `predictions.getMyFixtureScore`
+- `predictions.getFixtureLeaderboard`
 
 `predictions.submit` accepts only:
 
@@ -73,6 +74,14 @@ result before calling the shared projection adapter.
 Cancelled fixtures return a non-score `cancelled` projection for a user with a
 saved prediction. CCPP-011A does not define refund, abandoned-match, or
 competition policy for cancelled fixtures.
+
+`predictions.getFixtureLeaderboard` accepts `{ fixtureId, offset?, limit? }`
+and returns a derived `FixtureLeaderboardProjection` for a published fixture.
+The method requires a verified signed-in player but the viewer does not need to
+have submitted a prediction. The server loads fixture, result, and saved
+predictions, generates privacy-safe fixture-scoped labels, and reuses the
+CCPP-011A score projection. The method never accepts client-supplied
+prediction/result contents or a target user ID.
 
 ## Fixture Eligibility
 
@@ -165,6 +174,7 @@ cross-player prediction publications.
 Route:
 
 - `/games/:fixtureId/predict` - prediction entry and saved-entry view.
+- `/games/:fixtureId/leaderboard` - fixture leaderboard.
 
 Source paths:
 
@@ -184,6 +194,8 @@ Source paths:
 - `imports/shared/auth/redirects.ts`
 - `imports/shared/playerFixtureScores/`
 - `imports/server/playerFixtureScores/`
+- `imports/shared/fixtureLeaderboards/`
+- `imports/server/fixtureLeaderboards/`
 
 The page subscribes to the public fixture detail and, when authenticated, to the
 private fixture context plus current user's entry. Route loading,
@@ -213,6 +225,10 @@ call the prediction submission method and does not create a new stored revision.
 
 The page refreshes time-sensitive UI every 15 seconds so an open page reflects
 kickoff passing. Server checks remain authoritative.
+
+The fixture leaderboard page also uses a 15-second visible-page refresh while
+the leaderboard is awaiting results or provisional. It stops automatic refresh
+once final/cancelled and keeps the last successful data if a refresh fails.
 
 When `isReadOnly` becomes true because scheduled kickoff has passed or the
 fixture is cancelled, the read-only saved-entry view derives its review values

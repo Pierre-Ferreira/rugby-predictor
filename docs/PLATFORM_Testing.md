@@ -157,6 +157,16 @@ Current unit test files:
   scores, Draw semantics, zero floor, custom Number/Choice with Void,
   cancelled fixtures, revision metadata, and inconsistent canonical input
   failure.
+- `tests/unit/fixture-leaderboard.test.ts` - CCPP-011B pure fixture
+  leaderboard tests for descending sort, standard competition ranking
+  (`1,2,2,4` and `1,1,3`), zero-score ties, deterministic tie ordering,
+  pagination after global ranking, current-user row behavior,
+  awaiting-result/cancelled states, provisional/final score use, result
+  correction recalculation, and roughly 1,000 synthetic entries.
+- `tests/unit/fixture-leaderboard-privacy.test.ts` - CCPP-011B
+  fixture-scoped alias and opaque row ID tests, including deterministic
+  same-fixture aliases, different aliases across fixtures, no raw user ID, no
+  email fallback, and current-player `You` labeling.
 
 Commands:
 
@@ -300,6 +310,13 @@ The current browser suite covers:
   rugby score display, custom Number observed values beyond prediction range,
   custom Choice Void, final confirmation read-only summary, and result conflict
   preservation plus explicit latest-result reload.
+- Fixture leaderboard browser coverage in
+  `tests/e2e/fixture-leaderboard.spec.ts`: one signed-in player journey through
+  provisional `If it ended now`, shared-place ties, current-user highlight,
+  result correction via Refresh without page reload, final leaderboard with
+  pending indicators removed, 390px/360px no-horizontal-overflow checks, and a
+  same-page route change to another published fixture to ensure stale rows and
+  revision text are not retained.
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.
@@ -537,10 +554,15 @@ The integration suite includes coverage for:
   Pending-versus-zero score projection through real result normalization,
   result-revision recalculation without prediction mutation, final score with
   custom Void, and cancelled fixture non-score behavior.
+- Fixture leaderboard method authorization, viewer-without-prediction access,
+  awaiting/provisional/final/cancelled contracts, all eligible prediction
+  inclusion, pagination bounds, `currentUserRow`, result correction
+  recalculation without prediction mutation or leaderboard persistence, score
+  consistency with `getMyFixtureScore`, and response privacy.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
-the existing auth, fixture, prediction, match result, and player fixture-score
-integration suites.
+the existing auth, fixture, fixture leaderboard, prediction, match result, and
+player fixture-score integration suites.
 
 Future Meteor/database integration tests must cover:
 

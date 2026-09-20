@@ -2,7 +2,9 @@
 
 CCPP-011A adds deterministic player fixture-score projection. It does not add a
 leaderboard, ranking UI, score persistence, score jobs, public result
-publication, or player-facing breakdown screen.
+publication, or player-facing breakdown screen. CCPP-011B later consumes this
+projection for a derived fixture leaderboard without adding a second scoring
+path.
 
 ## Model
 
@@ -105,8 +107,19 @@ The client cannot supply prediction contents, observed result values, result
 revision, another user ID, or scoring deductions. The method returns only the
 derived projection, not another user's prediction or admin-only result metadata.
 
+## Leaderboard Reuse
+
+CCPP-011B reuses `calculatePlayerFixtureScoreProjection(...)` for every
+eligible saved prediction in a fixture leaderboard. The leaderboard layer does
+not call scoring primitives directly, duplicate deduction constants, reapply
+the zero floor, or persist score/rank data.
+
+For one fixture, 011B loads the canonical fixture, current match result, and
+saved predictions server-side, then ranks the resulting 011A projections in
+memory. Result corrections naturally update leaderboard scores and places on
+the next leaderboard request.
+
 ## Future Use
 
-CCPP-011B can reuse the pure projection adapter to calculate fixture
-leaderboards across eligible predictions. CCPP-011C can use `components` and
-engine item data for player-facing score breakdowns.
+CCPP-011C can use `components` and engine item data for player-facing score
+breakdowns.

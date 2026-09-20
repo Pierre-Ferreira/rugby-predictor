@@ -217,12 +217,13 @@ The score method fetches `match_results` server-side and returns only the
 derived current user's score projection. It does not add a public result
 publication, expose admin metadata to players, or mutate result documents.
 
-Future leaderboard milestones can also consume:
+CCPP-011B consumes:
 
 - fixture published ruleset snapshot;
 - stored result observations;
 - custom Void status;
 - if-ended-now/final scoring modes in the shared engine.
 
-They must still design leaderboard settlement, ranking, batching/caching, and
-any public provisional presentation.
+The fixture leaderboard remains derived and recalculates from the current result
+revision on demand. Broader league settlement, batching/caching, and public
+score breakdowns remain outside CCPP-011B.

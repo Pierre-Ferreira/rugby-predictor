@@ -1,6 +1,6 @@
 # Rugby Rooster
 
-Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification. CCPP-003 adds the framework-independent scoring rules and tested scoring engine. CCPP-004 adds passwordless accounts and server-side authorisation. CCPP-005 adds fixture management and public fixture browsing. CCPP-006 adds signed-in prediction entry, revision, and kickoff locking.
+Rugby Rooster is a standalone rugby prediction game for televised rugby fixtures. CCPP-001 established the Meteor React TypeScript foundation, public/admin layouts, Tailwind styling, and documentation convention. CCPP-002 adds repeatable static, unit, browser, and CI verification. CCPP-003 adds the framework-independent scoring rules and tested scoring engine. CCPP-004 adds passwordless accounts and server-side authorisation. CCPP-005 adds fixture management and public fixture browsing. CCPP-006 adds signed-in prediction entry, revision, and kickoff locking. CCPP-011B adds a derived fixture leaderboard.
 
 This repository is not Rugby Tracker / Rucks and Mauls. Club management, player rosters, BokSmart documents, subscription tiers, and player-performance analytics are outside this project unless a future task explicitly changes scope.
 
@@ -18,13 +18,14 @@ This repository is not Rugby Tracker / Rucks and Mauls. Club management, player 
 - `/games` - Published fixture browsing.
 - `/games/:fixtureId` - Published fixture detail.
 - `/games/:fixtureId/predict` - Signed-in prediction entry and saved-entry view.
+- `/games/:fixtureId/leaderboard` - Signed-in fixture leaderboard.
 - `/sign-in` - Passwordless email-link request form.
 - `/auth/email-link` - Passwordless link confirmation route.
 - `/account` - Authenticated verified player account summary.
 - `/admin` - Restricted platform-admin summary and fixture management.
 - Any unmatched route - not-found page.
 
-The admin route exposes only server-authorised summary and fixture management data. Results, leaderboard, league, prize, sponsorship, animation, quiz, and AI features remain future milestones.
+The admin route exposes only server-authorised summary and fixture management data. League, prize, sponsorship, animation, quiz, and AI features remain future milestones.
 
 ## Commands
 
@@ -82,6 +83,7 @@ Project documentation lives under `docs/`:
 - `docs/PLATFORM_Scoring_Engine.md`
 - `docs/PLATFORM_Fixtures.md`
 - `docs/PLATFORM_Predictions.md`
+- `docs/PLATFORM_Fixture_Leaderboard.md`
 - `docs/PLATFORM_Testing.md`
 - `docs/MAP_System.md`
 - `docs/AUDIT_001_Project_Foundation.md`
@@ -98,3 +100,4 @@ Project documentation lives under `docs/`:
 - `docs/AUDIT_005A_Fixture_Pagination_And_Concurrency.md`
 - `docs/AUDIT_005B_Fixture_Edit_Session.md`
 - `docs/AUDIT_006_Prediction_Submission.md`
+- `docs/AUDIT_011B_Fixture_Leaderboard.md`

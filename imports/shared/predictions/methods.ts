@@ -1,4 +1,5 @@
 export const PREDICTION_METHODS = {
+  getFixtureLeaderboard: 'predictions.getFixtureLeaderboard',
   getMyFixtureScore: 'predictions.getMyFixtureScore',
   submit: 'predictions.submit',
 } as const;

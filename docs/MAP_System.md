@@ -41,7 +41,10 @@
 - `docs/PLATFORM_Player_Fixture_Scoring.md` - CCPP-011A derived player
   fixture-score projection, canonical input sources, lifecycle statuses,
   Pending versus zero, custom Void, revision behavior, owner-only method, and
-  leaderboard/breakdown deferrals.
+  CCPP-011B leaderboard reuse boundary.
+- `docs/PLATFORM_Fixture_Leaderboard.md` - CCPP-011B derived fixture
+  leaderboard lifecycle, ranking, privacy labels, pagination, route, refresh
+  policy, and deferrals.
 - `docs/PLATFORM_Prediction_Sequence.md` - CCPP-007 standard prediction
   sequence/message architecture, active-step navigation, dynamic custom
   question steps, and Review edit destinations.
@@ -160,6 +163,9 @@
 - `docs/AUDIT_011A_Player_Fixture_Score.md` - CCPP-011A derived player
   fixture-score projection, owner-only score method, tests, verification, and
   EOMD archive evidence.
+- `docs/AUDIT_011B_Fixture_Leaderboard.md` - CCPP-011B derived fixture
+  leaderboard, ranking rule, privacy labels, route, tests, browser evidence,
+  and EOMD archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -241,14 +247,18 @@
   and packaging handoff.
 - `docs/TEMP_011A_Resume.md` - temporary CCPP-011A checkpoint for derived
   player fixture-score projection, tests, documentation, and packaging handoff.
+- `docs/TEMP_011B_Resume.md` - temporary CCPP-011B checkpoint for fixture
+  leaderboard implementation, verification, documentation, and packaging
+  handoff.
 
 ## Application Entry Points
 
 - `client/main.html` - HTML shell and document title.
 - `client/main.tsx` - React startup and CSS import.
 - `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
-- `server/main.ts` - Meteor server startup plus auth, fixture, match result,
-  player fixture-score, prediction, and PWA server-module imports.
+- `server/main.ts` - Meteor server startup plus auth, fixture, fixture
+  leaderboard, match result, player fixture-score, prediction, and PWA
+  server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
 - `imports/api/matchResults/collection.ts` - shared Meteor match result collection.
 - `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
@@ -258,6 +268,9 @@
   result test helper.
 - `imports/server/playerFixtureScores/` - owner-only player fixture-score
   method, canonical score-loading service, and isolated method tests.
+- `imports/server/fixtureLeaderboards/` - fixture leaderboard method,
+  canonical batch loader, test-only browser scenario seeding helper, and
+  isolated method tests.
 - `imports/server/predictions/` - prediction submit method, private publications, indexes, and isolated prediction test helper.
 - `imports/server/pwa/server.ts` - manifest content-type hook for `/site.webmanifest`.
 - `public/site.webmanifest` - minimal PWA manifest that launches at `/games`.
@@ -269,6 +282,7 @@
 - `/games` - `imports/ui/pages/GamesPage.tsx` in the public layout for published fixture browsing.
 - `/games/:fixtureId` - `imports/ui/pages/GameDetailPage.tsx` in the public layout for published fixture details.
 - `/games/:fixtureId/predict` - `imports/ui/pages/PredictionEntryPage.tsx` in the public layout for player prediction entry and saved-entry revisit.
+- `/games/:fixtureId/leaderboard` - `imports/ui/pages/FixtureLeaderboardPage.tsx` in the public layout for derived fixture leaderboards.
 - `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout, including the admin-specific `mode=admin` request mode used from `/admin`.
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
 - `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
@@ -332,6 +346,26 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/server/playerFixtureScores/playerFixtureScores.app-test.ts` -
   isolated integration coverage for score method authorization and lifecycle
   projection.
+
+## Fixture Leaderboard Entry Points
+
+- `imports/shared/fixtureLeaderboards/` - leaderboard method constants,
+  pagination validation, projection types, pure ranking builder, and
+  fixture-scoped privacy helpers.
+- `imports/server/fixtureLeaderboards/service.ts` - server-owned loading of the
+  fixture, current result, all fixture predictions, and privacy-safe labels
+  before derived ranking.
+- `imports/server/fixtureLeaderboards/server.ts` - authenticated
+  `predictions.getFixtureLeaderboard` Meteor method.
+- `imports/server/fixtureLeaderboards/testSupport.ts` - isolated browser
+  scenario seed/update helpers registered only behind the private test-helper
+  gate.
+- `imports/server/fixtureLeaderboards/fixtureLeaderboards.app-test.ts` -
+  isolated integration coverage for method auth, lifecycle, pagination,
+  correction, privacy, and consistency with `getMyFixtureScore`.
+- `imports/ui/pages/FixtureLeaderboardPage.tsx` - player-facing leaderboard
+  route with awaiting-result, provisional, final, cancelled, pagination,
+  current-user, and refresh states.
 
 ## Fixture Entry Points
 
@@ -463,8 +497,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   cancellation cleanup paths.
 - `tests/unit/prediction-questions.test.ts` - CCPP-008 prediction question
   configuration validation and optional standard snapshot projection tests.
+- `tests/unit/fixture-leaderboard.test.ts` - pure fixture leaderboard ranking,
+  lifecycle, pagination, correction, current-user row, and 1,000-entry
+  regression tests.
+- `tests/unit/fixture-leaderboard-privacy.test.ts` - fixture-scoped alias and
+  opaque row ID privacy tests.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
-  fixture, match result, and prediction integration suites.
+  fixture, fixture leaderboard, match result, player fixture-score, and
+  prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
 - `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
@@ -473,6 +513,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   saves, Pending versus zero, duplicate first creation, stale revisions, field
   injection, final confirmation, custom Void, read-only final results, and
   admin-only publications.
+- `imports/server/fixtureLeaderboards/fixtureLeaderboards.app-test.ts` -
+  Meteor full-app fixture leaderboard integration tests for authorization,
+  awaiting/provisional/final/cancelled states, pagination bounds,
+  `currentUserRow`, result corrections, score consistency with
+  `getMyFixtureScore`, and response privacy.
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing,
@@ -507,6 +552,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only
   summary, stale conflict preservation, and explicit latest-result reload.
+- `tests/e2e/fixture-leaderboard.spec.ts` - focused browser test for the
+  player-facing fixture leaderboard provisional, correction, final, current-user
+  highlight, shared-place, and 390px/360px responsive states.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 - `tests/support/kaplay-layout-evidence.ts` - CCPP-009C3B browser evidence
   helper for reading the required Kaplay Match Result semantic bridge while

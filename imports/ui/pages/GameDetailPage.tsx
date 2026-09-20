@@ -7,6 +7,7 @@ import { AppLink } from '../components/AppLink';
 import {
   fixtureStatusClassName,
   fixtureStatusLabel,
+  fixtureLeaderboardPath,
   kickoffLabel,
   fixturePredictionPath,
 } from '../fixtures/fixtureUi';
@@ -134,12 +135,20 @@ export const GameDetailPage = () => {
           <p className="text-sm font-black text-rooster-ink">
             Predictions are open until scheduled kickoff for signed-in players.
           </p>
-          <AppLink
-            className="focus-ring mt-4 inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
-            to={fixturePredictionPath(fixture._id)}
-          >
-            Enter prediction
-          </AppLink>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <AppLink
+              className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+              to={fixturePredictionPath(fixture._id)}
+            >
+              Enter prediction
+            </AppLink>
+            <AppLink
+              className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+              to={fixtureLeaderboardPath(fixture._id)}
+            >
+              Leaderboard
+            </AppLink>
+          </div>
         </div>
       </article>
     </main>

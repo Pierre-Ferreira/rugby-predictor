@@ -12,6 +12,7 @@ import { AdminPage } from './pages/AdminPage';
 import { AdminFixtureResultsPage } from './pages/AdminFixtureResultsPage';
 import { AccountPage } from './pages/AccountPage';
 import { AuthEmailLinkPage } from './pages/AuthEmailLinkPage';
+import { FixtureLeaderboardPage } from './pages/FixtureLeaderboardPage';
 import { GameDetailPage } from './pages/GameDetailPage';
 import { GamesPage } from './pages/GamesPage';
 import { HomePage } from './pages/HomePage';
@@ -28,6 +29,7 @@ const routePages: Record<RouteId, () => ReactNode> = {
   admin: AdminPage,
   adminFixtureResults: AdminFixtureResultsPage,
   authEmailLink: AuthEmailLinkPage,
+  fixtureLeaderboard: FixtureLeaderboardPage,
   notFound: NotFoundPage,
   predictionEntry: PredictionEntryPage,
   signIn: SignInPage,
@@ -116,7 +118,9 @@ const RoutedPage = ({ route }: { readonly route: AppRoute }) => {
   return (
     <PublicLayout
       currentPath={
-        route.id === 'gameDetail' || route.id === 'predictionEntry'
+        route.id === 'gameDetail' ||
+        route.id === 'fixtureLeaderboard' ||
+        route.id === 'predictionEntry'
           ? '/games'
           : route.path
       }

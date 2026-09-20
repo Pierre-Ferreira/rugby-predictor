@@ -44,6 +44,14 @@ describe('route resolution', () => {
     });
   });
 
+  it('resolves public fixture leaderboard routes under games', () => {
+    expect(resolveRoute('/games/abc_123/leaderboard')).toMatchObject({
+      id: 'fixtureLeaderboard',
+      layout: 'public',
+      path: '/games/abc_123/leaderboard',
+    });
+  });
+
   it('resolves admin fixture result routes', () => {
     expect(resolveRoute('/admin/fixtures/abc_123/results')).toMatchObject({
       id: 'adminFixtureResults',
