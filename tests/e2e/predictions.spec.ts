@@ -602,8 +602,14 @@ test.describe('prediction entry and submission', () => {
     await teamNumberInput(page, team2, 'tries').fill('0');
     await continueButton(page).click();
 
-    await expect(teamNumberInput(page, team2, 'conversions')).toBeDisabled();
-    await expect(page.getByText('No tries to convert')).toBeVisible();
+    await expect(teamNumberInput(page, team2, 'conversions')).toBeEnabled();
+    await expect(teamNumberInput(page, team2, 'conversions')).toHaveAttribute(
+      'max',
+      '0',
+    );
+    await expect(
+      page.getByText("You predicted 0 tries - conversions can't exceed 0."),
+    ).toBeVisible();
     await backButton(page).click();
     await teamNumberInput(page, team2, 'tries').fill('2');
     await continueButton(page).click();

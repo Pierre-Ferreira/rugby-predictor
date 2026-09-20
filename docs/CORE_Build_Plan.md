@@ -621,6 +621,37 @@ Not implemented:
 - Server prediction method or scoring behavior changes.
 - CCPP-010B work.
 
+## CCPP-010B Scope
+
+Milestone status: implemented for React-first numeric scoring steps. Platform
+details live in `docs/PLATFORM_React_Prediction_Experience.md`, and
+verification evidence is recorded in
+`docs/AUDIT_010B_Numeric_Scoring_Steps.md`.
+
+Implemented:
+
+- Conversions, Successful Penalty Kicks, and Drop Goals use the same
+  React-first numeric presentation family established from Tries.
+- Each migrated numeric step uses real per-team number inputs and plus/minus
+  buttons that dispatch through `changeTeamNumericField(...)`.
+- Derived predicted-score-so-far context comes from existing score helpers.
+- Conversion maximum and adjustment behavior remain owned by existing form
+  helpers.
+- Penalty Kick and Drop Goal deduction copy remains ruleset/message-derived.
+- Drop Goals preserves the existing result/score consistency warning and
+  blocked Continue behavior.
+- Focused component tests, focused browser evidence, documentation, and review
+  packaging are recorded in the audit.
+
+Not implemented:
+
+- Cards, First Try, Highest-Scoring Half, Half-Time Leader, custom-question, or
+  Review visual migration.
+- Full animated prediction flow beyond the existing Match Result and numeric
+  pulse decoration.
+- Half-time quiz or other Kaplay gameplay.
+- Server prediction method, scoring engine, ruleset, or persistence changes.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

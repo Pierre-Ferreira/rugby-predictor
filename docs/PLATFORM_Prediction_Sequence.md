@@ -28,8 +28,8 @@ reimplement prediction business rules in animation code.
 - `imports/ui/pages/PredictionEntryPage.tsx` - route wrapper, subscription and
   readiness host, React prediction presentation, Review UI, and read-only
   persisted saved-entry display.
-- `imports/ui/predictions/reactPredictionPresentation.tsx` - CCPP-010A
-  React-first Match Result and Tries controls.
+- `imports/ui/predictions/reactPredictionPresentation.tsx` - React-first
+  Match Result and score-building numeric controls.
 
 ## Current Sequence
 
@@ -51,11 +51,13 @@ Progress, Back/Continue, final `Review predictions`, Review edit destinations,
 and locked read-only Review rendering consume that active list.
 
 CCPP-010A moves the active Match Result and Tries presentation to dedicated
-React-first components without changing the sequence. Intro is still outside
-numbered progress, Match Result remains step 1 when enabled, Tries remains step
-2 when enabled, and Continue still advances to the next actual sequence item.
-Unsupported or later steps do not reset, skip, or auto-answer questions for
-animation; they render through the existing React sequence.
+React-first components without changing the sequence. CCPP-010B extends that
+React-first numeric treatment to Conversions, Successful Penalty Kicks, and Drop
+Goals. Intro is still outside numbered progress, Match Result remains step 1
+when enabled, Tries remains step 2 when enabled, and Continue still advances to
+the next actual sequence item. Unsupported or later steps do not reset, skip, or
+auto-answer questions for animation; they render through the existing React
+sequence.
 
 CCPP-008A extends that same active list with dynamic custom steps from the
 fixture's frozen ruleset snapshot. Custom step IDs use
@@ -107,9 +109,9 @@ counting definition.
 
 The shared prediction session keeps one `PredictionFormState` for the whole
 sequence. Intro, numbered steps, Review, Edit-from-Review, submit/revise,
-discard, conflict recovery, React Match Result, React Tries, later React steps,
-and optional decoration all read or update that same state through the session
-contract.
+discard, conflict recovery, React Match Result, React score-building numeric
+steps, later React steps, and optional decoration all read or update that same
+state through the session contract.
 
 Custom answers live in the same form state under `customAnswers`, keyed by
 stable custom question ID. Number custom answers are kept as strings while
@@ -127,6 +129,12 @@ Predicted rugby match scores are derived with shared scoring helpers. The view
 does not maintain a separately editable score and does not duplicate the score
 formula. Rugby component point values are exported from
 `imports/shared/scoring/derived.ts` and used by `deriveTeamScore`.
+
+The score-building steps are Tries, Conversions, Successful Penalty Kicks, and
+Drop Goals. Their React-first presentation shows the derived team score so far
+beside each team's numeric control, but the displayed value still comes from
+`deriveTeamScoreFromForm(...)` / `deriveScoresFromForm(...)`; presentation code
+does not introduce another rugby-score calculator.
 
 Result consistency warnings are shown only after score-producing categories are
 known. The warning never changes the selected result or score inputs. From that

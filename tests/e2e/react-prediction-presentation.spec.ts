@@ -863,19 +863,24 @@ test.describe('React prediction presentation', () => {
     );
   });
 
-  test('Tries numeric controls support phone input, Back/Continue retention, and toggles', async ({
+  test('CCPP-010B numeric scoring steps build scores and preserve consistency guards', async ({
     page,
   }) => {
+    await page.setViewportSize({ height: 1000, width: 1280 });
     const { teams } = await createFixtureAndOpenPrediction(
       page,
-      'tries-toggle',
+      'numeric-010b',
+      {
+        team1: uniqueLabel('Springboks'),
+        team2: uniqueLabel('All Blacks'),
+      },
     );
 
+    await page.getByRole('button', { exact: true, name: 'Off' }).click();
     await page.getByRole('radio', { name: teams.team1 }).check();
     await continueButton(page).click();
-    await page.setViewportSize({ height: 844, width: 390 });
-    await captureScreenshot(page, '010a-tries-390.png');
 
+    await expect(page.getByTestId('react-tries-step')).toBeVisible();
     await page
       .getByRole('button', { name: `Increase ${teams.team1} tries` })
       .click();
@@ -892,28 +897,119 @@ test.describe('React prediction presentation', () => {
     await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('2');
     await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('3');
 
-    await page.getByRole('button', { exact: true, name: 'Off' }).click();
-    await captureScreenshot(page, '010a-tries-390-animations-off.png');
-    await page.getByRole('button', { exact: true, name: 'On' }).click();
-    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('2');
-    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('3');
-
-    await backButton(page).click();
-    await expect(page.getByRole('radio', { name: teams.team1 })).toBeChecked();
     await continueButton(page).click();
-    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('2');
-    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('3');
-
-    await continueButton(page).click();
+    await expect(page.getByTestId('react-conversions-step')).toBeVisible();
     await expect(
       teamNumberInput(page, teams.team1, 'conversions'),
     ).toHaveAttribute('max', '2');
-    await teamNumberInput(page, teams.team1, 'conversions').fill('2');
+    await expect(
+      page.getByText("You predicted 2 tries - conversions can't exceed 2.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await captureScreenshot(page, '010b-conversions-desktop.png');
+    await captureScreenshot(page, '010b-cumulative-score-state.png');
+
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} conversions` })
+      .click();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} conversions` })
+      .click();
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team1} conversions` })
+      .click();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} conversions` })
+      .click();
+    await teamNumberInput(page, teams.team1, 'conversions').fill('9');
+    await expect(teamNumberInput(page, teams.team1, 'conversions')).toHaveValue(
+      '2',
+    );
+    await page
+      .getByRole('button', { name: `Increase ${teams.team2} conversions` })
+      .click();
+    await teamNumberInput(page, teams.team2, 'conversions').fill('2');
+    await expect(teamNumberInput(page, teams.team2, 'conversions')).toHaveValue(
+      '2',
+    );
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    await captureScreenshot(page, '010b-conversions-390.png');
+
     await backButton(page).click();
-    await teamNumberInput(page, teams.team1, 'tries').fill('1');
+    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('2');
+    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('3');
     await continueButton(page).click();
     await expect(teamNumberInput(page, teams.team1, 'conversions')).toHaveValue(
+      '2',
+    );
+    await expect(teamNumberInput(page, teams.team2, 'conversions')).toHaveValue(
+      '2',
+    );
+
+    await page.setViewportSize({ height: 1000, width: 1280 });
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-penalty-kicks-step')).toBeVisible();
+    await captureScreenshot(page, '010b-penalty-kicks-desktop.png');
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} penalty kicks` })
+      .click();
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team1} penalty kicks` })
+      .click();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} penalty kicks` })
+      .click();
+    await teamNumberInput(page, teams.team2, 'penalty kicks').fill('1');
+    await expect(
+      teamNumberInput(page, teams.team1, 'penalty kicks'),
+    ).toHaveValue('1');
+    await expect(
+      teamNumberInput(page, teams.team2, 'penalty kicks'),
+    ).toHaveValue('1');
+
+    await continueButton(page).click();
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await captureScreenshot(page, '010b-drop-goals-desktop.png');
+    await expect(
+      page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
+    ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
+    await captureScreenshot(page, '010b-result-consistency-warning.png');
+
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} drop goals` })
+      .click();
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team1} drop goals` })
+      .click();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} drop goals` })
+      .click();
+    await teamNumberInput(page, teams.team2, 'drop goals').fill('0');
+    await expect(teamNumberInput(page, teams.team1, 'drop goals')).toHaveValue(
       '1',
     );
+    await expect(continueButton(page)).toBeDisabled();
+
+    await page.setViewportSize({ height: 740, width: 360 });
+    await captureScreenshot(page, '010b-drop-goals-360.png');
+
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} drop goals` })
+      .click();
+    await expect(teamNumberInput(page, teams.team1, 'drop goals')).toHaveValue(
+      '2',
+    );
+    await expect(
+      page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
+    ).toHaveCount(0);
+    await expect(continueButton(page)).toBeEnabled();
+
+    await continueButton(page).click();
+    await expect(
+      teamNumberInput(page, teams.team1, 'yellow cards'),
+    ).toBeVisible();
   });
 });

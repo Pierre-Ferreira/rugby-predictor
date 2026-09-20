@@ -13,6 +13,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { FixtureDocument } from '../../imports/shared/fixtures';
+import {
+  resolvePredictionStepMessage,
+  type PredictionMessageId,
+} from '../../imports/shared/predictions';
 import type { RulesetSnapshot, TeamSide } from '../../imports/shared/scoring';
 import { defaultRuleset } from '../../imports/shared/scoring';
 import {
@@ -20,7 +24,10 @@ import {
   type PredictionPresentationOptions,
 } from '../../imports/ui/predictions/PredictionPresentationHost';
 import {
+  ConversionsPredictionStep,
+  DropGoalsPredictionStep,
   MatchResultPredictionStep,
+  PenaltyKicksPredictionStep,
   TriesPredictionStep,
 } from '../../imports/ui/predictions/reactPredictionPresentation';
 import {
@@ -40,11 +47,16 @@ interface MountedElement {
 }
 
 const mounted: MountedElement[] = [];
+const restoreAnimateDescriptors: Array<() => void> = [];
 const restoreMatchMediaDescriptors: Array<() => void> = [];
 
 afterEach(async () => {
   vi.useRealTimers();
   window.localStorage.clear();
+
+  while (restoreAnimateDescriptors.length > 0) {
+    restoreAnimateDescriptors.pop()?.();
+  }
 
   while (restoreMatchMediaDescriptors.length > 0) {
     restoreMatchMediaDescriptors.pop()?.();
@@ -213,6 +225,18 @@ const inputByTestId = (container: HTMLElement, testId: string) => {
   return input;
 };
 
+const buttonByTestId = (container: HTMLElement, testId: string) => {
+  const button = container.querySelector<HTMLButtonElement>(
+    `[data-testid="${testId}"]`,
+  );
+
+  if (!button) {
+    throw new Error(`Button "${testId}" not found.`);
+  }
+
+  return button;
+};
+
 const click = async (element: HTMLElement) => {
   await act(async () => {
     element.click();
@@ -235,6 +259,31 @@ const changeInput = async (input: HTMLInputElement, value: string) => {
     valueSetter?.call(input, value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
+};
+
+const replaceAnimate = () => {
+  const cancel = vi.fn();
+  const animate = vi.fn(() => ({ cancel }) as unknown as Animation);
+  const original = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'animate',
+  );
+
+  Object.defineProperty(HTMLElement.prototype, 'animate', {
+    configurable: true,
+    value: animate,
+  });
+
+  restoreAnimateDescriptors.push(() => {
+    if (original) {
+      Object.defineProperty(HTMLElement.prototype, 'animate', original);
+    } else {
+      delete (HTMLElement.prototype as { animate?: Element['animate'] })
+        .animate;
+    }
+  });
+
+  return { animate, cancel };
 };
 
 const MatchResultHarness = ({
@@ -328,6 +377,141 @@ const TriesHarness = ({
       form.team1.conversions,
     ),
   );
+};
+
+type NumericHarnessField =
+  'conversions' | 'dropGoals' | 'penaltyKicks' | 'tries';
+
+type PredictionFormOverrides = Partial<
+  Omit<PredictionFormState, 'team1' | 'team2'>
+> & {
+  readonly team1?: Partial<PredictionFormState['team1']>;
+  readonly team2?: Partial<PredictionFormState['team2']>;
+};
+
+const formWithOverrides = (
+  overrides: PredictionFormOverrides = {},
+): PredictionFormState => {
+  const empty = emptyFormForRuleset(defaultRuleset);
+
+  return {
+    ...empty,
+    ...overrides,
+    team1: {
+      ...empty.team1,
+      ...overrides.team1,
+    },
+    team2: {
+      ...empty.team2,
+      ...overrides.team2,
+    },
+  };
+};
+
+const messageIdForNumericField = (
+  field: NumericHarnessField,
+): PredictionMessageId => {
+  if (field === 'dropGoals') {
+    return 'drop-goals';
+  }
+
+  if (field === 'penaltyKicks') {
+    return 'penalty-kicks';
+  }
+
+  return field;
+};
+
+const numericStepPrefix = (field: NumericHarnessField): string => {
+  if (field === 'dropGoals') {
+    return 'drop-goals';
+  }
+
+  if (field === 'penaltyKicks') {
+    return 'penalty-kicks';
+  }
+
+  return field;
+};
+
+const rulesetWithNumericRate = (
+  questionId: 'drop-goals' | 'penalty-kicks',
+  rate: number,
+): RulesetSnapshot =>
+  ({
+    ...defaultRuleset,
+    questions: defaultRuleset.questions.map((question) =>
+      question.id === questionId && question.type === 'built-in-team-numeric'
+        ? { ...question, rate }
+        : question,
+    ),
+    version: `${defaultRuleset.version}-${questionId}-${rate}`,
+  }) as RulesetSnapshot;
+
+const NumericStepHarness = ({
+  field,
+  initialForm,
+  motionEnabled,
+  onTeamChange,
+  ruleset = defaultRuleset,
+}: {
+  readonly field: NumericHarnessField;
+  readonly initialForm?: PredictionFormOverrides;
+  readonly motionEnabled: boolean;
+  readonly onTeamChange?: (
+    side: TeamSide,
+    field: NumericHarnessField,
+    value: string,
+    form: PredictionFormState,
+  ) => void;
+  readonly ruleset?: RulesetSnapshot;
+}) => {
+  const [form, setForm] = useState<PredictionFormState>(() =>
+    formWithOverrides(initialForm),
+  );
+  const currentFixture = fixture({ ruleset });
+  const messageId = messageIdForNumericField(field);
+  const stepMessage = resolvePredictionStepMessage(
+    messageId,
+    { [messageId]: 0 },
+    {
+      ruleset,
+      team1Name: currentFixture.team1DisplayName,
+      team2Name: currentFixture.team2DisplayName,
+    },
+  );
+  const changeField = (side: TeamSide, value: string) => {
+    setForm((currentForm) => {
+      const result = setTeamPredictionField(currentForm, side, field, value);
+
+      onTeamChange?.(side, field, value, result.form);
+
+      return result.form;
+    });
+  };
+  const props = {
+    conversionAdjustmentNotice: null,
+    deductionText: stepMessage.deduction,
+    fixture: currentFixture,
+    form,
+    motionEnabled,
+    onChange: changeField,
+    supportingText: stepMessage.supportingText,
+  };
+
+  if (field === 'conversions') {
+    return createElement(ConversionsPredictionStep, props);
+  }
+
+  if (field === 'dropGoals') {
+    return createElement(DropGoalsPredictionStep, props);
+  }
+
+  if (field === 'penaltyKicks') {
+    return createElement(PenaltyKicksPredictionStep, props);
+  }
+
+  return createElement(TriesPredictionStep, props);
 };
 
 describe('React prediction presentation host', () => {
@@ -973,5 +1157,286 @@ describe('Tries React presentation', () => {
     await click(increment);
 
     expect(calls).toEqual(['1', '2', '3']);
+  });
+});
+
+describe('React numeric scoring presentation family', () => {
+  it('shares increment, decrement, direct edit, blank, zero, and accessible labels', async () => {
+    const calls: Array<{
+      field: NumericHarnessField;
+      side: TeamSide;
+      value: string;
+    }> = [];
+    const prefix = numericStepPrefix('penaltyKicks');
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'penaltyKicks',
+        initialForm: {
+          team1: { penaltyKicks: '1' },
+        },
+        motionEnabled: false,
+        onTeamChange: (side, field, value) =>
+          calls.push({ field, side, value }),
+      }),
+    );
+
+    expect(
+      inputByTestId(
+        mountedStep.container,
+        `${prefix}-team1-input`,
+      ).getAttribute('aria-label'),
+    ).toBe('Springboks penalty kicks');
+    expect(
+      buttonByTestId(
+        mountedStep.container,
+        `${prefix}-team1-increment`,
+      ).getAttribute('aria-label'),
+    ).toBe('Increase Springboks penalty kicks');
+    expect(
+      buttonByTestId(
+        mountedStep.container,
+        `${prefix}-team1-decrement`,
+      ).getAttribute('aria-label'),
+    ).toBe('Decrease Springboks penalty kicks');
+
+    await click(
+      buttonByTestId(mountedStep.container, `${prefix}-team1-increment`),
+    );
+    await click(
+      buttonByTestId(mountedStep.container, `${prefix}-team1-decrement`),
+    );
+    await changeInput(
+      inputByTestId(mountedStep.container, `${prefix}-team2-input`),
+      '4',
+    );
+    await changeInput(
+      inputByTestId(mountedStep.container, `${prefix}-team2-input`),
+      '',
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, `${prefix}-team2-input`).value,
+    ).toBe('');
+    expect(
+      buttonByTestId(mountedStep.container, `${prefix}-team2-decrement`)
+        .disabled,
+    ).toBe(true);
+
+    await changeInput(
+      inputByTestId(mountedStep.container, `${prefix}-team2-input`),
+      '0',
+    );
+
+    expect(
+      buttonByTestId(mountedStep.container, `${prefix}-team2-decrement`)
+        .disabled,
+    ).toBe(true);
+    expect(calls).toEqual([
+      { field: 'penaltyKicks', side: 'team1', value: '2' },
+      { field: 'penaltyKicks', side: 'team1', value: '1' },
+      { field: 'penaltyKicks', side: 'team2', value: '4' },
+      { field: 'penaltyKicks', side: 'team2', value: '' },
+      { field: 'penaltyKicks', side: 'team2', value: '0' },
+    ]);
+  });
+
+  it('keeps conversions bounded by predicted tries through the existing form helper', async () => {
+    const snapshots: PredictionFormState[] = [];
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'conversions',
+        initialForm: {
+          team1: { conversions: '1', tries: '2' },
+          team2: { conversions: '0', tries: '3' },
+        },
+        motionEnabled: false,
+        onTeamChange: (_side, _field, _value, form) => snapshots.push(form),
+      }),
+    );
+    const team1Input = inputByTestId(
+      mountedStep.container,
+      'conversions-team1-input',
+    );
+    const team2Input = inputByTestId(
+      mountedStep.container,
+      'conversions-team2-input',
+    );
+
+    expect(team1Input.getAttribute('max')).toBe('2');
+    expect(
+      mountedStep.container.textContent?.includes(
+        "You predicted 2 tries - conversions can't exceed 2.",
+      ),
+    ).toBe(true);
+
+    await click(
+      buttonByTestId(mountedStep.container, 'conversions-team1-increment'),
+    );
+
+    expect(team1Input.value).toBe('2');
+    expect(
+      buttonByTestId(mountedStep.container, 'conversions-team1-increment')
+        .disabled,
+    ).toBe(true);
+
+    await changeInput(team1Input, '9');
+
+    expect(team1Input.value).toBe('2');
+    expect(snapshots.at(-1)?.team1.conversions).toBe('2');
+    expect(snapshots.at(-1)?.team2.conversions).toBe('0');
+
+    await changeInput(team2Input, '2');
+
+    expect(team1Input.value).toBe('2');
+    expect(team2Input.value).toBe('2');
+    expect(snapshots.at(-1)?.team1.conversions).toBe('2');
+    expect(snapshots.at(-1)?.team2.conversions).toBe('2');
+  });
+
+  it('updates penalty kicks for both teams and shows rule-derived deduction copy', async () => {
+    const calls: Array<{
+      field: NumericHarnessField;
+      side: TeamSide;
+      value: string;
+    }> = [];
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'penaltyKicks',
+        motionEnabled: false,
+        onTeamChange: (side, field, value) =>
+          calls.push({ field, side, value }),
+        ruleset: rulesetWithNumericRate('penalty-kicks', 321),
+      }),
+    );
+
+    expect(mountedStep.container.textContent).toContain('321');
+
+    await click(
+      buttonByTestId(mountedStep.container, 'penalty-kicks-team1-increment'),
+    );
+    await changeInput(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team2-input'),
+      '3',
+    );
+
+    expect(calls).toEqual([
+      { field: 'penaltyKicks', side: 'team1', value: '1' },
+      { field: 'penaltyKicks', side: 'team2', value: '3' },
+    ]);
+    expect(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team1-input').value,
+    ).toBe('1');
+    expect(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team2-input').value,
+    ).toBe('3');
+  });
+
+  it('updates drop goals for both teams and shows rule-derived deduction copy', async () => {
+    const calls: Array<{
+      field: NumericHarnessField;
+      side: TeamSide;
+      value: string;
+    }> = [];
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'dropGoals',
+        motionEnabled: false,
+        onTeamChange: (side, field, value) =>
+          calls.push({ field, side, value }),
+        ruleset: rulesetWithNumericRate('drop-goals', 654),
+      }),
+    );
+
+    expect(mountedStep.container.textContent).toContain('654');
+
+    await click(
+      buttonByTestId(mountedStep.container, 'drop-goals-team1-increment'),
+    );
+    await changeInput(
+      inputByTestId(mountedStep.container, 'drop-goals-team2-input'),
+      '2',
+    );
+
+    expect(calls).toEqual([
+      { field: 'dropGoals', side: 'team1', value: '1' },
+      { field: 'dropGoals', side: 'team2', value: '2' },
+    ]);
+    expect(
+      inputByTestId(mountedStep.container, 'drop-goals-team1-input').value,
+    ).toBe('1');
+    expect(
+      inputByTestId(mountedStep.container, 'drop-goals-team2-input').value,
+    ).toBe('2');
+    expect(
+      mountedStep.container.querySelector(
+        '[data-testid="drop-goals-team2-score"]',
+      )?.textContent,
+    ).toBe('6');
+  });
+
+  it('keeps numeric animation decorative and coalesces rapid pulses', async () => {
+    const { animate, cancel } = replaceAnimate();
+    const calls: string[] = [];
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'dropGoals',
+        motionEnabled: true,
+        onTeamChange: (_side, _field, value) => calls.push(value),
+      }),
+    );
+    const increment = buttonByTestId(
+      mountedStep.container,
+      'drop-goals-team1-increment',
+    );
+
+    await click(increment);
+    await click(increment);
+    await click(increment);
+
+    expect(calls).toEqual(['1', '2', '3']);
+    expect(animate).toHaveBeenCalledTimes(3);
+    expect(cancel).toHaveBeenCalledTimes(2);
+
+    const offCalls: string[] = [];
+    const offStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'dropGoals',
+        motionEnabled: false,
+        onTeamChange: (_side, _field, value) => offCalls.push(value),
+      }),
+    );
+
+    await click(
+      buttonByTestId(offStep.container, 'drop-goals-team1-increment'),
+    );
+
+    expect(offCalls).toEqual(['1']);
+    expect(animate).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps reduced-motion numeric input functional without running pulses', async () => {
+    replaceMatchMedia(true);
+    const { animate } = replaceAnimate();
+    const calls: string[] = [];
+    const mountedStep = await mount(
+      createElement(PredictionPresentationHost, {
+        renderExperience: (presentation) =>
+          createElement(NumericStepHarness, {
+            field: 'penaltyKicks',
+            motionEnabled: presentation.animationsEnabled,
+            onTeamChange: (_side, _field, value) => calls.push(value),
+          }),
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'penalty-kicks-team1-increment'),
+    );
+
+    expect(calls).toEqual(['1']);
+    expect(animate).not.toHaveBeenCalled();
+    expect(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team1-input').value,
+    ).toBe('1');
   });
 });

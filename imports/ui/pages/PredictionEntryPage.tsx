@@ -28,11 +28,11 @@ import {
   type PredictionSequenceStepDefinition,
   type PredictionStepId,
   type PredictionEntryDocument,
+  type ResolvedPredictionStepMessage,
   PREDICTION_PUBLICATIONS,
 } from '/imports/shared/predictions';
 import {
   isBuiltInEnabled,
-  teamScoreComponentRugbyPoints,
   type FirstTryAnswer,
   type RulesetSnapshot,
   type TeamSide,
@@ -57,7 +57,6 @@ import {
   formFromPrediction,
   highestHalfLabel,
   matchResultLabel,
-  maxAttributeForWholeNumber,
   normalizeInitialPredictionForm,
   parseFormWholeNumber,
   teamDisplayName,
@@ -77,7 +76,10 @@ import {
   type PredictionPresentationOptions,
 } from '../predictions/PredictionPresentationHost';
 import {
+  ConversionsPredictionStep,
+  DropGoalsPredictionStep,
   MatchResultPredictionStep,
+  PenaltyKicksPredictionStep,
   TriesPredictionStep,
 } from '../predictions/reactPredictionPresentation';
 
@@ -100,6 +102,7 @@ interface PredictionStepContentProps {
   ) => void;
   readonly presentation: PredictionPresentationOptions;
   readonly ruleset: RulesetSnapshot;
+  readonly stepMessage: ResolvedPredictionStepMessage;
 }
 
 const refreshIntervalMs = 15_000;
@@ -610,6 +613,8 @@ const PredictionStepView = ({
   const forwardNavigationDisabled = !state.navigation.canContinue;
   const message = currentStep.message;
   const position = currentStep.position;
+  const rendersNumericScoringFamily =
+    !customQuestion && isReactNumericScoringStep(currentStep.step.id);
 
   if (!BuiltInStepContent && !customQuestion) {
     return null;
@@ -630,12 +635,12 @@ const PredictionStepView = ({
             {message.body}
           </p>
         ) : null}
-        {message.deduction ? (
+        {message.deduction && !rendersNumericScoringFamily ? (
           <p className="mt-3 max-w-3xl text-sm leading-6 text-rooster-muted">
             {message.deduction}
           </p>
         ) : null}
-        {message.supportingText.length > 0 ? (
+        {message.supportingText.length > 0 && !rendersNumericScoringFamily ? (
           <div className="mt-3 grid gap-2">
             {message.supportingText.map((text) => (
               <p
@@ -661,6 +666,7 @@ const PredictionStepView = ({
             onTeamFieldChange={actions.changeTeamNumericField}
             presentation={presentation}
             ruleset={state.ruleset}
+            stepMessage={message}
           />
         ) : customQuestion ? (
           <CustomQuestionStep
@@ -780,21 +786,23 @@ const builtInStepRenderers: Record<
   PredictionStepRenderer
 > = {
   cards: (props) => <CardsStep {...props} />,
-  conversions: (props) => (
-    <ScoreComponentStep component="conversions" {...props} />
-  ),
-  'drop-goals': (props) => (
-    <ScoreComponentStep component="dropGoals" {...props} />
-  ),
+  conversions: (props) => <ConversionsStep {...props} />,
+  'drop-goals': (props) => <DropGoalsStep {...props} />,
   'first-try': (props) => <FirstTryStep {...props} />,
   'half-time-leader': (props) => <HalfTimeLeaderStep {...props} />,
   'highest-scoring-half': (props) => <HighestScoringHalfStep {...props} />,
   'match-result': (props) => <MatchResultStep {...props} />,
-  'penalty-kicks': (props) => (
-    <ScoreComponentStep component="penaltyKicks" {...props} />
-  ),
+  'penalty-kicks': (props) => <PenaltyKicksStep {...props} />,
   tries: (props) => <TriesStep {...props} />,
 };
+
+const isReactNumericScoringStep = (
+  stepId: PredictionStepId,
+): stepId is 'conversions' | 'drop-goals' | 'penalty-kicks' | 'tries' =>
+  stepId === 'tries' ||
+  stepId === 'conversions' ||
+  stepId === 'penalty-kicks' ||
+  stepId === 'drop-goals';
 
 const MatchResultStep = ({
   fixture,
@@ -810,134 +818,79 @@ const MatchResultStep = ({
   />
 );
 
-type ScoreComponent = 'conversions' | 'dropGoals' | 'penaltyKicks' | 'tries';
-
-const scoreComponentCopy = {
-  conversions: {
-    label: 'Conversions',
-    pointsText: `${teamScoreComponentRugbyPoints.conversions} rugby points each`,
-  },
-  dropGoals: {
-    label: 'Drop goals',
-    pointsText: `${teamScoreComponentRugbyPoints.dropGoals} rugby points each`,
-  },
-  penaltyKicks: {
-    label: 'Successful penalty kicks',
-    pointsText: `${teamScoreComponentRugbyPoints.penaltyKicks} rugby points each`,
-  },
-  tries: {
-    label: 'Tries',
-    pointsText: `Points from tries: ${teamScoreComponentRugbyPoints.tries} rugby points each`,
-  },
-} as const satisfies Record<
-  ScoreComponent,
-  { readonly label: string; readonly pointsText: string }
->;
-
-const ScoreComponentStep = ({
-  component,
-  conversionAdjustmentNotice,
-  fixture,
-  form,
-  onTeamFieldChange,
-}: PredictionStepContentProps & {
-  readonly component: ScoreComponent;
-}) => (
-  <div className="grid gap-4">
-    {conversionAdjustmentNotice ? (
-      <p
-        className="rounded-md border border-rooster-sun/50 bg-rooster-sun/10 p-3 text-sm font-semibold text-rooster-ink"
-        role="status"
-      >
-        {conversionAdjustmentNotice}
-      </p>
-    ) : null}
-    <TeamPredictionGrid>
-      {(['team1', 'team2'] as const).map((side) => (
-        <ScoreComponentTeamPanel
-          component={component}
-          fixture={fixture}
-          form={form[side]}
-          key={side}
-          onChange={(value) => onTeamFieldChange(side, component, value)}
-          side={side}
-        />
-      ))}
-    </TeamPredictionGrid>
-  </div>
-);
-
-const ScoreComponentTeamPanel = ({
-  component,
-  fixture,
-  form,
-  onChange,
-  side,
-}: {
-  readonly component: ScoreComponent;
-  readonly fixture: FixtureDocument;
-  readonly form: TeamPredictionForm;
-  readonly onChange: (value: string) => void;
-  readonly side: TeamSide;
-}) => {
-  const teamName = teamDisplayName(fixture, side);
-  const score = deriveTeamScoreFromForm(form, fixture, side);
-  const tries = parseFormWholeNumber(form.tries);
-  const conversions = parseFormWholeNumber(form.conversions);
-  const isConversionStep = component === 'conversions';
-  const conversionMaximum = maxAttributeForWholeNumber(form.tries);
-  const conversionsDisabled = isConversionStep && tries === 0;
-  const supportingText =
-    isConversionStep && tries !== null
-      ? tries === 0
-        ? 'No tries to convert'
-        : `${conversions ?? 0} of ${tries} tries converted.`
-      : scoreComponentCopy[component].pointsText;
-
-  return (
-    <TeamPredictionPanel
-      score={score.score}
-      scoreMessage={score.message}
-      teamName={teamName}
-    >
-      <NumericPredictionControl
-        disabled={conversionsDisabled}
-        inputLabel={`${teamName} ${inputLabelForComponent(component)}`}
-        label={scoreComponentCopy[component].label}
-        max={isConversionStep ? conversionMaximum : undefined}
-        onChange={onChange}
-        supportingText={supportingText}
-        value={form[component]}
-      />
-    </TeamPredictionPanel>
-  );
-};
-
-const inputLabelForComponent = (component: ScoreComponent): string => {
-  if (component === 'penaltyKicks') {
-    return 'penalty kicks';
-  }
-
-  if (component === 'dropGoals') {
-    return 'drop goals';
-  }
-
-  return component;
-};
-
 const TriesStep = ({
   conversionAdjustmentNotice,
   fixture,
   form,
   onTeamFieldChange,
   presentation,
+  stepMessage,
 }: PredictionStepContentProps) => (
   <TriesPredictionStep
     conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={stepMessage.deduction}
     fixture={fixture}
     form={form}
     motionEnabled={presentation.animationsEnabled}
+    supportingText={stepMessage.supportingText}
     onChange={(side, value) => onTeamFieldChange(side, 'tries', value)}
+  />
+);
+
+const ConversionsStep = ({
+  conversionAdjustmentNotice,
+  fixture,
+  form,
+  onTeamFieldChange,
+  presentation,
+  stepMessage,
+}: PredictionStepContentProps) => (
+  <ConversionsPredictionStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={stepMessage.deduction}
+    fixture={fixture}
+    form={form}
+    motionEnabled={presentation.animationsEnabled}
+    supportingText={stepMessage.supportingText}
+    onChange={(side, value) => onTeamFieldChange(side, 'conversions', value)}
+  />
+);
+
+const PenaltyKicksStep = ({
+  conversionAdjustmentNotice,
+  fixture,
+  form,
+  onTeamFieldChange,
+  presentation,
+  stepMessage,
+}: PredictionStepContentProps) => (
+  <PenaltyKicksPredictionStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={stepMessage.deduction}
+    fixture={fixture}
+    form={form}
+    motionEnabled={presentation.animationsEnabled}
+    supportingText={stepMessage.supportingText}
+    onChange={(side, value) => onTeamFieldChange(side, 'penaltyKicks', value)}
+  />
+);
+
+const DropGoalsStep = ({
+  conversionAdjustmentNotice,
+  fixture,
+  form,
+  onTeamFieldChange,
+  presentation,
+  stepMessage,
+}: PredictionStepContentProps) => (
+  <DropGoalsPredictionStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={stepMessage.deduction}
+    fixture={fixture}
+    form={form}
+    motionEnabled={presentation.animationsEnabled}
+    supportingText={stepMessage.supportingText}
+    onChange={(side, value) => onTeamFieldChange(side, 'dropGoals', value)}
   />
 );
 

@@ -11,6 +11,7 @@ import {
 
 import {
   deriveTeamScoreFromForm,
+  maxAttributeForWholeNumber,
   parseFormWholeNumber,
   teamDisplayName,
   type PredictionFormState,
@@ -548,18 +549,174 @@ const MatchResultShoveOverlay = ({
 
 export const TriesPredictionStep = ({
   conversionAdjustmentNotice,
+  deductionText = null,
   fixture,
   form,
   motionEnabled,
   onChange,
+  supportingText = [],
 }: {
   readonly conversionAdjustmentNotice: string | null;
+  readonly deductionText?: string | null;
   readonly fixture: FixtureDocument;
   readonly form: PredictionFormState;
   readonly motionEnabled: boolean;
   readonly onChange: (side: TeamSide, value: string) => void;
+  readonly supportingText?: readonly string[];
 }) => (
-  <div className="grid gap-4" data-testid="react-tries-step">
+  <PredictionTeamNumericStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={deductionText}
+    field="tries"
+    fixture={fixture}
+    form={form}
+    motionEnabled={motionEnabled}
+    supportingText={supportingText}
+    onChange={onChange}
+  />
+);
+
+export const ConversionsPredictionStep = ({
+  conversionAdjustmentNotice,
+  deductionText = null,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  supportingText = [],
+}: TeamNumericPredictionStepComponentProps) => (
+  <PredictionTeamNumericStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={deductionText}
+    field="conversions"
+    fixture={fixture}
+    form={form}
+    motionEnabled={motionEnabled}
+    supportingText={supportingText}
+    onChange={onChange}
+  />
+);
+
+export const PenaltyKicksPredictionStep = ({
+  conversionAdjustmentNotice,
+  deductionText = null,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  supportingText = [],
+}: TeamNumericPredictionStepComponentProps) => (
+  <PredictionTeamNumericStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={deductionText}
+    field="penaltyKicks"
+    fixture={fixture}
+    form={form}
+    motionEnabled={motionEnabled}
+    supportingText={supportingText}
+    onChange={onChange}
+  />
+);
+
+export const DropGoalsPredictionStep = ({
+  conversionAdjustmentNotice,
+  deductionText = null,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  supportingText = [],
+}: TeamNumericPredictionStepComponentProps) => (
+  <PredictionTeamNumericStep
+    conversionAdjustmentNotice={conversionAdjustmentNotice}
+    deductionText={deductionText}
+    field="dropGoals"
+    fixture={fixture}
+    form={form}
+    motionEnabled={motionEnabled}
+    supportingText={supportingText}
+    onChange={onChange}
+  />
+);
+
+const normalizeWholeNumberDraft = (value: string): string | null => {
+  if (value === '' || /^\d+$/.test(value)) {
+    return value;
+  }
+
+  return null;
+};
+
+type TeamScoringNumericField =
+  'conversions' | 'dropGoals' | 'penaltyKicks' | 'tries';
+
+interface TeamNumericPredictionStepComponentProps {
+  readonly conversionAdjustmentNotice?: string | null;
+  readonly deductionText?: string | null;
+  readonly fixture: FixtureDocument;
+  readonly form: PredictionFormState;
+  readonly motionEnabled: boolean;
+  readonly onChange: (side: TeamSide, value: string) => void;
+  readonly supportingText?: readonly string[];
+}
+
+interface TeamNumericFieldCopy {
+  readonly controlLabel: string;
+  readonly inputLabelNoun: string;
+  readonly pointsText: string;
+  readonly testIdPrefix: string;
+}
+
+const numericFieldCopy = {
+  conversions: {
+    controlLabel: 'Conversions',
+    inputLabelNoun: 'conversions',
+    pointsText: `${teamScoreComponentRugbyPoints.conversions} rugby points each`,
+    testIdPrefix: 'conversions',
+  },
+  dropGoals: {
+    controlLabel: 'Drop goals',
+    inputLabelNoun: 'drop goals',
+    pointsText: `${teamScoreComponentRugbyPoints.dropGoals} rugby points each`,
+    testIdPrefix: 'drop-goals',
+  },
+  penaltyKicks: {
+    controlLabel: 'Penalty kicks',
+    inputLabelNoun: 'penalty kicks',
+    pointsText: `${teamScoreComponentRugbyPoints.penaltyKicks} rugby points each`,
+    testIdPrefix: 'penalty-kicks',
+  },
+  tries: {
+    controlLabel: 'Tries',
+    inputLabelNoun: 'tries',
+    pointsText: `Points from tries: ${teamScoreComponentRugbyPoints.tries} rugby points each`,
+    testIdPrefix: 'tries',
+  },
+} as const satisfies Record<TeamScoringNumericField, TeamNumericFieldCopy>;
+
+export const PredictionTeamNumericStep = ({
+  conversionAdjustmentNotice = null,
+  deductionText = null,
+  field,
+  fixture,
+  form,
+  motionEnabled,
+  onChange,
+  supportingText = [],
+}: {
+  readonly conversionAdjustmentNotice?: string | null;
+  readonly deductionText?: string | null;
+  readonly field: TeamScoringNumericField;
+  readonly fixture: FixtureDocument;
+  readonly form: PredictionFormState;
+  readonly motionEnabled: boolean;
+  readonly onChange: (side: TeamSide, value: string) => void;
+  readonly supportingText?: readonly string[];
+}) => (
+  <div
+    className="grid gap-4"
+    data-testid={`react-${numericFieldCopy[field].testIdPrefix}-step`}
+  >
     {conversionAdjustmentNotice ? (
       <p
         className="rounded-md border border-rooster-sun/50 bg-rooster-sun/10 p-3 text-sm font-semibold text-rooster-ink"
@@ -568,9 +725,27 @@ export const TriesPredictionStep = ({
         {conversionAdjustmentNotice}
       </p>
     ) : null}
+    {deductionText || supportingText.length > 0 ? (
+      <div className="rounded-md border border-rooster-line bg-rooster-paper p-3">
+        {deductionText ? (
+          <p className="text-sm font-semibold leading-6 text-rooster-muted">
+            {deductionText}
+          </p>
+        ) : null}
+        {supportingText.map((text) => (
+          <p
+            className="mt-2 text-sm font-semibold leading-6 text-rooster-muted"
+            key={text}
+          >
+            {text}
+          </p>
+        ))}
+      </div>
+    ) : null}
     <div className="grid gap-4 md:grid-cols-2">
       {(['team1', 'team2'] as const).map((side) => (
-        <TryTeamCard
+        <TeamNumericPredictionCard
+          field={field}
           fixture={fixture}
           key={side}
           motionEnabled={motionEnabled}
@@ -583,21 +758,36 @@ export const TriesPredictionStep = ({
   </div>
 );
 
-const normalizeWholeNumberDraft = (value: string): string | null => {
-  if (value === '' || /^\d+$/.test(value)) {
-    return value;
+const conversionContextText = (teamForm: TeamPredictionForm): string => {
+  const tries = parseFormWholeNumber(teamForm.tries);
+
+  if (tries === null) {
+    return 'Enter tries first to set your conversion ceiling.';
   }
 
-  return null;
+  return `You predicted ${tries} ${tries === 1 ? 'try' : 'tries'} - conversions can't exceed ${tries}.`;
 };
 
-const TryTeamCard = ({
+const helperTextForField = (
+  field: TeamScoringNumericField,
+  teamForm: TeamPredictionForm,
+): string => {
+  if (field === 'conversions') {
+    return conversionContextText(teamForm);
+  }
+
+  return numericFieldCopy[field].pointsText;
+};
+
+const TeamNumericPredictionCard = ({
+  field,
   fixture,
   motionEnabled,
   onChange,
   side,
   teamForm,
 }: {
+  readonly field: TeamScoringNumericField;
   readonly fixture: FixtureDocument;
   readonly motionEnabled: boolean;
   readonly onChange: (value: string) => void;
@@ -607,10 +797,13 @@ const TryTeamCard = ({
   const inputId = useId();
   const pulseTargetRef = useRef<HTMLDivElement | null>(null);
   const pulseAnimationRef = useRef<Animation | null>(null);
+  const copy = numericFieldCopy[field];
   const teamName = teamDisplayName(fixture, side);
   const score = deriveTeamScoreFromForm(teamForm, fixture, side);
-  const parsed = parseFormWholeNumber(teamForm.tries);
-  const canDecrement = parsed !== null && parsed > 0;
+  const value = teamForm[field];
+  const maximum = field === 'conversions' ? teamForm.tries : undefined;
+  const max = maximum ? maxAttributeForWholeNumber(maximum) : undefined;
+  const helperText = helperTextForField(field, teamForm);
 
   useEffect(
     () => () => {
@@ -664,11 +857,14 @@ const TryTeamCard = ({
   };
 
   return (
-    <section className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+    <section className="h-full rounded-md border border-rooster-line bg-rooster-paper p-4 transition focus-within:border-rooster-red/70 focus-within:ring-2 focus-within:ring-rooster-red/20">
       <p className="text-xs font-black uppercase text-rooster-muted">
-        Predicted rugby score
+        Predicted score so far
       </p>
-      <p className="mt-1 text-4xl font-black text-rooster-ink">
+      <p
+        className="mt-1 text-4xl font-black text-rooster-ink"
+        data-testid={`${copy.testIdPrefix}-${side}-score`}
+      >
         {score.score === null ? '-' : score.score}
       </p>
       <h3 className="mt-1 break-words text-lg font-black text-rooster-ink">
@@ -681,51 +877,99 @@ const TryTeamCard = ({
       ) : null}
 
       <div className="mt-4" ref={pulseTargetRef}>
-        <label
-          className="block text-sm font-black text-rooster-ink"
-          htmlFor={inputId}
-        >
-          Tries
-        </label>
-        <div className="mt-2 grid grid-cols-[3.25rem_minmax(0,1fr)_3.25rem] overflow-hidden rounded-md border border-rooster-line bg-white">
-          <button
-            aria-label={`Decrease ${teamName} tries`}
-            className="focus-ring min-h-12 border-r border-rooster-line text-2xl font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
-            data-testid={`tries-${side}-decrement`}
-            disabled={!canDecrement}
-            type="button"
-            onClick={() => commit(String(Math.max(0, (parsed ?? 0) - 1)))}
-          >
-            -
-          </button>
-          <input
-            aria-label={`${teamName} tries`}
-            className="focus-ring min-h-12 w-full border-0 bg-white px-3 text-center text-xl font-black text-rooster-ink"
-            data-testid={`tries-${side}-input`}
-            id={inputId}
-            inputMode="numeric"
-            min="0"
-            onChange={handleInputChange}
-            pattern="[0-9]*"
-            step="1"
-            type="number"
-            value={teamForm.tries}
-          />
-          <button
-            aria-label={`Increase ${teamName} tries`}
-            className="focus-ring min-h-12 border-l border-rooster-line text-2xl font-black text-rooster-ink transition hover:bg-rooster-paper"
-            data-testid={`tries-${side}-increment`}
-            type="button"
-            onClick={() => commit(String(parsed === null ? 0 : parsed + 1))}
-          >
-            +
-          </button>
-        </div>
+        <NumericStepper
+          ariaLabel={`${teamName} ${copy.inputLabelNoun}`}
+          id={inputId}
+          label={copy.controlLabel}
+          max={max}
+          testIdPrefix={`${copy.testIdPrefix}-${side}`}
+          value={value}
+          onChange={commit}
+          onInputChange={handleInputChange}
+        />
         <p className="mt-2 text-xs font-semibold leading-5 text-rooster-muted">
-          Points from tries: {teamScoreComponentRugbyPoints.tries} rugby points
-          each
+          {helperText}
         </p>
       </div>
     </section>
+  );
+};
+
+const NumericStepper = ({
+  ariaLabel,
+  id,
+  label,
+  max,
+  min = '0',
+  onChange,
+  onInputChange,
+  testIdPrefix,
+  value,
+}: {
+  readonly ariaLabel: string;
+  readonly id: string;
+  readonly label: string;
+  readonly max?: string;
+  readonly min?: string;
+  readonly onChange: (value: string) => void;
+  readonly onInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  readonly testIdPrefix: string;
+  readonly value: string;
+}) => {
+  const parsed = parseFormWholeNumber(value);
+  const parsedMin = parseFormWholeNumber(min) ?? 0;
+  const parsedMax = max === undefined ? null : parseFormWholeNumber(max);
+  const canDecrement = parsed !== null && parsed > parsedMin;
+  const canIncrement =
+    parsed === null || parsedMax === null || parsed < parsedMax;
+  const decrement = () => {
+    onChange(String(Math.max(parsedMin, (parsed ?? parsedMin) - 1)));
+  };
+  const increment = () => {
+    onChange(String(parsed === null ? parsedMin : parsed + 1));
+  };
+
+  return (
+    <div>
+      <label className="block text-sm font-black text-rooster-ink" htmlFor={id}>
+        {label}
+      </label>
+      <div className="mt-2 grid grid-cols-[3.25rem_minmax(0,1fr)_3.25rem] overflow-hidden rounded-md border border-rooster-line bg-white">
+        <button
+          aria-label={`Decrease ${ariaLabel}`}
+          className="focus-ring min-h-12 border-r border-rooster-line text-2xl font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
+          data-testid={`${testIdPrefix}-decrement`}
+          disabled={!canDecrement}
+          type="button"
+          onClick={decrement}
+        >
+          -
+        </button>
+        <input
+          aria-label={ariaLabel}
+          className="focus-ring min-h-12 w-full border-0 bg-white px-3 text-center text-xl font-black text-rooster-ink"
+          data-testid={`${testIdPrefix}-input`}
+          id={id}
+          inputMode="numeric"
+          max={max}
+          min={min}
+          onChange={onInputChange}
+          pattern="[0-9]*"
+          step="1"
+          type="number"
+          value={value}
+        />
+        <button
+          aria-label={`Increase ${ariaLabel}`}
+          className="focus-ring min-h-12 border-l border-rooster-line text-2xl font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
+          data-testid={`${testIdPrefix}-increment`}
+          disabled={!canIncrement}
+          type="button"
+          onClick={increment}
+        >
+          +
+        </button>
+      </div>
+    </div>
   );
 };

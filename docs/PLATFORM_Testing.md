@@ -120,7 +120,10 @@ Current unit test files:
   creation, Off/no-shove parity, reduced-motion functional parity, resize and
   Change interruption preserving the selected answer, harmless sprite-load
   cancellation, shared Tries numeric dispatch, blank/zero semantics, conversion
-  clamping delegation, and rapid numeric updates.
+  clamping delegation, and rapid numeric updates. CCPP-010B extends the same
+  file with the shared numeric scoring control family, Conversions,
+  Successful Penalty Kicks, Drop Goals, ruleset-derived deduction copy,
+  accessible labels, and decorative numeric pulse parity.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C/009C1/009C2/009C3
   Match Result layout, shove motion, compact readability, projection,
   transformed bounds, hit testing, and resize-preservation tests.
@@ -366,13 +369,18 @@ failed`; the corrected dirty saved-session case passed. The new resize journey
   active React-first prediction flow. It verifies real Match Result controls,
   absence of the old Kaplay canvas/import requests in the normal route, handoff
   into React Tries, Animations Off parity, resize interruption preserving React
-  state, coherent 390px/360px layouts, Tries numeric input/toggles, Back/Continue
-  retention, and handoff into existing Conversions with conversion clamping
-  still authoritative. CCPP-010A1 extends that file with the selected-only
-  settled Match Result state and one complete normal-speed Rooster shove
-  evidence case. The retained 010A1 focused browser batch on 2026-09-19 records
-  `4 passed`, with before-selection, contact-frame, settled selected-only, and
-  WebM evidence under `test-results/ccpp010a1/`.
+  state, coherent 390px/360px layouts, Tries numeric input/toggles,
+  Back/Continue retention, and handoff into existing Conversions with
+  conversion clamping still authoritative. CCPP-010A1 extends that file with
+  the selected-only settled Match Result state and one complete normal-speed
+  Rooster shove evidence case. CCPP-010B extends it with one focused
+  Match Result -> Tries -> Conversions -> Penalty Kicks -> Drop Goals journey,
+  including conversion ceiling behavior, direct typing, plus/minus controls,
+  Back/forward value retention, Drop Goals result-consistency blocking,
+  correction through normal UI, and desktop/390px/360px evidence. The retained
+  010A1 focused browser batch on 2026-09-19 records `4 passed`, with
+  before-selection, contact-frame, settled selected-only, and WebM evidence
+  under `test-results/ccpp010a1/`.
 
 CCPP-009B2 adds test-only isolation for the Meteor HMR WebSocket in the Kaplay
 preview spec. The WebSocket route predicate is limited to the exact path

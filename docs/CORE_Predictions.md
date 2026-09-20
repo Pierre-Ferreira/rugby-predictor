@@ -108,6 +108,14 @@ changing the saved draft answer until another choice is selected. Animations On,
 Animations Off, reduced motion, resize, Back, and Continue keep the same shared
 React answer state.
 
+CCPP-010B extends the React-first numeric presentation from Tries to
+Conversions, Successful Penalty Kicks, and Drop Goals. Those four
+score-building steps now share one two-team numeric card/control family,
+including derived predicted-score-so-far context, actual team names, editable
+number inputs, and real plus/minus buttons. The conversion ceiling remains
+owned by the existing form/domain helper, and Drop Goals keeps the existing
+result/score consistency warning and Continue block.
+
 ## Player Flow
 
 Published fixture detail pages link to `/games/:fixtureId/predict`.
@@ -181,10 +189,11 @@ Client controls use numeric inputs, labels, required fields, and mobile-friendly
 sections. The browser keeps unsaved values after server validation errors,
 conflicts, or failed submission attempts.
 
-The standard prediction UI sets each conversion input's local maximum from that
-team's predicted tries and clamps local state immediately if tries are reduced
-below the current conversion count. This avoids the common invalid state before
-submission without weakening server-side validation.
+The standard prediction UI sets each conversion input's maximum from that
+team's predicted tries and clamps local state through the shared form helper
+when conversions exceed tries or tries are reduced below the current conversion
+count. This avoids the common invalid state before submission without weakening
+server-side validation.
 
 The Review derives predicted rugby match scores and the displayed derived result
 through the shared scoring helpers. If required scoring inputs are invalid or
@@ -290,11 +299,13 @@ revision handling, discard/conflict state, and Meteor submission. Presentation
 code adapts browser input to session commands; it does not own a second answer
 state or duplicate business validation.
 
-Match Result and Tries are the first React-first presentation screens. Match
-Result renders real Team 1, Team 2, and Draw controls, with an optional
-noninteractive shove overlay for deliberate new choices. Tries renders real
-numeric controls for both teams, with optional cosmetic numeric reactions.
-Later steps continue through the existing React sequence.
+Match Result plus Tries, Conversions, Successful Penalty Kicks, and Drop Goals
+are React-first presentation screens. Match Result renders real Team 1, Team 2,
+and Draw controls, with an optional noninteractive shove overlay for deliberate
+new choices. The score-building steps render real numeric controls for both
+teams, with optional cosmetic numeric reactions and derived predicted-score
+context. Cards, First Try, Highest-Scoring Half, Half-Time Leader, custom
+questions, and Review continue through the existing React sequence.
 
 Kaplay remains installed and the CCPP-009 prediction-specific source remains in
 the repository as superseded/deferred-cleanup code. It may inform future
