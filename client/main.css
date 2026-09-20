@@ -110,7 +110,7 @@
     border-color: rgb(var(--color-rooster-sun));
     outline: 2px solid rgb(var(--color-rooster-sun) / 0.75);
     outline-offset: 2px;
-    animation: rr-match-result-selected-rise 1800ms
+    animation: rr-match-result-selected-rise 1400ms
       cubic-bezier(0.22, 1, 0.36, 1) both;
     box-shadow: 0 20px 44px rgb(22 31 38 / 0.28);
   }
@@ -168,7 +168,7 @@
     z-index: 12;
     pointer-events: none;
     overflow: hidden;
-    animation: rr-match-result-layer-life 1800ms linear both;
+    animation: rr-match-result-layer-life 1400ms linear both;
   }
 
   .rr-match-result-shove-pack {
@@ -178,7 +178,7 @@
     display: grid;
     width: var(--rr-match-result-pack-width);
     gap: 0.5rem;
-    animation: rr-match-result-shove-pack 1800ms linear both;
+    animation: rr-match-result-shove-pack 1400ms linear both;
   }
 
   .rr-match-result-shove-card {
@@ -210,7 +210,7 @@
     top: 0;
     width: var(--rr-match-result-rooster-size);
     aspect-ratio: 276 / 268;
-    animation: rr-match-result-rooster-travel 1800ms linear both;
+    animation: rr-match-result-rooster-travel 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame {
@@ -223,35 +223,35 @@
   }
 
   .rr-match-result-rooster-frame-0 {
-    animation: rr-match-result-rooster-frame-0 1800ms linear both;
+    animation: rr-match-result-rooster-frame-0 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-1 {
-    animation: rr-match-result-rooster-frame-1 1800ms linear both;
+    animation: rr-match-result-rooster-frame-1 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-2 {
-    animation: rr-match-result-rooster-frame-2 1800ms linear both;
+    animation: rr-match-result-rooster-frame-2 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-3 {
-    animation: rr-match-result-rooster-frame-3 1800ms linear both;
+    animation: rr-match-result-rooster-frame-3 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-4 {
-    animation: rr-match-result-rooster-frame-4 1800ms linear both;
+    animation: rr-match-result-rooster-frame-4 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-5 {
-    animation: rr-match-result-rooster-frame-5 1800ms linear both;
+    animation: rr-match-result-rooster-frame-5 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-6 {
-    animation: rr-match-result-rooster-frame-6 1800ms linear both;
+    animation: rr-match-result-rooster-frame-6 1400ms linear both;
   }
 
   .rr-match-result-rooster-frame-7 {
-    animation: rr-match-result-rooster-frame-7 1800ms linear both;
+    animation: rr-match-result-rooster-frame-7 1400ms linear both;
   }
 
   @media (max-width: 520px) {
@@ -499,6 +499,92 @@
     }
   }
 
+  .rr-numeric-team-card {
+    position: relative;
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .rr-numeric-team-card[data-reaction-active='true'] {
+    border-color: rgb(var(--color-rooster-sun));
+    box-shadow:
+      0 0 0 2px rgb(var(--color-rooster-sun) / 0.45),
+      0 14px 34px rgb(22 31 38 / 0.14);
+  }
+
+  .rr-numeric-team-card[data-reaction-kind='limit'] {
+    border-color: rgb(var(--color-rooster-red));
+    box-shadow:
+      0 0 0 2px rgb(var(--color-rooster-red) / 0.35),
+      0 12px 28px rgb(204 49 42 / 0.15);
+  }
+
+  .rr-numeric-team-card--tries[data-reaction-direction='increase'] {
+    box-shadow:
+      0 0 0 3px rgb(var(--color-rooster-sun) / 0.55),
+      0 18px 38px rgb(34 111 84 / 0.18);
+  }
+
+  .rr-numeric-team-card--drop-goals[data-reaction-direction='increase'] {
+    box-shadow:
+      0 0 0 3px rgb(var(--color-rooster-red) / 0.28),
+      0 18px 38px rgb(22 31 38 / 0.18);
+  }
+
+  .rr-numeric-score,
+  .rr-numeric-value-pulse {
+    transform-origin: center;
+    will-change: transform;
+  }
+
+  .rr-numeric-score[data-reaction-active='true'] {
+    display: inline-block;
+    border-radius: 0.375rem;
+    background: rgb(var(--color-rooster-sun) / 0.28);
+    padding-inline: 0.35rem;
+    margin-inline-start: -0.35rem;
+  }
+
+  .rr-numeric-score[data-reaction-direction='decrease'] {
+    background: rgb(var(--color-rooster-grass) / 0.16);
+  }
+
+  .rr-numeric-helper[data-limit-reaction='true'] {
+    border-radius: 0.375rem;
+    background: rgb(var(--color-rooster-sun) / 0.25);
+    color: rgb(var(--color-rooster-ink));
+    padding: 0.25rem 0.35rem;
+    margin-left: -0.35rem;
+  }
+
+  .rr-numeric-reaction-copy {
+    opacity: 0;
+    transform: translateY(0.15rem);
+    transition:
+      opacity 120ms ease,
+      transform 120ms ease;
+  }
+
+  .rr-numeric-reaction-copy[data-reaction-active='true'] {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .rr-numeric-reaction-copy[data-reaction-kind='limit'] {
+    color: rgb(var(--color-rooster-ink));
+  }
+
+  .rr-numeric-stepper-input {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+
+  .rr-numeric-stepper-input::-webkit-inner-spin-button,
+  .rr-numeric-stepper-input::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .rr-match-result-stage .rr-match-result-choice-card--selected-rise,
     .rr-match-result-hero.rr-match-result-hero--settle-motion
@@ -509,6 +595,13 @@
     .rr-match-result-rooster,
     .rr-match-result-rooster-frame {
       animation: none;
+    }
+
+    .rr-numeric-team-card,
+    .rr-numeric-score,
+    .rr-numeric-value-pulse,
+    .rr-numeric-reaction-copy {
+      transition: none;
     }
   }
 }

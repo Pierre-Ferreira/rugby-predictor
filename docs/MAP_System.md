@@ -145,6 +145,10 @@
 - `docs/AUDIT_010B_Numeric_Scoring_Steps.md` - CCPP-010B React-first
   Conversions, Successful Penalty Kicks, and Drop Goals numeric presentation
   family, focused tests, browser evidence, and review archive evidence.
+- `docs/AUDIT_010B1_Numeric_Animation_Personality.md` - CCPP-010B1 visible
+  numeric reaction/personality layer, cumulative score feedback, conversion
+  limit response, native spinner suppression, Match Result 1400ms restoration,
+  verification, and EOMD archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -218,6 +222,9 @@
 - `docs/TEMP_010B_Resume.md` - temporary CCPP-010B checkpoint for numeric
   scoring presentation implementation, verification, documentation, and
   packaging handoff.
+- `docs/TEMP_010B1_Resume.md` - temporary CCPP-010B1 checkpoint for numeric
+  animation/personality implementation, browser evidence, verification,
+  documentation, and packaging handoff.
 
 ## Application Entry Points
 
@@ -340,7 +347,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/ui/predictions/reactPredictionPresentation.tsx` - React-first Match
   Result and score-building numeric controls with optional decorative browser
   animation, selected-only Match Result settled state, Change restoration, and
-  reusable numeric card/stepper presentation.
+  reusable numeric card/stepper presentation, including CCPP-010B1 card/value,
+  score, personality, and conversion-limit reaction state.
 - `imports/ui/predictions/presentationMode.ts` - CCPP-009B/009B4 development
   availability, isolated test-control setting, supported-step, and
   effective-mode policy helpers.
@@ -411,7 +419,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   tests, including shared action dispatch, animation Off/reduced-motion parity,
   resize cancellation, harmless sprite-load cancellation, numeric blank/zero
   handling, conversion clamping delegation, rule-derived numeric deduction
-  copy, accessible numeric labels, and rapid numeric changes.
+  copy, accessible numeric labels, rapid numeric changes, CCPP-010B1 visible
+  reaction lifecycle/cancellation, conversion-limit feedback, native spinner
+  CSS, and Match Result 1400ms timing.
 - `tests/unit/match-result-motion.test.ts` - CCPP-009C Match Result layout and
   shove-motion unit coverage, including compact readability, projected bounds,
   hit testing, and resize-preservation checks.
@@ -454,7 +464,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   for React-first Match Result, score-building numeric steps, animation
   preference parity, mobile layouts, absence of active Kaplay canvas/import
   requests, conversion clamping, value retention, and Drop Goals
-  result-consistency blocking.
+  result-consistency blocking, including CCPP-010B1 Animations-On numeric
+  reaction video/screenshots.
 - `tests/e2e/kaplay-layout-evidence-helper.spec.ts` - lightweight CCPP-009C3B
   Playwright regression for required Match Result bridge and optional checked
   radio evidence reads without launching the Meteor app.

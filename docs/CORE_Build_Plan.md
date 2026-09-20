@@ -652,6 +652,44 @@ Not implemented:
 - Half-time quiz or other Kaplay gameplay.
 - Server prediction method, scoring engine, ruleset, or persistence changes.
 
+## CCPP-010B1 Scope
+
+Milestone status: implemented for numeric animation/personality and the Match
+Result timing restoration. Platform details live in
+`docs/PLATFORM_React_Prediction_Experience.md`, and verification evidence is
+recorded in `docs/AUDIT_010B1_Numeric_Animation_Personality.md`.
+
+Implemented:
+
+- Tries, Conversions, Successful Penalty Kicks, and Drop Goals now share a
+  presentation-only numeric reaction layer that observes accepted form values
+  and derived scores after the session update.
+- Tries has the strongest card/value/score reaction and cheeky high-total copy;
+  Conversions has accepted-change feedback plus a visible nonblocking cap
+  reaction; Penalty Kicks and Drop Goals have distinct short score-building
+  reactions.
+- Predicted-score-so-far values react independently when the existing derived
+  score helper reports a changed team score.
+- Rapid input cancels/replaces obsolete cosmetic reactions so latest state wins
+  without queued answer updates.
+- Animations Off and reduced motion keep values, validation, helper copy, caps,
+  score calculation, and navigation identical while suppressing decorative
+  movement/reaction state.
+- Rugby Rooster number steppers hide native browser spinner arrows while
+  keeping numeric input semantics and keyboard/mobile entry.
+- Match Result cadence is restored to the accepted 1400ms timing after the
+  accidental 1800ms regression; geometry and keyframe percentages are unchanged.
+- Focused component tests, focused Animations-On browser evidence, normal-speed
+  WebM, screenshots, documentation, and review packaging are recorded in the
+  audit.
+
+Not implemented:
+
+- Cards, First Try, Highest-Scoring Half, Half-Time Leader, custom-question, or
+  Review redesign.
+- New mascot artwork, canvas, Kaplay gameplay, animation-owned answer state,
+  server methods, scoring rules, or persistence changes.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

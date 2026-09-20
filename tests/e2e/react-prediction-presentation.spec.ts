@@ -276,6 +276,54 @@ const captureScreenshot = async (
   });
 };
 
+const numericCard = (page: Page, prefix: string, side: 'team1' | 'team2') =>
+  page.getByTestId(`${prefix}-${side}-card`);
+
+const numericScore = (page: Page, prefix: string, side: 'team1' | 'team2') =>
+  page.getByTestId(`${prefix}-${side}-score`);
+
+const numericReaction = (page: Page, prefix: string, side: 'team1' | 'team2') =>
+  page.getByTestId(`${prefix}-${side}-reaction`);
+
+const expectNumericChangeReaction = async (
+  page: Page,
+  prefix: string,
+  side: 'team1' | 'team2',
+  options: {
+    readonly direction?: 'decrease' | 'increase' | 'limit';
+    readonly scoreChanged?: boolean;
+  } = {},
+) => {
+  await expect(numericCard(page, prefix, side)).toHaveAttribute(
+    'data-reaction-active',
+    'true',
+  );
+
+  if (options.direction) {
+    await expect(numericCard(page, prefix, side)).toHaveAttribute(
+      'data-reaction-direction',
+      options.direction,
+    );
+  }
+
+  if (options.scoreChanged) {
+    await expect(numericCard(page, prefix, side)).toHaveAttribute(
+      'data-score-reaction',
+      'true',
+    );
+    await expect(numericScore(page, prefix, side)).toHaveAttribute(
+      'data-reaction-active',
+      'true',
+    );
+  }
+};
+
+const pageWidthState = async (page: Page) =>
+  page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+
 const saveVideo = async (page: Page, name: string) => {
   const path = videoPath(name);
   const video = page.video();
@@ -1011,5 +1059,244 @@ test.describe('React prediction presentation', () => {
     await expect(
       teamNumberInput(page, teams.team1, 'yellow cards'),
     ).toBeVisible();
+  });
+
+  test('CCPP-010B1 Animations On numeric reactions build the predicted score', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ height: 1000, width: 1280 });
+    const { teams } = await createFixtureAndOpenPrediction(
+      page,
+      'numeric-010b1',
+      {
+        team1: uniqueLabel('Springboks'),
+        team2: uniqueLabel('All Blacks'),
+      },
+    );
+    const measurements: Record<string, unknown> = {};
+
+    await expect(
+      page.getByRole('button', { exact: true, name: 'On' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('radio', { name: teams.team1 }).check();
+    await expect(page.getByTestId('match-result-shove-layer')).toHaveCount(0, {
+      timeout: 2_000,
+    });
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-tries-step')).toBeVisible();
+    await page
+      .getByRole('button', { name: `Increase ${teams.team1} tries` })
+      .click();
+    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('1');
+    await expectNumericChangeReaction(page, 'tries', 'team1', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+    await captureScreenshot(page, '010b1-tries-animation-on-change.png');
+
+    const team1TryIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team1} tries`,
+    });
+    await team1TryIncrement.click();
+    await team1TryIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'tries')).toHaveValue('3');
+    await expectNumericChangeReaction(page, 'tries', 'team1', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+
+    const team2TryIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team2} tries`,
+    });
+    await team2TryIncrement.click();
+    await team2TryIncrement.click();
+    await team2TryIncrement.click();
+    await team2TryIncrement.click();
+    await team2TryIncrement.click();
+    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('5');
+    await expect(numericReaction(page, 'tries', 'team2')).toContainText(
+      /Going big!|Try-fest\?/,
+    );
+    await page
+      .getByRole('button', { name: `Decrease ${teams.team2} tries` })
+      .click();
+    await expect(teamNumberInput(page, teams.team2, 'tries')).toHaveValue('4');
+    await expectNumericChangeReaction(page, 'tries', 'team2', {
+      direction: 'decrease',
+      scoreChanged: true,
+    });
+    await expect(numericScore(page, 'tries', 'team1')).toHaveText('15');
+    await expect(numericScore(page, 'tries', 'team2')).toHaveText('20');
+    await captureScreenshot(page, '010b1-cumulative-score-building.png');
+
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-conversions-step')).toBeVisible();
+    const team1ConversionIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team1} conversions`,
+    });
+    await team1ConversionIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'conversions')).toHaveValue(
+      '1',
+    );
+    await expectNumericChangeReaction(page, 'conversions', 'team1', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+    await team1ConversionIncrement.click();
+    await team1ConversionIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'conversions')).toHaveValue(
+      '3',
+    );
+    await expect(
+      page.getByText("You predicted 3 tries - conversions can't exceed 3.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await team1ConversionIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'conversions')).toHaveValue(
+      '3',
+    );
+    await expect(numericCard(page, 'conversions', 'team1')).toHaveAttribute(
+      'data-reaction-kind',
+      'limit',
+    );
+    await expect(page.getByTestId('conversions-team1-helper')).toHaveAttribute(
+      'data-limit-reaction',
+      'true',
+    );
+    await expect(numericReaction(page, 'conversions', 'team1')).toContainText(
+      'At the try cap.',
+    );
+    await captureScreenshot(page, '010b1-conversions-limit-reaction.png');
+
+    await teamNumberInput(page, teams.team2, 'conversions').fill('1');
+    await expect(teamNumberInput(page, teams.team2, 'conversions')).toHaveValue(
+      '1',
+    );
+    await expectNumericChangeReaction(page, 'conversions', 'team2', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+
+    await page.setViewportSize({ height: 844, width: 390 });
+    await captureScreenshot(page, '010b1-numeric-390.png');
+    measurements.mobile390 = await pageWidthState(page);
+    expect(
+      (measurements.mobile390 as { clientWidth: number; scrollWidth: number })
+        .scrollWidth,
+    ).toBeLessThanOrEqual(
+      (measurements.mobile390 as { clientWidth: number; scrollWidth: number })
+        .clientWidth + 1,
+    );
+
+    await page.setViewportSize({ height: 1000, width: 1280 });
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-penalty-kicks-step')).toBeVisible();
+    const team1PenaltyIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team1} penalty kicks`,
+    });
+    await team1PenaltyIncrement.click();
+    await expect(
+      teamNumberInput(page, teams.team1, 'penalty kicks'),
+    ).toHaveValue('1');
+    await expectNumericChangeReaction(page, 'penalty-kicks', 'team1', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+    await captureScreenshot(page, '010b1-penalty-kicks-reaction.png');
+    const team2PenaltyIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team2} penalty kicks`,
+    });
+    await team2PenaltyIncrement.click();
+    await team2PenaltyIncrement.click();
+    await team2PenaltyIncrement.click();
+    await expect(
+      teamNumberInput(page, teams.team1, 'penalty kicks'),
+    ).toHaveValue('1');
+    await expect(
+      teamNumberInput(page, teams.team2, 'penalty kicks'),
+    ).toHaveValue('3');
+    await expectNumericChangeReaction(page, 'penalty-kicks', 'team2', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+
+    await continueButton(page).click();
+
+    await expect(page.getByTestId('react-drop-goals-step')).toBeVisible();
+    await expect(
+      page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
+    ).toBeVisible();
+    await expect(continueButton(page)).toBeDisabled();
+
+    const team1DropGoalIncrement = page.getByRole('button', {
+      name: `Increase ${teams.team1} drop goals`,
+    });
+    await team1DropGoalIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'drop goals')).toHaveValue(
+      '1',
+    );
+    await expectNumericChangeReaction(page, 'drop-goals', 'team1', {
+      direction: 'increase',
+      scoreChanged: true,
+    });
+    await captureScreenshot(page, '010b1-drop-goals-reaction.png');
+    await team1DropGoalIncrement.click();
+    await team1DropGoalIncrement.click();
+    await expect(teamNumberInput(page, teams.team1, 'drop goals')).toHaveValue(
+      '3',
+    );
+    await expect(numericReaction(page, 'drop-goals', 'team1')).toContainText(
+      'Old school!',
+    );
+    await expect(
+      page.getByText("YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER"),
+    ).toHaveCount(0);
+    await expect(continueButton(page)).toBeEnabled();
+
+    await page.setViewportSize({ height: 740, width: 360 });
+    await captureScreenshot(page, '010b1-numeric-360.png');
+    measurements.mobile360 = await pageWidthState(page);
+    expect(
+      (measurements.mobile360 as { clientWidth: number; scrollWidth: number })
+        .scrollWidth,
+    ).toBeLessThanOrEqual(
+      (measurements.mobile360 as { clientWidth: number; scrollWidth: number })
+        .clientWidth + 1,
+    );
+
+    await continueButton(page).click();
+    await expect(
+      teamNumberInput(page, teams.team1, 'yellow cards'),
+    ).toBeVisible();
+    measurements.finalValues = {
+      conversions: {
+        team1: '3',
+        team2: '1',
+      },
+      dropGoals: {
+        team1: '3',
+        team2: '0',
+      },
+      penaltyKicks: {
+        team1: '1',
+        team2: '3',
+      },
+      tries: {
+        team1: '3',
+        team2: '4',
+      },
+    };
+    writeMeasurement(
+      '010b1-numeric-animation-personality-measurements.json',
+      measurements,
+    );
+    await saveVideo(
+      page,
+      '010b1-numeric-animation-personality-normal-speed.webm',
+    );
   });
 });

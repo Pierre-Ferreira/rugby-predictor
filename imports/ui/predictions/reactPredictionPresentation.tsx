@@ -6,6 +6,7 @@ import {
   useState,
   type CSSProperties,
   type ChangeEvent,
+  type ReactNode,
   type AnimationEvent as ReactAnimationEvent,
 } from 'react';
 
@@ -55,7 +56,7 @@ interface MatchResultRevealGeometry {
 
 type MatchResultViewMode = 'choosing' | 'revealing' | 'settled';
 
-const matchResultMotionDurationMs = 1_800;
+const matchResultMotionDurationMs = 1_400;
 const matchResultMinimumClearancePx = 16;
 const roosterSpriteAspectRatio = 268 / 276;
 
@@ -650,6 +651,27 @@ const normalizeWholeNumberDraft = (value: string): string | null => {
 type TeamScoringNumericField =
   'conversions' | 'dropGoals' | 'penaltyKicks' | 'tries';
 
+type NumericReactionDirection = 'decrease' | 'increase' | 'limit';
+type NumericReactionKind = 'change' | 'limit';
+
+interface NumericReactionState {
+  readonly direction: NumericReactionDirection;
+  readonly field: TeamScoringNumericField;
+  readonly id: number;
+  readonly kind: NumericReactionKind;
+  readonly message: string;
+  readonly scoreChanged: boolean;
+}
+
+interface NumericReactionTargets {
+  readonly activeReaction: NumericReactionState | null;
+  readonly setCardElement: (element: HTMLElement | null) => void;
+  readonly setHelperElement: (element: HTMLElement | null) => void;
+  readonly setScoreElement: (element: HTMLElement | null) => void;
+  readonly setValueElement: (element: HTMLElement | null) => void;
+  readonly triggerLimitReaction: () => void;
+}
+
 interface TeamNumericPredictionStepComponentProps {
   readonly conversionAdjustmentNotice?: string | null;
   readonly deductionText?: string | null;
@@ -693,6 +715,369 @@ const numericFieldCopy = {
     testIdPrefix: 'tries',
   },
 } as const satisfies Record<TeamScoringNumericField, TeamNumericFieldCopy>;
+
+const numericReactionDurationMs = 420;
+const numericLimitReactionDurationMs = 300;
+
+const ambitiousTryMessage = (value: number): string => {
+  if (value >= 5) {
+    return value % 2 === 0 ? 'Going big!' : 'Try-fest?';
+  }
+
+  if (value >= 3) {
+    return 'Try time!';
+  }
+
+  return 'On the board.';
+};
+
+const numericReactionMessage = (
+  field: TeamScoringNumericField,
+  direction: NumericReactionDirection,
+  nextValue: number | null,
+): string => {
+  if (direction === 'limit') {
+    return 'At the try cap.';
+  }
+
+  if (field === 'tries') {
+    return direction === 'decrease'
+      ? 'Try tally trimmed.'
+      : ambitiousTryMessage(nextValue ?? 0);
+  }
+
+  if (field === 'conversions') {
+    return direction === 'decrease'
+      ? 'Conversion pulled back.'
+      : 'Kick is good.';
+  }
+
+  if (field === 'penaltyKicks') {
+    return direction === 'decrease' ? 'Taking three off.' : 'Posts in range.';
+  }
+
+  return direction === 'decrease'
+    ? 'Drop-goal count eased.'
+    : nextValue && nextValue > 1
+      ? 'Old school!'
+      : 'A drop goal?';
+};
+
+const playElementAnimation = (
+  element: HTMLElement | null,
+  keyframes: Keyframe[],
+  options: KeyframeAnimationOptions,
+): Animation | null => {
+  if (!element?.animate) {
+    return null;
+  }
+
+  try {
+    return element.animate(keyframes, options);
+  } catch {
+    return null;
+  }
+};
+
+const numericValueScale = (
+  field: TeamScoringNumericField,
+  direction: NumericReactionDirection,
+): number => {
+  if (direction === 'decrease') {
+    return 0.94;
+  }
+
+  if (field === 'tries') {
+    return 1.22;
+  }
+
+  if (field === 'dropGoals') {
+    return 1.2;
+  }
+
+  return 1.16;
+};
+
+const useNumericChangeReaction = ({
+  field,
+  motionEnabled,
+  score,
+  value,
+}: {
+  readonly field: TeamScoringNumericField;
+  readonly motionEnabled: boolean;
+  readonly score: number | null;
+  readonly value: string;
+}): NumericReactionTargets => {
+  const animationRefs = useRef<Animation[]>([]);
+  const cardElementRef = useRef<HTMLElement | null>(null);
+  const helperElementRef = useRef<HTMLElement | null>(null);
+  const nextReactionIdRef = useRef(0);
+  const previousAcceptedRef = useRef<{
+    readonly initialized: boolean;
+    readonly score: number | null;
+    readonly value: number | null;
+  }>({
+    initialized: false,
+    score: null,
+    value: null,
+  });
+  const scoreElementRef = useRef<HTMLElement | null>(null);
+  const timeoutRef = useRef<number | null>(null);
+  const valueElementRef = useRef<HTMLElement | null>(null);
+  const [reaction, setReaction] = useState<NumericReactionState | null>(null);
+
+  const cancelAnimations = useCallback(() => {
+    for (const animation of animationRefs.current) {
+      animation.cancel();
+    }
+
+    animationRefs.current = [];
+  }, []);
+
+  const clearTimer = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  }, []);
+
+  const playReaction = useCallback(
+    (nextReaction: NumericReactionState) => {
+      cancelAnimations();
+
+      if (!motionEnabled) {
+        return;
+      }
+
+      const animations: Animation[] = [];
+      const isLimit = nextReaction.kind === 'limit';
+      const direction = nextReaction.direction;
+      const valueScale = numericValueScale(field, direction);
+      const valueTranslate =
+        direction === 'decrease'
+          ? 'translateY(0.28rem)'
+          : 'translateY(-0.5rem)';
+      const cardTranslate =
+        direction === 'decrease' ? 'translateY(0.2rem)' : 'translateY(-0.3rem)';
+      const cardAnimation = isLimit
+        ? playElementAnimation(
+            cardElementRef.current,
+            [
+              { transform: 'translateX(0)' },
+              { transform: 'translateX(-0.45rem)' },
+              { transform: 'translateX(0.45rem)' },
+              { transform: 'translateX(-0.25rem)' },
+              { transform: 'translateX(0)' },
+            ],
+            {
+              duration: numericLimitReactionDurationMs,
+              easing: 'cubic-bezier(0.2, 0, 0.2, 1)',
+            },
+          )
+        : playElementAnimation(
+            cardElementRef.current,
+            [
+              { transform: 'translateY(0) scale(1)' },
+              { transform: `${cardTranslate} scale(1.035)` },
+              { transform: 'translateY(0) scale(1)' },
+            ],
+            {
+              duration: numericReactionDurationMs,
+              easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+            },
+          );
+
+      if (cardAnimation) {
+        animations.push(cardAnimation);
+      }
+
+      if (!isLimit) {
+        const valueAnimation = playElementAnimation(
+          valueElementRef.current,
+          [
+            { transform: 'translateY(0) scale(1)' },
+            { transform: `${valueTranslate} scale(${valueScale})` },
+            { transform: 'translateY(0) scale(1)' },
+          ],
+          {
+            duration: numericReactionDurationMs,
+            easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+          },
+        );
+
+        if (valueAnimation) {
+          animations.push(valueAnimation);
+        }
+      }
+
+      if (isLimit) {
+        const helperAnimation = playElementAnimation(
+          helperElementRef.current,
+          [
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.035)' },
+            { transform: 'scale(1)' },
+          ],
+          {
+            duration: numericLimitReactionDurationMs,
+            easing: 'cubic-bezier(0.2, 0, 0.2, 1)',
+          },
+        );
+
+        if (helperAnimation) {
+          animations.push(helperAnimation);
+        }
+      }
+
+      if (nextReaction.scoreChanged) {
+        const scoreAnimation = playElementAnimation(
+          scoreElementRef.current,
+          [
+            { transform: 'translateY(0) scale(1)' },
+            { transform: 'translateY(-0.42rem) scale(1.24)' },
+            { transform: 'translateY(0) scale(1)' },
+          ],
+          {
+            duration: numericReactionDurationMs,
+            easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+          },
+        );
+
+        if (scoreAnimation) {
+          animations.push(scoreAnimation);
+        }
+      }
+
+      animationRefs.current = animations;
+    },
+    [cancelAnimations, field, motionEnabled],
+  );
+
+  const startReaction = useCallback(
+    ({
+      direction,
+      kind,
+      nextValue,
+      scoreChanged,
+    }: {
+      readonly direction: NumericReactionDirection;
+      readonly kind: NumericReactionKind;
+      readonly nextValue: number | null;
+      readonly scoreChanged: boolean;
+    }) => {
+      if (!motionEnabled) {
+        return;
+      }
+
+      clearTimer();
+
+      const nextReaction = {
+        direction,
+        field,
+        id: nextReactionIdRef.current + 1,
+        kind,
+        message: numericReactionMessage(field, direction, nextValue),
+        scoreChanged,
+      } satisfies NumericReactionState;
+
+      nextReactionIdRef.current = nextReaction.id;
+      setReaction(nextReaction);
+      playReaction(nextReaction);
+      timeoutRef.current = window.setTimeout(
+        () => {
+          timeoutRef.current = null;
+          setReaction((current) =>
+            current?.id === nextReaction.id ? null : current,
+          );
+        },
+        kind === 'limit'
+          ? numericLimitReactionDurationMs
+          : numericReactionDurationMs,
+      );
+    },
+    [clearTimer, field, motionEnabled, playReaction],
+  );
+
+  useEffect(() => {
+    if (motionEnabled) {
+      return undefined;
+    }
+
+    clearTimer();
+    cancelAnimations();
+
+    const timeout = window.setTimeout(() => {
+      setReaction(null);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [cancelAnimations, clearTimer, motionEnabled]);
+
+  useEffect(
+    () => () => {
+      clearTimer();
+      cancelAnimations();
+    },
+    [cancelAnimations, clearTimer],
+  );
+
+  useEffect(() => {
+    const parsedValue = parseFormWholeNumber(value);
+    const previous = previousAcceptedRef.current;
+
+    previousAcceptedRef.current = {
+      initialized: true,
+      score,
+      value: parsedValue,
+    };
+
+    if (
+      !previous.initialized ||
+      parsedValue === null ||
+      previous.value === parsedValue
+    ) {
+      return;
+    }
+
+    const direction =
+      previous.value !== null && parsedValue < previous.value
+        ? 'decrease'
+        : 'increase';
+
+    startReaction({
+      direction,
+      kind: 'change',
+      nextValue: parsedValue,
+      scoreChanged: previous.score !== score && score !== null,
+    });
+  }, [score, startReaction, value]);
+
+  return {
+    activeReaction: reaction,
+    setCardElement: (element) => {
+      cardElementRef.current = element;
+    },
+    setHelperElement: (element) => {
+      helperElementRef.current = element;
+    },
+    setScoreElement: (element) => {
+      scoreElementRef.current = element;
+    },
+    triggerLimitReaction: () =>
+      startReaction({
+        direction: 'limit',
+        kind: 'limit',
+        nextValue: null,
+        scoreChanged: false,
+      }),
+    setValueElement: (element) => {
+      valueElementRef.current = element;
+    },
+  };
+};
 
 export const PredictionTeamNumericStep = ({
   conversionAdjustmentNotice = null,
@@ -795,8 +1180,6 @@ const TeamNumericPredictionCard = ({
   readonly teamForm: TeamPredictionForm;
 }) => {
   const inputId = useId();
-  const pulseTargetRef = useRef<HTMLDivElement | null>(null);
-  const pulseAnimationRef = useRef<Animation | null>(null);
   const copy = numericFieldCopy[field];
   const teamName = teamDisplayName(fixture, side);
   const score = deriveTeamScoreFromForm(teamForm, fixture, side);
@@ -804,46 +1187,41 @@ const TeamNumericPredictionCard = ({
   const maximum = field === 'conversions' ? teamForm.tries : undefined;
   const max = maximum ? maxAttributeForWholeNumber(maximum) : undefined;
   const helperText = helperTextForField(field, teamForm);
+  const reactionHandles = useNumericChangeReaction({
+    field,
+    motionEnabled,
+    score: score.score,
+    value,
+  });
+  const {
+    activeReaction,
+    setCardElement,
+    setHelperElement,
+    setScoreElement,
+    setValueElement,
+    triggerLimitReaction,
+  } = reactionHandles;
 
-  useEffect(
-    () => () => {
-      pulseAnimationRef.current?.cancel();
-    },
-    [],
-  );
+  const draftExceedsMaximum = (nextValue: string): boolean => {
+    const parsedMaximum = max === undefined ? null : parseFormWholeNumber(max);
+    const parsedNextValue = parseFormWholeNumber(nextValue);
 
-  const playPulse = useCallback(() => {
-    if (!motionEnabled) {
-      return;
-    }
-
-    const target = pulseTargetRef.current;
-
-    if (!target?.animate) {
-      return;
-    }
-
-    try {
-      pulseAnimationRef.current?.cancel();
-      pulseAnimationRef.current = target.animate(
-        [
-          { transform: 'scale(1)' },
-          { transform: 'scale(1.045)' },
-          { transform: 'scale(1)' },
-        ],
-        {
-          duration: 180,
-          easing: 'cubic-bezier(0.2, 0, 0.2, 1)',
-        },
-      );
-    } catch {
-      pulseAnimationRef.current = null;
-    }
-  }, [motionEnabled]);
+    return (
+      field === 'conversions' &&
+      parsedMaximum !== null &&
+      parsedNextValue !== null &&
+      parsedNextValue > parsedMaximum
+    );
+  };
 
   const commit = (nextValue: string) => {
+    const exceedsMaximum = draftExceedsMaximum(nextValue);
+
     onChange(nextValue);
-    playPulse();
+
+    if (exceedsMaximum) {
+      triggerLimitReaction();
+    }
   };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -857,16 +1235,28 @@ const TeamNumericPredictionCard = ({
   };
 
   return (
-    <section className="h-full rounded-md border border-rooster-line bg-rooster-paper p-4 transition focus-within:border-rooster-red/70 focus-within:ring-2 focus-within:ring-rooster-red/20">
+    <section
+      className={[
+        'rr-numeric-team-card h-full rounded-md border border-rooster-line bg-rooster-paper p-4 transition focus-within:border-rooster-red/70 focus-within:ring-2 focus-within:ring-rooster-red/20',
+        `rr-numeric-team-card--${copy.testIdPrefix}`,
+      ].join(' ')}
+      data-reaction-active={activeReaction ? 'true' : 'false'}
+      data-reaction-direction={activeReaction?.direction ?? undefined}
+      data-reaction-kind={activeReaction?.kind ?? undefined}
+      data-score-reaction={activeReaction?.scoreChanged ? 'true' : undefined}
+      data-testid={`${copy.testIdPrefix}-${side}-card`}
+      ref={setCardElement}
+    >
       <p className="text-xs font-black uppercase text-rooster-muted">
         Predicted score so far
       </p>
-      <p
-        className="mt-1 text-4xl font-black text-rooster-ink"
+      <PredictedScorePulse
+        reaction={activeReaction}
+        targetRef={setScoreElement}
         data-testid={`${copy.testIdPrefix}-${side}-score`}
       >
         {score.score === null ? '-' : score.score}
-      </p>
+      </PredictedScorePulse>
       <h3 className="mt-1 break-words text-lg font-black text-rooster-ink">
         {teamName}
       </h3>
@@ -876,24 +1266,100 @@ const TeamNumericPredictionCard = ({
         </p>
       ) : null}
 
-      <div className="mt-4" ref={pulseTargetRef}>
+      <NumericValuePulse reaction={activeReaction} targetRef={setValueElement}>
         <NumericStepper
           ariaLabel={`${teamName} ${copy.inputLabelNoun}`}
           id={inputId}
           label={copy.controlLabel}
           max={max}
+          onLimit={field === 'conversions' ? triggerLimitReaction : undefined}
           testIdPrefix={`${copy.testIdPrefix}-${side}`}
           value={value}
           onChange={commit}
           onInputChange={handleInputChange}
         />
-        <p className="mt-2 text-xs font-semibold leading-5 text-rooster-muted">
+        <p
+          className="rr-numeric-helper mt-2 text-xs font-semibold leading-5 text-rooster-muted"
+          data-limit-reaction={
+            activeReaction?.kind === 'limit' ? 'true' : undefined
+          }
+          data-testid={`${copy.testIdPrefix}-${side}-helper`}
+          ref={setHelperElement}
+        >
           {helperText}
         </p>
-      </div>
+        <NumericChangeReaction
+          reaction={activeReaction}
+          side={side}
+          testIdPrefix={copy.testIdPrefix}
+        />
+      </NumericValuePulse>
     </section>
   );
 };
+
+const PredictedScorePulse = ({
+  children,
+  reaction,
+  targetRef,
+  ...props
+}: {
+  readonly children: string | number;
+  readonly 'data-testid': string;
+  readonly reaction: NumericReactionState | null;
+  readonly targetRef: (element: HTMLElement | null) => void;
+}) => (
+  <p
+    className="rr-numeric-score mt-1 text-4xl font-black text-rooster-ink"
+    data-reaction-active={reaction?.scoreChanged ? 'true' : 'false'}
+    data-reaction-direction={reaction?.direction ?? undefined}
+    ref={targetRef}
+    {...props}
+  >
+    {children}
+  </p>
+);
+
+const NumericValuePulse = ({
+  children,
+  reaction,
+  targetRef,
+}: {
+  readonly children: ReactNode;
+  readonly reaction: NumericReactionState | null;
+  readonly targetRef: (element: HTMLElement | null) => void;
+}) => (
+  <div
+    className="rr-numeric-value-pulse mt-4"
+    data-reaction-active={reaction ? 'true' : 'false'}
+    data-reaction-direction={reaction?.direction ?? undefined}
+    data-reaction-kind={reaction?.kind ?? undefined}
+    ref={targetRef}
+  >
+    {children}
+  </div>
+);
+
+const NumericChangeReaction = ({
+  reaction,
+  side,
+  testIdPrefix,
+}: {
+  readonly reaction: NumericReactionState | null;
+  readonly side: TeamSide;
+  readonly testIdPrefix: string;
+}) => (
+  <p
+    aria-hidden="true"
+    className="rr-numeric-reaction-copy mt-2 min-h-5 text-sm font-black text-rooster-red"
+    data-reaction-active={reaction ? 'true' : 'false'}
+    data-reaction-direction={reaction?.direction ?? undefined}
+    data-reaction-kind={reaction?.kind ?? undefined}
+    data-testid={`${testIdPrefix}-${side}-reaction`}
+  >
+    {reaction?.message ?? ''}
+  </p>
+);
 
 const NumericStepper = ({
   ariaLabel,
@@ -903,6 +1369,7 @@ const NumericStepper = ({
   min = '0',
   onChange,
   onInputChange,
+  onLimit,
   testIdPrefix,
   value,
 }: {
@@ -913,6 +1380,7 @@ const NumericStepper = ({
   readonly min?: string;
   readonly onChange: (value: string) => void;
   readonly onInputChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  readonly onLimit?: () => void;
   readonly testIdPrefix: string;
   readonly value: string;
 }) => {
@@ -922,10 +1390,16 @@ const NumericStepper = ({
   const canDecrement = parsed !== null && parsed > parsedMin;
   const canIncrement =
     parsed === null || parsedMax === null || parsed < parsedMax;
+  const canReactToLimit = !canIncrement && onLimit !== undefined;
   const decrement = () => {
     onChange(String(Math.max(parsedMin, (parsed ?? parsedMin) - 1)));
   };
   const increment = () => {
+    if (!canIncrement) {
+      onLimit?.();
+      return;
+    }
+
     onChange(String(parsed === null ? parsedMin : parsed + 1));
   };
 
@@ -947,7 +1421,7 @@ const NumericStepper = ({
         </button>
         <input
           aria-label={ariaLabel}
-          className="focus-ring min-h-12 w-full border-0 bg-white px-3 text-center text-xl font-black text-rooster-ink"
+          className="rr-numeric-stepper-input focus-ring min-h-12 w-full border-0 bg-white px-3 text-center text-xl font-black text-rooster-ink"
           data-testid={`${testIdPrefix}-input`}
           id={id}
           inputMode="numeric"
@@ -961,9 +1435,15 @@ const NumericStepper = ({
         />
         <button
           aria-label={`Increase ${ariaLabel}`}
-          className="focus-ring min-h-12 border-l border-rooster-line text-2xl font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
+          className={[
+            'focus-ring min-h-12 border-l border-rooster-line text-2xl font-black transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted',
+            canReactToLimit
+              ? 'bg-rooster-sun/10 text-rooster-muted'
+              : 'text-rooster-ink',
+          ].join(' ')}
+          data-limit-reached={canReactToLimit ? 'true' : undefined}
           data-testid={`${testIdPrefix}-increment`}
-          disabled={!canIncrement}
+          disabled={!canIncrement && !canReactToLimit}
           type="button"
           onClick={increment}
         >

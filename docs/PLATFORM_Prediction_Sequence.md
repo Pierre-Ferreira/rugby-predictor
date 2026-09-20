@@ -136,6 +136,14 @@ beside each team's numeric control, but the displayed value still comes from
 `deriveTeamScoreFromForm(...)` / `deriveScoresFromForm(...)`; presentation code
 does not introduce another rugby-score calculator.
 
+CCPP-010B1 keeps that data flow and adds only browser-local presentation
+reaction. Numeric cards observe accepted form values and derived scores after
+`changeTeamNumericField(...)` has updated the shared session state. The
+reaction layer may pulse the value, card, contextual copy, conversion-limit
+helper, and predicted-score-so-far display, but it never validates, stores, or
+submits answers. Rapid changes cancel/restart the cosmetic reaction so latest
+state wins.
+
 Result consistency warnings are shown only after score-producing categories are
 known. The warning never changes the selected result or score inputs. From that
 point onward, the session disables forward Continue navigation while keeping

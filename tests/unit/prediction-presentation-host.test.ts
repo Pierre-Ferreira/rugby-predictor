@@ -237,6 +237,18 @@ const buttonByTestId = (container: HTMLElement, testId: string) => {
   return button;
 };
 
+const elementByTestId = (container: HTMLElement, testId: string) => {
+  const element = container.querySelector<HTMLElement>(
+    `[data-testid="${testId}"]`,
+  );
+
+  if (!element) {
+    throw new Error(`Element "${testId}" not found.`);
+  }
+
+  return element;
+};
+
 const click = async (element: HTMLElement) => {
   await act(async () => {
     element.click();
@@ -592,21 +604,21 @@ describe('Match Result React presentation', () => {
       /@keyframes rr-match-result-rooster-travel[\s\S]*35%[\s\S]*var\(--rr-match-result-rooster-entry-left\)[\s\S]*52%[\s\S]*var\(--rr-match-result-rooster-underpass-left\)[\s\S]*64%[\s\S]*var\(--rr-match-result-rooster-contact-left\)/,
     );
     expect(css).toMatch(
-      /\.rr-match-result-stage \.rr-match-result-choice-card--selected-rise[\s\S]*animation: rr-match-result-selected-rise 1800ms/,
+      /\.rr-match-result-stage \.rr-match-result-choice-card--selected-rise[\s\S]*animation: rr-match-result-selected-rise 1400ms/,
     );
     expect(css).toMatch(
-      /\.rr-match-result-shove-layer[\s\S]*animation: rr-match-result-layer-life 1800ms linear both;/,
+      /\.rr-match-result-shove-layer[\s\S]*animation: rr-match-result-layer-life 1400ms linear both;/,
     );
     expect(css).toMatch(
-      /\.rr-match-result-rooster[\s\S]*animation: rr-match-result-rooster-travel 1800ms linear both;/,
+      /\.rr-match-result-rooster[\s\S]*animation: rr-match-result-rooster-travel 1400ms linear both;/,
     );
     expect(css).toMatch(
-      /\.rr-match-result-shove-pack[\s\S]*animation: rr-match-result-shove-pack 1800ms linear both;/,
+      /\.rr-match-result-shove-pack[\s\S]*animation: rr-match-result-shove-pack 1400ms linear both;/,
     );
     for (let index = 0; index < 8; index += 1) {
       expect(css).toMatch(
         new RegExp(
-          `\\.rr-match-result-rooster-frame-${index}[\\s\\S]*animation: rr-match-result-rooster-frame-${index} 1800ms linear both;`,
+          `\\.rr-match-result-rooster-frame-${index}[\\s\\S]*animation: rr-match-result-rooster-frame-${index} 1400ms linear both;`,
         ),
       );
     }
@@ -615,7 +627,7 @@ describe('Match Result React presentation', () => {
     );
   });
 
-  it('keeps React reveal settling aligned to the 1800ms CSS cadence', async () => {
+  it('keeps React reveal settling aligned to the restored 1400ms CSS cadence', async () => {
     vi.useFakeTimers();
 
     const mountedStep = await mount(
@@ -637,7 +649,7 @@ describe('Match Result React presentation', () => {
     ).not.toBeNull();
 
     await act(async () => {
-      vi.advanceTimersByTime(1_799);
+      vi.advanceTimersByTime(1_399);
     });
 
     expect(matchResultStage(mountedStep.container).dataset.motionPhase).toBe(
@@ -1277,7 +1289,11 @@ describe('React numeric scoring presentation family', () => {
     expect(
       buttonByTestId(mountedStep.container, 'conversions-team1-increment')
         .disabled,
-    ).toBe(true);
+    ).toBe(false);
+    expect(
+      buttonByTestId(mountedStep.container, 'conversions-team1-increment')
+        .dataset.limitReached,
+    ).toBe('true');
 
     await changeInput(team1Input, '9');
 
@@ -1374,7 +1390,72 @@ describe('React numeric scoring presentation family', () => {
     ).toBe('6');
   });
 
-  it('keeps numeric animation decorative and coalesces rapid pulses', async () => {
+  it('hides native number spinners while keeping numeric inputs', () => {
+    const css = readFileSync('client/main.css', 'utf8');
+
+    expect(css).toMatch(
+      /\.rr-numeric-stepper-input[\s\S]*-moz-appearance: textfield;[\s\S]*appearance: textfield;/,
+    );
+    expect(css).toMatch(
+      /\.rr-numeric-stepper-input::-webkit-inner-spin-button,\s*\.rr-numeric-stepper-input::-webkit-outer-spin-button[\s\S]*appearance: none;/,
+    );
+  });
+
+  it('triggers visible Tries increase and decrement reactions with derived score feedback', async () => {
+    const { animate, cancel } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'tries',
+        initialForm: {
+          team1: { tries: '0' },
+        },
+        motionEnabled: true,
+      }),
+    );
+
+    await click(buttonByTestId(mountedStep.container, 'tries-team1-increment'));
+
+    expect(
+      inputByTestId(mountedStep.container, 'tries-team1-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-score').textContent,
+    ).toBe('5');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-card').dataset
+        .reactionDirection,
+    ).toBe('increase');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-card').dataset
+        .scoreReaction,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-reaction')
+        .textContent,
+    ).toBe('On the board.');
+    expect(animate).toHaveBeenCalled();
+
+    await click(buttonByTestId(mountedStep.container, 'tries-team1-decrement'));
+
+    expect(
+      inputByTestId(mountedStep.container, 'tries-team1-input').value,
+    ).toBe('0');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-score').textContent,
+    ).toBe('0');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-card').dataset
+        .reactionDirection,
+    ).toBe('decrease');
+    expect(
+      elementByTestId(mountedStep.container, 'tries-team1-reaction')
+        .textContent,
+    ).toBe('Try tally trimmed.');
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('coalesces rapid changes so the latest numeric reaction wins', async () => {
+    vi.useFakeTimers();
     const { animate, cancel } = replaceAnimate();
     const calls: string[] = [];
     const mountedStep = await mount(
@@ -1394,27 +1475,246 @@ describe('React numeric scoring presentation family', () => {
     await click(increment);
 
     expect(calls).toEqual(['1', '2', '3']);
-    expect(animate).toHaveBeenCalledTimes(3);
-    expect(cancel).toHaveBeenCalledTimes(2);
+    expect(
+      inputByTestId(mountedStep.container, 'drop-goals-team1-input').value,
+    ).toBe('3');
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-score')
+        .textContent,
+    ).toBe('9');
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-reaction')
+        .textContent,
+    ).toBe('Old school!');
+    expect(animate.mock.calls.length).toBeGreaterThanOrEqual(9);
+    expect(cancel.mock.calls.length).toBeGreaterThanOrEqual(6);
 
-    const offCalls: string[] = [];
-    const offStep = await mount(
+    await act(async () => {
+      vi.advanceTimersByTime(419);
+    });
+
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-card').dataset
+        .reactionActive,
+    ).toBe('true');
+
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-card').dataset
+        .reactionActive,
+    ).toBe('false');
+  });
+
+  it('shows accepted Conversions reactions and a nonblocking cap reaction', async () => {
+    const { animate, cancel } = replaceAnimate();
+    const mountedStep = await mount(
       createElement(NumericStepHarness, {
-        field: 'dropGoals',
+        field: 'conversions',
+        initialForm: {
+          team1: { conversions: '1', tries: '2' },
+        },
+        motionEnabled: true,
+      }),
+    );
+    const increment = buttonByTestId(
+      mountedStep.container,
+      'conversions-team1-increment',
+    );
+
+    await click(increment);
+
+    expect(
+      inputByTestId(mountedStep.container, 'conversions-team1-input').value,
+    ).toBe('2');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-score')
+        .textContent,
+    ).toBe('14');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-card').dataset
+        .reactionKind,
+    ).toBe('change');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-reaction')
+        .textContent,
+    ).toBe('Kick is good.');
+    expect(increment.dataset.limitReached).toBe('true');
+
+    await click(increment);
+
+    expect(
+      inputByTestId(mountedStep.container, 'conversions-team1-input').value,
+    ).toBe('2');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-card').dataset
+        .reactionKind,
+    ).toBe('limit');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-helper').dataset
+        .limitReaction,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-reaction')
+        .textContent,
+    ).toBe('At the try cap.');
+    expect(animate).toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it('keeps Animations Off functionally capped without motion state', async () => {
+    const { animate } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'conversions',
+        initialForm: {
+          team1: { conversions: '2', tries: '2' },
+        },
         motionEnabled: false,
-        onTeamChange: (_side, _field, value) => offCalls.push(value),
       }),
     );
 
     await click(
-      buttonByTestId(offStep.container, 'drop-goals-team1-increment'),
+      buttonByTestId(mountedStep.container, 'conversions-team1-increment'),
     );
 
-    expect(offCalls).toEqual(['1']);
-    expect(animate).toHaveBeenCalledTimes(3);
+    expect(
+      inputByTestId(mountedStep.container, 'conversions-team1-input').value,
+    ).toBe('2');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-card').dataset
+        .reactionActive,
+    ).toBe('false');
+    expect(
+      elementByTestId(mountedStep.container, 'conversions-team1-reaction')
+        .textContent,
+    ).toBe('');
+    expect(animate).not.toHaveBeenCalled();
   });
 
-  it('keeps reduced-motion numeric input functional without running pulses', async () => {
+  it('triggers Penalty Kick value and score reactions', async () => {
+    replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'penaltyKicks',
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'penalty-kicks-team1-increment'),
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team1-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team1-score')
+        .textContent,
+    ).toBe('3');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team1-card').dataset
+        .scoreReaction,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team1-reaction')
+        .textContent,
+    ).toBe('Posts in range.');
+  });
+
+  it('triggers Drop Goal value and score reactions without adding warning copy', async () => {
+    replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'dropGoals',
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'drop-goals-team1-increment'),
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, 'drop-goals-team1-input').value,
+    ).toBe('1');
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-score')
+        .textContent,
+    ).toBe('3');
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-card').dataset
+        .scoreReaction,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'drop-goals-team1-reaction')
+        .textContent,
+    ).toBe('A drop goal?');
+    expect(mountedStep.container.textContent).not.toContain(
+      "YOUR SCORES DON'T MATCH YOUR CHOSEN WINNER",
+    );
+  });
+
+  it('triggers reaction state from valid direct typing', async () => {
+    replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'penaltyKicks',
+        motionEnabled: true,
+      }),
+    );
+
+    await changeInput(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team2-input'),
+      '2',
+    );
+
+    expect(
+      inputByTestId(mountedStep.container, 'penalty-kicks-team2-input').value,
+    ).toBe('2');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team2-score')
+        .textContent,
+    ).toBe('6');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team2-card').dataset
+        .reactionActive,
+    ).toBe('true');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team2-card').dataset
+        .scoreReaction,
+    ).toBe('true');
+  });
+
+  it('cleans numeric reaction timers and animations on unmount', async () => {
+    vi.useFakeTimers();
+    const { cancel } = replaceAnimate();
+    const mountedStep = await mount(
+      createElement(NumericStepHarness, {
+        field: 'penaltyKicks',
+        motionEnabled: true,
+      }),
+    );
+
+    await click(
+      buttonByTestId(mountedStep.container, 'penalty-kicks-team1-increment'),
+    );
+
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team1-card').dataset
+        .reactionActive,
+    ).toBe('true');
+
+    mounted.pop();
+    await mountedStep.unmount();
+
+    expect(cancel).toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('keeps reduced-motion numeric input functional without running movement', async () => {
     replaceMatchMedia(true);
     const { animate } = replaceAnimate();
     const calls: string[] = [];
@@ -1438,5 +1738,9 @@ describe('React numeric scoring presentation family', () => {
     expect(
       inputByTestId(mountedStep.container, 'penalty-kicks-team1-input').value,
     ).toBe('1');
+    expect(
+      elementByTestId(mountedStep.container, 'penalty-kicks-team1-card').dataset
+        .reactionActive,
+    ).toBe('false');
   });
 });

@@ -8,8 +8,11 @@ CCPP-010A2 refines only the Match Result motion timing and settled hero
 treatment. CCPP-010A3 keeps the same contract and corrects only the Match Result
 selected-card lift and rejected-card ghosting. CCPP-010B extends the same
 React-first numeric language from Tries to Conversions, Successful Penalty
-Kicks, and Drop Goals. Real React/HTML controls own prediction entry for the
-active route.
+Kicks, and Drop Goals. CCPP-010B1 keeps that architecture, makes the numeric
+steps visibly reactive/personable, suppresses native number spinners on the
+custom steppers, and restores the Match Result reveal cadence to the accepted
+1400ms timing after an accidental 1800ms regression. Real React/HTML controls
+own prediction entry for the active route.
 Optional browser-native animation is a decorative layer over those same
 controls; it is not a second answer model, validation path, navigation path, or
 persistence path.
@@ -43,8 +46,9 @@ CCPP-010A.
   browser-storage handling for the animation preference.
 - `imports/ui/predictions/reducedMotion.ts` observes the browser
   `prefers-reduced-motion` media query.
-- `client/main.css` contains the optional Match Result shove and Rooster frame
-  animation CSS.
+- `client/main.css` contains the optional Match Result shove/Rooster frame CSS
+  plus the browser-native numeric reaction and native spinner-suppression
+  styles.
 - `public/assets/rooster/match-result/frames/` contains the stacked PNG frames
   used by the browser animation.
 
@@ -82,11 +86,11 @@ two-level arrangement, the selected real radio-card moves into an upper tier,
 and the Rooster enters only after that lift has completed. The Rooster then runs
 through a measured lane underneath the selected card with visible clearance
 before contacting and pushing decorative rejected-choice copies away over a
-roughly 1.8 second sequence. The selected answer is not pushed or moved away.
+1400ms sequence. The selected answer is not pushed or moved away.
 During this reveal, the original rejected real radio-card elements may remain
 mounted only for layout continuity; they are visually hidden, disabled,
 `aria-hidden`, and noninteractive while the decorative copies represent them.
-The 1.8 second cadence is shared by the React settle timer, selected-rise CSS,
+The 1400ms cadence is shared by the React settle timer, selected-rise CSS,
 decorative layer lifetime, rejected-pack shove, Rooster travel, and sprite-frame
 sequence. The separate final hero settle flourish remains a short transition.
 The settled state then shows the selected answer as a larger hero card with the
@@ -150,8 +154,37 @@ result-consistency integration: once score-producing values are known, the
 session exposes the warning and blocks Continue while the chosen Match Result
 does not match the derived predicted scores.
 
-Animations On may run a small browser-native pulse on numeric changes.
-Animations Off and reduced motion suppress that cosmetic motion only.
+CCPP-010B1 adds a small shared presentation reaction layer inside the numeric
+family. It observes already-accepted form values and derived scores after the
+session/form helper has applied the update. A genuine accepted value change
+starts one short cosmetic reaction; another change cancels/replaces the
+previous card/value/score animation so rapid input ends on the latest value
+without queued domain updates. The reaction layer never owns prediction values,
+calls Meteor methods, blocks input, or controls navigation.
+
+The per-step visual language is intentionally lightweight:
+
+- Tries has the most energetic value/card reaction and cheekier copy for
+  ambitious totals such as `Going big!` or `Try-fest?`.
+- Conversions uses a confirmation-style pulse. When a player tries to increase
+  conversions past predicted tries, the value remains capped by the existing
+  helper path and the card/helper give a brief nonblocking limit reaction.
+- Penalty Kicks uses a compact kick/impact-style value and score bump.
+- Drop Goals uses a slightly punchier reaction and short copy such as
+  `A drop goal?` or `Old school!` while leaving result/score consistency
+  warnings authoritative.
+
+Each team's predicted-score-so-far number reacts independently when the shared
+derived score for that team changes. The UI still derives final numbers from
+`deriveTeamScoreFromForm(...)`; it does not introduce a second score state or
+calculator.
+
+Animations Off and reduced motion suppress decorative numeric movement and
+reaction state only. Values, buttons, inputs, validation, score calculation,
+helper text, conversion caps, and navigation remain identical. Native browser
+number-spinner controls are hidden for the Rugby Rooster numeric steppers while
+preserving the number input, keyboard entry, `inputMode`, `min`, `max`, and
+step semantics.
 
 ## Remaining Sequence
 
