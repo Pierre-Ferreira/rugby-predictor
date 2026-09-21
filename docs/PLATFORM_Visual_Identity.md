@@ -2,9 +2,10 @@
 
 ## Scope
 
-CCPP-012B establishes the first coherent player-facing Rugby Rooster visual
-foundation. It is presentation work over the existing routes and behaviours; it
-does not change routing, auth, predictions, scoring, leaderboard ranking,
+CCPP-012B established the first coherent player-facing Rugby Rooster visual
+foundation. CCPP-012B1 aligns that foundation to the approved mascot and colour
+style board. It is presentation work over the existing routes and behaviours;
+it does not change routing, auth, predictions, scoring, leaderboard ranking,
 identity privacy, fixture lifecycle, or admin workflows.
 
 Detailed Admin visual redesign remains deferred. Admin may inherit base tokens
@@ -14,6 +15,9 @@ and typography only.
 
 Global semantic tokens live in `client/main.css`:
 
+- `--rr-field-green`, `--rr-gold`, `--rr-rooster-red`,
+  `--rr-cobalt-blue`, `--rr-cream`, `--rr-tan-feather`, and
+  `--rr-charcoal` record the approved colour family.
 - `--rr-bg` and `--rr-bg-strong` for the warm page background.
 - `--rr-surface` and `--rr-surface-raised` for player-facing panels.
 - `--rr-border` for restrained dividers and outlines.
@@ -22,9 +26,38 @@ Global semantic tokens live in `client/main.css`:
 - `--rr-accent` for warm gold emphasis.
 - `--rr-danger`, `--rr-warning`, `--rr-success`, and `--rr-info` for status.
 
+Approved palette values:
+
+| Token       | RGB           | Role                                      |
+| ----------- | ------------- | ----------------------------------------- |
+| Field Green | `0 109 67`    | Dominant brand anchor and primary action. |
+| Gold        | `242 190 70`  | Achievement, winner, and CTA accent.      |
+| Rooster Red | `202 46 38`   | Mascot, `vs`, attention, and danger.      |
+| Cobalt Blue | `0 87 184`    | Selective links and information accents.  |
+| Cream       | `255 248 230` | Primary readable page base.               |
+| Tan Feather | `214 169 93`  | Warm neutral, borders, and dividers.      |
+| Charcoal    | `24 31 38`    | Main text and dark-surface colour.        |
+
 The existing `--color-rooster-*` tokens remain for older prediction-specific
-styles. Tailwind exposes both the older `rooster.*` colours and semantic
-`rr.*` colours in `tailwind.config.cjs`.
+styles and are aligned to the same approved family. Tailwind exposes both the
+older `rooster.*` colours and semantic `rr.*` colours in
+`tailwind.config.cjs`, including named aliases for `fieldGreen`, `gold`,
+`roosterRed`, `cobaltBlue`, `cream`, `tanFeather`, and `charcoal`.
+
+Approved usage direction:
+
+- Field Green is the primary brand anchor for selected navigation, primary
+  buttons, strong page accents, and Home's hero surface.
+- Gold is the main highlight for Home's primary CTA, achievement/winner
+  accents, progress emphasis, and compact details.
+- Rooster Red is used for personality emphasis, `vs`, error/destructive
+  states, and attention copy.
+- Cobalt Blue is selective, mostly links/information and small secondary
+  competitive accents.
+- Cream and warm surface tones keep player pages readable.
+- Tan Feather is used as a restrained warm neutral for borders, dividers, and
+  muted surfaces.
+- Charcoal remains the main text/dark-surface colour.
 
 Yellow and Red Card prediction controls still use distinct yellow/red card
 styling. Brand gold/red are used selectively so card semantics remain
@@ -96,6 +129,15 @@ Applied player-facing pages:
 - My Score Breakdown.
 - Account.
 
+CCPP-012B1 gives Home a stronger Field Green hero/header surface with cream
+copy, a Gold primary CTA, Rooster Red accent stripe, and the approved confident
+mascot. Other player pages keep the existing 012B shell and receive targeted
+colour/mood alignment only.
+
+The visual direction should not become rainbow-like. Field Green leads; Cream
+keeps pages readable; Gold, Rooster Red, Cobalt Blue, and Tan Feather are
+supporting accents with deliberate semantic use.
+
 ## Status Language
 
 The player-facing fixture helper in `imports/ui/fixtures/fixtureUi.ts` derives
@@ -130,7 +172,9 @@ Buttons remain at least 44px tall. Long fixture and player names use wrapping or
 
 Rooster images are decorative by default with `alt=""`; visible copy carries
 the meaning. Statuses include text and are not colour-only. Focus styles remain
-visible through the existing `focus-ring` class.
+visible through the existing `focus-ring` class. Runtime mascot images reserve
+their own dimensions/aspect ratios so full-body and bust poses do not cause
+unexpected layout shifts.
 
 ## Deferred
 
@@ -138,3 +182,8 @@ This milestone does not introduce a new animation system, page-transition
 system, mascot animation framework, avatar/profile system, admin visual
 overhaul, leagues, venues, prizes, AI commentary, quizzes, or more backend
 scoring features.
+
+CCPP-012B1 also does not replace the accepted Match Result run/push animation.
+Those frames remain animation-specific assets, while static player personality
+uses the approved expression runtime PNGs documented in
+`docs/MAP_Rooster_Assets.md`.

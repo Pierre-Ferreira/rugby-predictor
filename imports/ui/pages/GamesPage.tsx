@@ -231,8 +231,8 @@ export const GamesPage = () => {
                 ? 'Match day radar on.'
                 : 'Old calls, new bragging rights.'
             }
-            mood={mode === 'upcoming' ? 'confident' : 'waiting'}
-            size="md"
+            mood={mode === 'upcoming' ? 'running' : 'thinking'}
+            size="standard"
           />
         }
         subtitle={modeDescription(mode)}

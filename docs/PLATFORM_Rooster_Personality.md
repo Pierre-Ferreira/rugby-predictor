@@ -2,9 +2,10 @@
 
 ## Purpose
 
-CCPP-012B introduces a lightweight static Rooster personality layer for
-player-facing pages. The Rooster is a character accent, not business logic and
-not a new animation system.
+CCPP-012B introduced a lightweight static Rooster personality layer for
+player-facing pages. CCPP-012B1 replaces the temporary run/push-frame mood
+mapping with the approved mascot expression pack. The Rooster remains a
+character accent, not business logic and not a new animation system.
 
 Source:
 
@@ -34,43 +35,88 @@ It does not:
 - animate;
 - own page logic.
 
-Pages choose moods deterministically from their existing state.
+Pages choose moods deterministically from their existing state. Supported sizes
+are `compact`, `standard`, and `hero`.
+
+The CCPP-012B `sm`/`md`/`lg` size names are superseded. New page code should use
+the named semantic sizes above.
 
 ## Mood Catalog
 
-Only assets actually present in the repository are mapped.
+Only approved supplied assets actually present in the repository are mapped.
 
-| Mood           | Asset                                                    | Role              |
-| -------------- | -------------------------------------------------------- | ----------------- |
-| `confident`    | `/assets/rooster/match-result/frames/rooster-run-1.png`  | Active static UI  |
-| `thinking`     | `/assets/rooster/match-result/frames/rooster-run-2.png`  | Active static UI  |
-| `nervous`      | `/assets/rooster/match-result/frames/rooster-run-3.png`  | Active static UI  |
-| `waiting`      | `/assets/rooster/match-result/frames/rooster-run-4.png`  | Active static UI  |
-| `shocked`      | `/assets/rooster/match-result/frames/rooster-push-1.png` | Active static UI  |
-| `disappointed` | `/assets/rooster/match-result/frames/rooster-push-2.png` | Active static UI  |
-| `celebrating`  | `/assets/rooster/match-result/frames/rooster-push-4.png` | Active static UI  |
-| `neutral`      | `/icons/rr-icon-192.png`                                 | App icon fallback |
+Canonical mascot characteristics:
 
-There are no standalone shocked, cooked, crying, tantrum, or other expression
-PNGs in the repository. Those moods are not invented. The current catalog uses
-prepared Match Result run/push frames as still images.
+- beer-bellied build with modest chest emphasis;
+- cheeky and expressive rugby-fan personality;
+- green rugby jersey;
+- tan/golden feathers;
+- strong red comb;
+- deep/cobalt blue tail.
+
+| Mood           | Asset                                                   | Pose       |
+| -------------- | ------------------------------------------------------- | ---------- |
+| `confident`    | `/assets/rooster/personality/rooster-confident.png`     | Full body  |
+| `thinking`     | `/assets/rooster/personality/rooster-thinking.png`      | Bust       |
+| `celebrating`  | `/assets/rooster/personality/rooster-celebrating.png`   | Bust       |
+| `nervous`      | `/assets/rooster/personality/rooster-nervous.png`       | Bust       |
+| `shocked`      | `/assets/rooster/personality/rooster-shocked.png`       | Bust       |
+| `disappointed` | `/assets/rooster/personality/rooster-disappointed.png`  | Bust       |
+| `tantrum`      | `/assets/rooster/personality/rooster-tantrum.png`       | Full body  |
+| `crying`       | `/assets/rooster/personality/rooster-crying.png`        | Full body  |
+| `cooked`       | `/assets/rooster/personality/rooster-cooked.png`        | Full body  |
+| `superCooked`  | `/assets/rooster/personality/rooster-super-cooked.png`  | Gag object |
+| `running`      | `/assets/rooster/match-result/frames/rooster-run-1.png` | Action     |
+
+The non-running moods no longer map to generic Match Result run/push frames.
+`running` remains available only for action or match-day energy contexts.
+
+Approved source sheets are preserved unchanged under
+`assets/source/rooster/personality/`. Runtime derivatives and their generated
+manifest live under `public/assets/rooster/personality/`.
+
+`scripts/prepare-rooster-personality-assets.mjs` records source file, crop
+bounds, output file, output dimensions, pose classification, and source
+SHA-256. It uses ImageMagick only at preparation time and adds no runtime image
+processing dependency.
+
+Preserved source inventory:
+
+| Source file                              | Runtime moods                                                   |
+| ---------------------------------------- | --------------------------------------------------------------- |
+| `rooster-canonical-confident-source.png` | `confident`                                                     |
+| `rooster-expression-sheet-1-source.png`  | `thinking`, `celebrating`, `nervous`, `shocked`, `disappointed` |
+| `rooster-expression-sheet-2-source.png`  | `tantrum`, `crying`, `cooked`                                   |
+| `rooster-super-cooked-source.png`        | `superCooked`                                                   |
+
+The source sheets remain unchanged and are not loaded by ordinary player
+routes. Super-Cooked uses the preserved standalone source with the corrected
+runtime crop recorded in the script and manifest, so the page asset excludes
+the source-sheet headline/underline area.
 
 ## Page Mapping
 
 Current deterministic mappings:
 
 - Home: `confident`, "Pick boldly. Crow later."
-- Games: `confident` or `waiting` near the page heading.
+- Games: `running` for upcoming fixtures, `thinking` for past fixtures.
 - Game Detail: `thinking`, "Big game. Bigger call."
-- Prediction shell: fixture header uses `confident`/`waiting`; Intro uses
-  `confident`.
-- Leaderboard status: `waiting` for awaiting, `nervous` for provisional,
-  `celebrating` for final, `disappointed` for cancelled/error-like context.
-- My Score summary: `waiting` before results, `celebrating` for strong scores,
-  `disappointed` for heavy deductions, `shocked` for no prediction, `neutral`
-  for cancelled.
-- Account: `neutral`.
-- Error states: `shocked` plus clear recoverable messaging.
+- Prediction shell: fixture header uses `confident` or `thinking`; Intro uses
+  `thinking`.
+- Leaderboard status: `thinking` for awaiting, `nervous` for provisional,
+  `celebrating` for a current-user final win, `disappointed`/`superCooked` for
+  rough personal final outcomes, `confident` for general final, and
+  `disappointed` for cancelled.
+- My Score summary: `thinking` before results, `confident` for clean
+  provisional scores, `nervous` while pending predictions can move,
+  `celebrating` for strong final scores, `disappointed`/`cooked` for rough
+  scores, `superCooked` only for zero, and `shocked` for no prediction.
+- Account: `confident`.
+- Error states: `tantrum` plus clear recoverable messaging.
+
+This is intentionally a simple page-state mapping, not a psychology/rules
+engine. Unit tests cover the complete mood catalog and ensure non-running moods
+stay on the approved personality asset path.
 
 ## Copy Rules
 
@@ -81,10 +127,13 @@ Examples now used:
 - "Pick boldly. Crow later."
 - "Match day radar on."
 - "Big game. Bigger call."
-- "Now we wait."
+- "Hmm..."
+- "This could move."
 - "Final whistle."
 - "You knew your rugby."
 - "That one hurt."
+- "Cooked."
+- "We don't talk about this one."
 - "You sat this one out."
 
 Tone should stay cheeky without humiliation. Losing should feel playful, not
@@ -101,14 +150,12 @@ than duplicated header placements.
 
 ## Performance
 
-The component reserves image dimensions and uses `loading="lazy"` by default.
-Above-the-fold Home can opt into eager loading.
+The component reserves image dimensions/aspect ratio and uses `loading="lazy"`
+by default. Above-the-fold Home opts into eager loading.
 
-Current still PNGs are 276 x 268 and roughly 160-192 KB each. The 1.4 MB atlas
-and source sheets are not loaded for personality placements.
-
-Future prepared UI derivatives may be added if smaller static assets become
-necessary, but CCPP-012B does not add a new image pipeline.
+The source sheets are not loaded by pages. Prepared runtime PNGs are sized for
+UI placement, with rendered sizes controlled by `compact`, `standard`, and
+`hero`.
 
 ## Failure Behaviour
 

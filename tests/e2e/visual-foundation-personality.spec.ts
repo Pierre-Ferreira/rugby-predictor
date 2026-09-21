@@ -13,15 +13,31 @@ import { TEST_PLAYER_PROFILE_METHODS } from '../../imports/shared/playerProfiles
 import { TEST_PREDICTION_METHODS } from '../../imports/shared/predictions';
 
 const uniqueEmail = (label: string) =>
-  `ccpp012b-e2e-${label}-${Date.now()}-${Math.random()
+  `ccpp012b1-e2e-${label}-${Date.now()}-${Math.random()
     .toString(16)
     .slice(2)}@example.test`;
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const evidenceDir = path.resolve(
   process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR ??
-    'test-results/ccpp012b-visual-foundation-personality',
+    'test-results/ccpp012b1-mascot-colour-alignment',
 );
+
+const expectedMoodAssetSrc = {
+  celebrating: '/assets/rooster/personality/rooster-celebrating.png',
+  confident: '/assets/rooster/personality/rooster-confident.png',
+  cooked: '/assets/rooster/personality/rooster-cooked.png',
+  crying: '/assets/rooster/personality/rooster-crying.png',
+  disappointed: '/assets/rooster/personality/rooster-disappointed.png',
+  nervous: '/assets/rooster/personality/rooster-nervous.png',
+  running: '/assets/rooster/match-result/frames/rooster-run-1.png',
+  shocked: '/assets/rooster/personality/rooster-shocked.png',
+  superCooked: '/assets/rooster/personality/rooster-super-cooked.png',
+  tantrum: '/assets/rooster/personality/rooster-tantrum.png',
+  thinking: '/assets/rooster/personality/rooster-thinking.png',
+} as const;
+
+type BrowserPersonalityMood = keyof typeof expectedMoodAssetSrc;
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof Error) {
@@ -201,6 +217,32 @@ const screenshot = async (page: Page, name: string) => {
   });
 };
 
+const expectVisibleMood = async (page: Page, mood: BrowserPersonalityMood) => {
+  const personality = page.locator(`[data-mood="${mood}"]`).first();
+  const image = personality.locator('img').first();
+
+  await expect(personality).toBeVisible();
+  await expect(image).toBeVisible();
+  await expect(image).toHaveAttribute('src', expectedMoodAssetSrc[mood]);
+  await expect
+    .poll(() =>
+      image.evaluate((node) => {
+        const loadedImage = node as HTMLImageElement;
+
+        return loadedImage.complete && loadedImage.naturalWidth > 0;
+      }),
+    )
+    .toBe(true);
+};
+
+const expectNoGenericRunningMoodLeak = async (page: Page) => {
+  await expect(
+    page.locator(
+      '[data-mood]:not([data-mood="running"]) img[src*="/match-result/frames/"]',
+    ),
+  ).toHaveCount(0);
+};
+
 const navigateInApp = async (page: Page, pathName: string) => {
   await page.evaluate((nextPath) => {
     window.history.pushState({}, '', nextPath);
@@ -239,7 +281,7 @@ declare global {
   }
 }
 
-test.describe('CCPP-012B visual foundation and personality', () => {
+test.describe('CCPP-012B1 mascot colour alignment', () => {
   test('captures the focused player-facing journey', async ({ page }) => {
     test.setTimeout(120_000);
 
@@ -248,10 +290,14 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Rugby Rooster' }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'confident');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-home');
 
     await gotoLocal(page, '/games/ccpp012bMissingFixture');
     await expect(page.getByText('Fixture not found')).toBeVisible();
+    await expectVisibleMood(page, 'thinking');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-empty-fixture-not-found');
 
     await createAndLoginPlayer(page);
@@ -260,11 +306,13 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     await expect(
       page.getByRole('heading', { name: 'Your Rugby Rooster account' }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'confident');
     const input = page.getByRole('textbox', { name: 'Public player name' });
 
     await input.fill('Pierre Visual');
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page.getByText('Public player name saved.')).toBeVisible();
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-account');
 
     const seeded = await callMeteor<{
@@ -275,22 +323,29 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Upcoming fixtures' }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'running');
     await screenshot(page, 'desktop-games');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}`);
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'thinking');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-game-detail');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/predict`);
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'confident');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-prediction');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/leaderboard`);
     await expect(page.getByText('If it ended now')).toBeVisible();
+    await expectVisibleMood(page, 'nervous');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-leaderboard-provisional');
 
     const errorFixture = await callMeteor<{
@@ -336,6 +391,8 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     await navigateInApp(page, `/games/${errorFixture.fixtureId}/leaderboard`);
     await expect(page.getByText('Leaderboard unavailable')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expectVisibleMood(page, 'tantrum');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-error-retry');
     await page.evaluate(() => window.__restoreLeaderboardCall?.());
 
@@ -350,32 +407,47 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     );
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText('Final leaderboard')).toBeVisible();
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-leaderboard-final');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/my-score`);
     await expect(page.getByText('Final Score')).toBeVisible();
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-my-score');
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await gotoLocal(page, '/');
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Rugby Rooster' }),
+    ).toBeVisible();
+    await expectVisibleMood(page, 'confident');
+    await expectNoGenericRunningMoodLeak(page);
+    await screenshot(page, 'mobile-390-home');
+
     await gotoLocal(page, '/games');
     await expect(
       page.getByRole('heading', { level: 1, name: 'Upcoming fixtures' }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'running');
     await screenshot(page, 'mobile-390-games');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}`);
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'thinking');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-390-game-detail');
 
     await page.setViewportSize({ width: 360, height: 900 });
     await gotoLocal(page, `/games/${seeded.fixtureId}/leaderboard`);
     await expect(page.getByText('Final leaderboard')).toBeVisible();
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-360-leaderboard');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/my-score`);
     await expect(page.getByText('Final Score')).toBeVisible();
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-360-my-score');
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -383,6 +455,8 @@ test.describe('CCPP-012B visual foundation and personality', () => {
     await expect(
       page.getByRole('heading', { name: 'Your Rugby Rooster account' }),
     ).toBeVisible();
+    await expectVisibleMood(page, 'confident');
+    await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-390-account');
   });
 });

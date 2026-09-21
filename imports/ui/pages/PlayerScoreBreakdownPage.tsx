@@ -415,24 +415,36 @@ const scorePersonalityForViewModel = (
 
   if (viewModel.status === 'awaiting_result') {
     return {
-      message: 'Now we wait.',
-      mood: 'waiting',
+      message: 'Hmm...',
+      mood: 'thinking',
     };
   }
 
   if (viewModel.status === 'cancelled') {
     return {
       message: 'Match called off.',
-      mood: 'neutral',
+      mood: 'disappointed',
     };
   }
 
   const score = Number(viewModel.scoreLabel?.replace(/[^\d]/g, '') ?? NaN);
+  const pendingCount = Number(
+    viewModel.summaryRows
+      .find((row) => row.label === 'Pending predictions')
+      ?.value.replace(/[^\d]/g, '') ?? NaN,
+  );
 
-  if (Number.isFinite(score) && score >= 9500) {
+  if (Number.isFinite(score) && score === 0) {
     return {
-      message: 'You knew your rugby.',
-      mood: 'celebrating',
+      message: "We don't talk about this one.",
+      mood: 'superCooked',
+    };
+  }
+
+  if (Number.isFinite(score) && score <= 6000) {
+    return {
+      message: 'Cooked.',
+      mood: 'cooked',
     };
   }
 
@@ -440,6 +452,25 @@ const scorePersonalityForViewModel = (
     return {
       message: 'That one hurt.',
       mood: 'disappointed',
+    };
+  }
+
+  if (viewModel.status === 'provisional' && Number.isFinite(pendingCount)) {
+    return pendingCount > 0
+      ? {
+          message: 'This could move.',
+          mood: 'nervous',
+        }
+      : {
+          message: 'Pick boldly. Crow later.',
+          mood: 'confident',
+        };
+  }
+
+  if (Number.isFinite(score) && score >= 9500) {
+    return {
+      message: 'You knew your rugby.',
+      mood: 'celebrating',
     };
   }
 
@@ -485,7 +516,7 @@ const ScoreSummaryPanel = ({
         <RugbyRoosterPersonality
           message={personality.message}
           mood={personality.mood}
-          size="sm"
+          size="compact"
         />
         {canRefresh ? (
           <button

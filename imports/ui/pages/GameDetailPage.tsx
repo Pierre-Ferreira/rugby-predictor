@@ -129,7 +129,7 @@ export const GameDetailPage = () => {
           <RugbyRoosterPersonality
             message="Big game. Bigger call."
             mood="thinking"
-            size="md"
+            size="standard"
           />
         }
         subtitle="Make your fixture call before scheduled kickoff, then come back for the leaderboard and your score breakdown."

@@ -8,6 +8,7 @@ import {
 export const HomePage = () => (
   <PlayerPage>
     <PlayerPageHeader
+      className="rr-page-header--brand-hero"
       actions={
         <>
           <AppLink
@@ -30,7 +31,7 @@ export const HomePage = () => (
           lazy={false}
           message="Pick boldly. Crow later."
           mood="confident"
-          size="lg"
+          size="hero"
         />
       }
       subtitle="Pick match outcomes and details for televised rugby fixtures, then see how your call stacks up on the fixture leaderboard. Rugby know-how, not betting slips."

@@ -19,6 +19,7 @@ export const PlayerPage = ({
 
 export const PlayerPageHeader = ({
   actions,
+  className,
   eyebrow,
   meta,
   personality,
@@ -26,13 +27,14 @@ export const PlayerPageHeader = ({
   title,
 }: {
   readonly actions?: ReactNode;
+  readonly className?: string;
   readonly eyebrow?: ReactNode;
   readonly meta?: ReactNode;
   readonly personality?: ReactNode;
   readonly subtitle?: ReactNode;
   readonly title: ReactNode;
 }) => (
-  <section className="rr-page-header">
+  <section className={classNames('rr-page-header', className)}>
     <div className="rr-page-header__content">
       {eyebrow ? (
         <div className="rr-page-header__eyebrow">{eyebrow}</div>
@@ -84,7 +86,7 @@ export const PlayerEmptyState = ({
   readonly title: ReactNode;
 }) => (
   <section className="rr-empty-state">
-    <RugbyRoosterPersonality mood={mood} size="sm" />
+    <RugbyRoosterPersonality mood={mood} size="compact" />
     <div className="rr-empty-state__content">
       <h2 className="rr-state-title">{title}</h2>
       <p className="rr-state-copy">{body}</p>
@@ -112,8 +114,8 @@ export const PlayerErrorState = ({
   <section className="rr-error-state" role="alert">
     <RugbyRoosterPersonality
       message="Rooster's having a moment."
-      mood="shocked"
-      size="sm"
+      mood="tantrum"
+      size="compact"
     />
     <div className="rr-error-state__content">
       <h2 className="rr-state-title">{title}</h2>

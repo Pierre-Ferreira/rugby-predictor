@@ -911,6 +911,44 @@ Not implemented:
   regenerated art.
 - Detailed Admin visual overhaul.
 
+## CCPP-012B1 Scope
+
+Milestone status: implemented for approved mascot source integration, runtime
+personality asset preparation, colour alignment, focused browser evidence, and
+EOMD closeout. Platform details live in `docs/PLATFORM_Visual_Identity.md`,
+`docs/PLATFORM_Rooster_Personality.md`, and `docs/MAP_Rooster_Assets.md`;
+verification evidence is recorded in
+`docs/AUDIT_012B1_Mascot_Colour_Alignment.md`.
+
+Implemented:
+
+- Preserved the approved September 21 mascot/personality source sheets under
+  `assets/source/rooster/personality/`.
+- Added `scripts/prepare-rooster-personality-assets.mjs` and generated
+  prepared runtime personality PNGs plus
+  `public/assets/rooster/personality/personality-manifest.json`.
+- Replaced temporary non-running run/push-frame personality mappings with real
+  approved confident, thinking, celebrating, nervous, shocked, disappointed,
+  tantrum, crying, cooked, and Super-Cooked assets.
+- Retained `running` only as the explicit action/match-day mood using the
+  accepted Match Result running art.
+- Preserved the `compact`, `standard`, and `hero` personality size API.
+- Aligned semantic colour tokens to Field Green, Gold, Rooster Red, Cobalt
+  Blue, Cream, Tan Feather, and Charcoal, including the stronger green Home
+  hero treatment.
+- Retained deterministic page mood choices for Home, Games, Game Detail,
+  Prediction, Leaderboard, My Score, Account, and shared state components.
+- Added focused browser evidence for player-facing pages and mobile overflow.
+
+Not implemented:
+
+- New animation work or replacement of the accepted Match Result run/push
+  animation.
+- Mascot redesign, regenerated approved artwork, another visual milestone, or
+  source-sheet loading in player routes.
+- Leagues, venue competitions, prizes, sponsorships, AI, avatars, profile
+  pages, quiz gameplay, Admin visual overhaul, or backend scoring changes.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

@@ -180,9 +180,10 @@ Current unit test files:
   normalization, minimum/maximum length, blank values, control characters,
   CCPP-012B Unicode format-control hardening, reserved names, and injection
   rejection.
-- `tests/unit/player-visual.test.ts` - CCPP-012B player visual primitive tests
-  for Rooster mood-to-asset mapping, soft image-failure fallback, and status
-  badge text/tone rendering.
+- `tests/unit/player-visual.test.ts` - CCPP-012B/012B1 player visual primitive
+  tests for approved Rooster mood-to-asset mapping, non-running mood separation
+  from Match Result run/push frames, soft image-failure fallback, size classes,
+  approved colour-token availability, and status badge text/tone rendering.
 
 Commands:
 
@@ -347,10 +348,14 @@ The current browser suite covers:
   near-max valid name, safe public projection readback, email absence on the
   leaderboard, and desktop/390px/360px evidence.
 - Visual foundation/personality browser evidence in
-  `tests/e2e/visual-foundation-personality.spec.ts`: one focused CCPP-012B
+  `tests/e2e/visual-foundation-personality.spec.ts`: one focused CCPP-012B1
   player journey through Home, Games, Game Detail, Prediction shell,
   provisional/final Leaderboard, My Score, Account, mobile 390px/360px states,
-  fixture-not-found empty state, and safe induced leaderboard retry state.
+  fixture-not-found empty state, and safe induced leaderboard retry state. The
+  spec verifies actual personality image loading, exact approved mood asset
+  paths where moods appear, no generic Match Result run/push-frame leakage for
+  non-running moods, and no horizontal overflow in the captured player-facing
+  mobile states.
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.

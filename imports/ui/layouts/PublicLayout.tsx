@@ -89,7 +89,7 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-rr-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>Predict rugby. Keep your feathers. Mostly.</p>
           <AppLink
-            className="focus-ring rounded-md font-bold text-rr-brand"
+            className="focus-ring rounded-md font-bold text-rr-info transition hover:text-rr-brand"
             to="/admin"
           >
             Admin

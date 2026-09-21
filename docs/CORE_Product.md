@@ -158,6 +158,24 @@ Out of scope for this product:
 - No leagues, venues, prizes, AI commentary, avatars, new prediction
   animations, backend scoring changes, or Admin visual overhaul.
 
+## Implemented In CCPP-012B1
+
+- Approved September 21 beer-bellied mascot source sheets were preserved
+  unchanged under `assets/source/rooster/personality/`.
+- Static player personality moods now use prepared runtime expression PNGs under
+  `public/assets/rooster/personality/` instead of temporary Match Result
+  run/push stills.
+- The real mood catalog covers confident, thinking, celebrating, nervous,
+  shocked, disappointed, tantrum, crying, cooked, and Super-Cooked expressions;
+  `running` remains only for explicit action/match-day contexts.
+- The approved palette is aligned around Field Green, Gold, Rooster Red, Cobalt
+  Blue, Cream, Tan Feather, and Charcoal, with Home using a stronger green hero
+  treatment.
+- Page-specific mascot usage remains deterministic and presentation-only.
+- The accepted Match Result animation assets remain animation-specific; no new
+  animation system, mascot redesign, backend feature, league, venue, prize, AI,
+  avatar, or Admin overhaul work was added.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.

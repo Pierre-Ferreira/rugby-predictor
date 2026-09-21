@@ -1,0 +1,187 @@
+{
+  "generatedAt": "2026-09-21T08:56:47.980Z",
+  "generator": "prepare-rooster-personality-assets.mjs",
+  "maxRuntimeSize": 640,
+  "assets": [
+    {
+      "mood": "confident",
+      "output": "public/assets/rooster/personality/rooster-confident.png",
+      "outputDimensions": {
+        "height": 640,
+        "width": 593
+      },
+      "pose": "full-body",
+      "source": "assets/source/rooster/personality/rooster-canonical-confident-source.png",
+      "sourceFile": "rooster-canonical-confident-source.png",
+      "sourceRect": {
+        "height": 1160,
+        "width": 1080,
+        "x": 90,
+        "y": 25
+      },
+      "sourceSha256": "5ebf011ab987dd1b5b1808eed34bf49d100111391ef48f35fc87fff1d0136e07"
+    },
+    {
+      "mood": "thinking",
+      "output": "public/assets/rooster/personality/rooster-thinking.png",
+      "outputDimensions": {
+        "height": 420,
+        "width": 412
+      },
+      "pose": "bust",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-1-source.png",
+      "sourceFile": "rooster-expression-sheet-1-source.png",
+      "sourceRect": {
+        "height": 420,
+        "width": 500,
+        "x": 512,
+        "y": 25
+      },
+      "sourceSha256": "7f3710308f50d971a3fef7946a097e437e83a03a7c7fcb229ac106752090c0c9"
+    },
+    {
+      "mood": "celebrating",
+      "output": "public/assets/rooster/personality/rooster-celebrating.png",
+      "outputDimensions": {
+        "height": 429,
+        "width": 465
+      },
+      "pose": "bust",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-1-source.png",
+      "sourceFile": "rooster-expression-sheet-1-source.png",
+      "sourceRect": {
+        "height": 450,
+        "width": 526,
+        "x": 1010,
+        "y": 0
+      },
+      "sourceSha256": "7f3710308f50d971a3fef7946a097e437e83a03a7c7fcb229ac106752090c0c9"
+    },
+    {
+      "mood": "nervous",
+      "output": "public/assets/rooster/personality/rooster-nervous.png",
+      "outputDimensions": {
+        "height": 438,
+        "width": 427
+      },
+      "pose": "bust",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-1-source.png",
+      "sourceFile": "rooster-expression-sheet-1-source.png",
+      "sourceRect": {
+        "height": 440,
+        "width": 510,
+        "x": 0,
+        "y": 510
+      },
+      "sourceSha256": "7f3710308f50d971a3fef7946a097e437e83a03a7c7fcb229ac106752090c0c9"
+    },
+    {
+      "mood": "shocked",
+      "output": "public/assets/rooster/personality/rooster-shocked.png",
+      "outputDimensions": {
+        "height": 445,
+        "width": 486
+      },
+      "pose": "bust",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-1-source.png",
+      "sourceFile": "rooster-expression-sheet-1-source.png",
+      "sourceRect": {
+        "height": 448,
+        "width": 510,
+        "x": 514,
+        "y": 502
+      },
+      "sourceSha256": "7f3710308f50d971a3fef7946a097e437e83a03a7c7fcb229ac106752090c0c9"
+    },
+    {
+      "mood": "disappointed",
+      "output": "public/assets/rooster/personality/rooster-disappointed.png",
+      "outputDimensions": {
+        "height": 438,
+        "width": 415
+      },
+      "pose": "bust",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-1-source.png",
+      "sourceFile": "rooster-expression-sheet-1-source.png",
+      "sourceRect": {
+        "height": 440,
+        "width": 501,
+        "x": 1035,
+        "y": 505
+      },
+      "sourceSha256": "7f3710308f50d971a3fef7946a097e437e83a03a7c7fcb229ac106752090c0c9"
+    },
+    {
+      "mood": "tantrum",
+      "output": "public/assets/rooster/personality/rooster-tantrum.png",
+      "outputDimensions": {
+        "height": 573,
+        "width": 481
+      },
+      "pose": "full-body",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-2-source.png",
+      "sourceFile": "rooster-expression-sheet-2-source.png",
+      "sourceRect": {
+        "height": 590,
+        "width": 520,
+        "x": 0,
+        "y": 0
+      },
+      "sourceSha256": "e98aa45c7e23c335de0036b23f018baa816d907f21ea1c3f472097d0ebd1518d"
+    },
+    {
+      "mood": "crying",
+      "output": "public/assets/rooster/personality/rooster-crying.png",
+      "outputDimensions": {
+        "height": 573,
+        "width": 409
+      },
+      "pose": "full-body",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-2-source.png",
+      "sourceFile": "rooster-expression-sheet-2-source.png",
+      "sourceRect": {
+        "height": 600,
+        "width": 500,
+        "x": 520,
+        "y": 0
+      },
+      "sourceSha256": "e98aa45c7e23c335de0036b23f018baa816d907f21ea1c3f472097d0ebd1518d"
+    },
+    {
+      "mood": "cooked",
+      "output": "public/assets/rooster/personality/rooster-cooked.png",
+      "outputDimensions": {
+        "height": 578,
+        "width": 391
+      },
+      "pose": "full-body",
+      "source": "assets/source/rooster/personality/rooster-expression-sheet-2-source.png",
+      "sourceFile": "rooster-expression-sheet-2-source.png",
+      "sourceRect": {
+        "height": 590,
+        "width": 511,
+        "x": 1025,
+        "y": 10
+      },
+      "sourceSha256": "e98aa45c7e23c335de0036b23f018baa816d907f21ea1c3f472097d0ebd1518d"
+    },
+    {
+      "mood": "superCooked",
+      "output": "public/assets/rooster/personality/rooster-super-cooked.png",
+      "outputDimensions": {
+        "height": 460,
+        "width": 640
+      },
+      "pose": "gag-object",
+      "source": "assets/source/rooster/personality/rooster-super-cooked-source.png",
+      "sourceFile": "rooster-super-cooked-source.png",
+      "sourceRect": {
+        "height": 710,
+        "width": 1000,
+        "x": 45,
+        "y": 265
+      },
+      "sourceSha256": "97bac958722b4d280a1d2a6b50561ffe9e1026c70b8566662c9f2c672b5e8276"
+    }
+  ]
+}

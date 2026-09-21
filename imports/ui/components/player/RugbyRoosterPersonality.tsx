@@ -1,19 +1,25 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 
 export type RugbyRoosterMood =
   | 'celebrating'
   | 'confident'
+  | 'cooked'
+  | 'crying'
   | 'disappointed'
-  | 'neutral'
   | 'nervous'
+  | 'running'
   | 'shocked'
-  | 'thinking'
-  | 'waiting';
+  | 'superCooked'
+  | 'tantrum'
+  | 'thinking';
+
+export type RugbyRoosterPersonalitySize = 'compact' | 'hero' | 'standard';
 
 export interface RugbyRoosterPersonalityAsset {
   readonly height: number;
   readonly mood: RugbyRoosterMood;
-  readonly role: 'active-static-ui' | 'app-icon-fallback';
+  readonly pose: 'action' | 'bust' | 'full-body' | 'gag-object';
+  readonly role: 'approved-action' | 'approved-static-ui';
   readonly src: string;
   readonly width: number;
 }
@@ -23,60 +29,92 @@ export const rugbyRoosterPersonalityAssets: Record<
   RugbyRoosterPersonalityAsset
 > = {
   celebrating: {
-    height: 268,
+    height: 429,
     mood: 'celebrating',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-push-4.png',
-    width: 276,
+    pose: 'bust',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-celebrating.png',
+    width: 465,
   },
   confident: {
-    height: 268,
+    height: 640,
     mood: 'confident',
-    role: 'active-static-ui',
+    pose: 'full-body',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-confident.png',
+    width: 593,
+  },
+  cooked: {
+    height: 578,
+    mood: 'cooked',
+    pose: 'full-body',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-cooked.png',
+    width: 391,
+  },
+  crying: {
+    height: 573,
+    mood: 'crying',
+    pose: 'full-body',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-crying.png',
+    width: 409,
+  },
+  disappointed: {
+    height: 438,
+    mood: 'disappointed',
+    pose: 'bust',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-disappointed.png',
+    width: 415,
+  },
+  nervous: {
+    height: 438,
+    mood: 'nervous',
+    pose: 'bust',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-nervous.png',
+    width: 427,
+  },
+  running: {
+    height: 268,
+    mood: 'running',
+    pose: 'action',
+    role: 'approved-action',
     src: '/assets/rooster/match-result/frames/rooster-run-1.png',
     width: 276,
   },
-  disappointed: {
-    height: 268,
-    mood: 'disappointed',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-push-2.png',
-    width: 276,
-  },
-  neutral: {
-    height: 192,
-    mood: 'neutral',
-    role: 'app-icon-fallback',
-    src: '/icons/rr-icon-192.png',
-    width: 192,
-  },
-  nervous: {
-    height: 268,
-    mood: 'nervous',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-run-3.png',
-    width: 276,
-  },
   shocked: {
-    height: 268,
+    height: 445,
     mood: 'shocked',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-push-1.png',
-    width: 276,
+    pose: 'bust',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-shocked.png',
+    width: 486,
+  },
+  superCooked: {
+    height: 460,
+    mood: 'superCooked',
+    pose: 'gag-object',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-super-cooked.png',
+    width: 640,
+  },
+  tantrum: {
+    height: 573,
+    mood: 'tantrum',
+    pose: 'full-body',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-tantrum.png',
+    width: 481,
   },
   thinking: {
-    height: 268,
+    height: 420,
     mood: 'thinking',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-run-2.png',
-    width: 276,
-  },
-  waiting: {
-    height: 268,
-    mood: 'waiting',
-    role: 'active-static-ui',
-    src: '/assets/rooster/match-result/frames/rooster-run-4.png',
-    width: 276,
+    pose: 'bust',
+    role: 'approved-static-ui',
+    src: '/assets/rooster/personality/rooster-thinking.png',
+    width: 412,
   },
 };
 
@@ -84,11 +122,11 @@ export const getRugbyRoosterPersonalityAsset = (
   mood: RugbyRoosterMood,
 ): RugbyRoosterPersonalityAsset => rugbyRoosterPersonalityAssets[mood];
 
-const sizeClassNames = {
-  lg: 'rr-personality--lg',
-  md: 'rr-personality--md',
-  sm: 'rr-personality--sm',
-} as const;
+const sizeClassNames: Record<RugbyRoosterPersonalitySize, string> = {
+  compact: 'rr-personality--compact',
+  hero: 'rr-personality--hero',
+  standard: 'rr-personality--standard',
+};
 
 export const RugbyRoosterPersonality = ({
   assetSrcOverride,
@@ -97,7 +135,7 @@ export const RugbyRoosterPersonality = ({
   lazy = true,
   message,
   mood,
-  size = 'md',
+  size = 'standard',
 }: {
   readonly assetSrcOverride?: string | null;
   readonly className?: string;
@@ -105,12 +143,15 @@ export const RugbyRoosterPersonality = ({
   readonly lazy?: boolean;
   readonly message?: string;
   readonly mood: RugbyRoosterMood;
-  readonly size?: keyof typeof sizeClassNames;
+  readonly size?: RugbyRoosterPersonalitySize;
 }) => {
   const asset = getRugbyRoosterPersonalityAsset(mood);
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const src = assetSrcOverride === undefined ? asset.src : assetSrcOverride;
   const imageFailed = Boolean(src && failedSrc === src);
+  const style = {
+    '--rr-personality-aspect-ratio': `${asset.width} / ${asset.height}`,
+  } as CSSProperties;
 
   return (
     <aside
@@ -121,6 +162,8 @@ export const RugbyRoosterPersonality = ({
         className ?? '',
       ].join(' ')}
       data-mood={mood}
+      data-pose={asset.pose}
+      style={style}
     >
       {!imageFailed && src ? (
         <img

@@ -467,8 +467,8 @@ const FixtureHeader = ({
     personality={
       <RugbyRoosterPersonality
         message={isLockedByKickoff ? 'Pens down.' : 'Make it brave.'}
-        mood={isLockedByKickoff ? 'waiting' : 'confident'}
-        size="sm"
+        mood={isLockedByKickoff ? 'thinking' : 'confident'}
+        size="compact"
       />
     }
     subtitle="Your calls stay editable until scheduled kickoff. After that, the saved prediction becomes read-only."
@@ -558,9 +558,9 @@ const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
         </p>
       </div>
       <RugbyRoosterPersonality
-        message="Ten thousand to start. Try not to donate them all."
-        mood="confident"
-        size="sm"
+        message="Hmm..."
+        mood="thinking"
+        size="compact"
       />
     </div>
     <div className="mt-6 grid gap-3 md:grid-cols-2">

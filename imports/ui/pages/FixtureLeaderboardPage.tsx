@@ -501,13 +501,45 @@ const LeaderboardStatusPanel = ({
       : isFinal
         ? 'Official fixture scores are confirmed.'
         : 'This fixture was cancelled, so no leaderboard score or rank is assigned.';
+  const currentUserFinalRow =
+    isFinal && leaderboard.currentUserRow
+      ? leaderboard.currentUserRow
+      : isFinal
+        ? leaderboard.rows.find((row) => row.isCurrentUser)
+        : null;
+  const currentUserWon = currentUserFinalRow?.place === 1;
+  const currentUserHadRoughFinal = Boolean(
+    currentUserFinalRow && currentUserFinalRow.score <= 8000,
+  );
+  const currentUserHadZeroFinal = Boolean(
+    currentUserFinalRow && currentUserFinalRow.score === 0,
+  );
   const mood: RugbyRoosterMood = isAwaiting
-    ? 'waiting'
+    ? 'thinking'
     : isProvisional
       ? 'nervous'
       : isFinal
-        ? 'celebrating'
+        ? currentUserWon
+          ? 'celebrating'
+          : currentUserHadZeroFinal
+            ? 'superCooked'
+            : currentUserHadRoughFinal
+              ? 'disappointed'
+              : 'confident'
         : 'disappointed';
+  const personalityMessage = isAwaiting
+    ? 'Hmm...'
+    : isProvisional
+      ? 'This could move.'
+      : isFinal
+        ? currentUserWon
+          ? 'You knew your rugby.'
+          : currentUserHadZeroFinal
+            ? "We don't talk about this one."
+            : currentUserHadRoughFinal
+              ? 'That one hurt.'
+              : 'Final whistle.'
+        : 'Match called off.';
 
   return (
     <section className="rr-surface rr-surface--raised">
@@ -535,9 +567,9 @@ const LeaderboardStatusPanel = ({
           ) : null}
         </div>
         <RugbyRoosterPersonality
-          message={isFinal ? 'Final whistle.' : 'Now we wait.'}
+          message={personalityMessage}
           mood={mood}
-          size="sm"
+          size="compact"
         />
         {!isFinal && !isCancelled ? (
           <button

@@ -4,27 +4,34 @@
 
 @layer base {
   :root {
-    --color-rooster-red: 204 49 42;
-    --color-rooster-sun: 249 196 64;
-    --color-rooster-grass: 34 111 84;
-    --color-rooster-ink: 22 31 38;
-    --color-rooster-paper: 246 244 237;
-    --color-rooster-muted: 85 96 105;
-    --color-rooster-line: 217 216 207;
-    --rr-bg: 246 244 237;
-    --rr-bg-strong: 236 232 218;
-    --rr-surface: 255 252 245;
+    --rr-field-green: 0 109 67;
+    --rr-gold: 242 190 70;
+    --rr-rooster-red: 202 46 38;
+    --rr-cobalt-blue: 0 87 184;
+    --rr-cream: 255 248 230;
+    --rr-tan-feather: 214 169 93;
+    --rr-charcoal: 24 31 38;
+    --color-rooster-red: 202 46 38;
+    --color-rooster-sun: 242 190 70;
+    --color-rooster-grass: 0 109 67;
+    --color-rooster-ink: 24 31 38;
+    --color-rooster-paper: 255 248 230;
+    --color-rooster-muted: 92 83 70;
+    --color-rooster-line: 225 202 159;
+    --rr-bg: 255 248 230;
+    --rr-bg-strong: 246 233 203;
+    --rr-surface: 255 252 244;
     --rr-surface-raised: 255 255 255;
-    --rr-border: 217 216 207;
-    --rr-text: 22 31 38;
-    --rr-text-muted: 85 96 105;
-    --rr-brand: 23 92 67;
-    --rr-brand-strong: 13 64 48;
-    --rr-accent: 236 176 45;
-    --rr-danger: 204 49 42;
-    --rr-warning: 202 138 4;
-    --rr-success: 34 111 84;
-    --rr-info: 8 145 178;
+    --rr-border: 225 202 159;
+    --rr-text: 24 31 38;
+    --rr-text-muted: 92 83 70;
+    --rr-brand: 0 109 67;
+    --rr-brand-strong: 0 74 48;
+    --rr-accent: 242 190 70;
+    --rr-danger: 202 46 38;
+    --rr-warning: 214 149 35;
+    --rr-success: 0 109 67;
+    --rr-info: 0 87 184;
   }
 
   html {
@@ -161,6 +168,19 @@
     content: '';
   }
 
+  .rr-page-header--brand-hero {
+    border-color: rgb(var(--rr-brand-strong));
+    background: rgb(var(--rr-brand));
+    color: rgb(var(--rr-cream));
+    box-shadow:
+      inset 0 -0.28rem 0 rgb(var(--rr-accent)),
+      0 18px 42px rgb(24 31 38 / 0.16);
+  }
+
+  .rr-page-header--brand-hero::before {
+    background: rgb(var(--rr-rooster-red));
+  }
+
   .rr-page-header__content,
   .rr-page-header__personality {
     position: relative;
@@ -179,6 +199,10 @@
     text-transform: uppercase;
   }
 
+  .rr-page-header--brand-hero .rr-page-header__eyebrow {
+    color: rgb(var(--rr-accent));
+  }
+
   .rr-page-title {
     margin: 0.55rem 0 0;
     color: rgb(var(--rr-text));
@@ -186,6 +210,10 @@
     font-weight: 950;
     line-height: 1;
     overflow-wrap: anywhere;
+  }
+
+  .rr-page-header--brand-hero .rr-page-title {
+    color: rgb(var(--rr-cream));
   }
 
   .rr-page-header__subtitle,
@@ -199,6 +227,38 @@
 
   .rr-page-header__subtitle {
     margin-top: 0.85rem;
+  }
+
+  .rr-page-header--brand-hero .rr-page-header__subtitle,
+  .rr-page-header--brand-hero .rr-page-header__meta {
+    color: rgb(var(--rr-cream) / 0.9);
+  }
+
+  .rr-page-header--brand-hero .rr-button-primary {
+    background: rgb(var(--rr-accent));
+    color: rgb(var(--rr-text));
+    box-shadow: 0 12px 28px rgb(24 31 38 / 0.18);
+  }
+
+  .rr-page-header--brand-hero .rr-button-primary:hover {
+    background: rgb(255 207 89);
+  }
+
+  .rr-page-header--brand-hero .rr-button-secondary {
+    border-color: rgb(var(--rr-cream) / 0.35);
+    background: rgb(var(--rr-cream) / 0.1);
+    color: rgb(var(--rr-cream));
+  }
+
+  .rr-page-header--brand-hero .rr-button-secondary:hover {
+    border-color: rgb(var(--rr-accent));
+    background: rgb(var(--rr-cream) / 0.18);
+  }
+
+  .rr-page-header--brand-hero .rr-personality__message {
+    border-color: rgb(var(--rr-accent) / 0.55);
+    background: rgb(var(--rr-cream));
+    color: rgb(var(--rr-text));
   }
 
   .rr-page-header__meta,
@@ -366,7 +426,7 @@
   .rr-status-badge--info {
     border-color: rgb(var(--rr-info) / 0.32);
     background: rgb(var(--rr-info) / 0.12);
-    color: rgb(11 109 134);
+    color: rgb(0 70 147);
   }
 
   .rr-status-badge--neutral {
@@ -395,27 +455,27 @@
     max-inline-size: 100%;
   }
 
-  .rr-personality--sm {
+  .rr-personality--compact {
     --rr-personality-size: clamp(5rem, 22vw, 7.25rem);
   }
 
-  .rr-personality--md {
+  .rr-personality--standard {
     --rr-personality-size: clamp(7rem, 25vw, 10rem);
   }
 
-  .rr-personality--lg {
+  .rr-personality--hero {
     --rr-personality-size: clamp(9rem, 28vw, 13rem);
   }
 
   .rr-personality__image {
     width: 100%;
-    aspect-ratio: 276 / 268;
+    aspect-ratio: var(--rr-personality-aspect-ratio);
     object-fit: contain;
     filter: drop-shadow(0 14px 18px rgb(22 31 38 / 0.22));
   }
 
   .rr-personality--image-failed {
-    min-height: 2.5rem;
+    min-block-size: min(var(--rr-personality-size), 8rem);
   }
 
   .rr-personality__message {
@@ -542,7 +602,13 @@
     inset-block: 0;
     inset-inline-start: 0;
     width: 0.28rem;
-    background: rgb(var(--rr-brand));
+    background: linear-gradient(
+      180deg,
+      rgb(var(--rr-brand)),
+      rgb(var(--rr-brand)) 58%,
+      rgb(var(--rr-accent)) 58%,
+      rgb(var(--rr-accent))
+    );
     content: '';
   }
 

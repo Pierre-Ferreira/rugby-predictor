@@ -149,8 +149,8 @@ export const AccountPage = () => {
         personality={
           <RugbyRoosterPersonality
             message="Name on the board. Email in the shed."
-            mood="neutral"
-            size="sm"
+            mood="confident"
+            size="compact"
           />
         }
         subtitle="Manage the public name other players may see and keep private account details separate."
