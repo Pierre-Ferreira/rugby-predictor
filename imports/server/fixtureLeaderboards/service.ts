@@ -9,6 +9,7 @@ import {
 } from '/imports/shared/fixtureLeaderboards';
 import { fixtureLeaderboardPlayerIdentities } from '/imports/shared/fixtureLeaderboards/privacy';
 import { validateRuleset } from '/imports/shared/scoring';
+import { resolvePublicPlayerIdentities } from '/imports/server/playerProfiles/service';
 
 const leaderboardFixtureFields = {
   _id: 1,
@@ -101,10 +102,12 @@ export const loadFixtureLeaderboardProjection = async ({
   const uniqueUserIds = Array.from(
     new Set(predictions.map((prediction) => prediction.userId)),
   ).sort();
+  const publicIdentities = await resolvePublicPlayerIdentities(uniqueUserIds);
   const playerIdentities = fixtureLeaderboardPlayerIdentities({
     currentUserId: userId,
     fixtureId,
     players: uniqueUserIds.map((predictionUserId) => ({
+      publicIdentity: publicIdentities.get(predictionUserId),
       userId: predictionUserId,
     })),
   });

@@ -27,7 +27,8 @@ corrections recalculate rows on the next method call.
 - Fixture: published fixture plus frozen `rulesetSnapshot`.
 - Result: current `match_results` document for the fixture, when present.
 - Predictions: all persisted `predictions` entries for the fixture.
-- Player labels: fixture-scoped safe aliases derived on the server.
+- Player labels: public player display names when present, otherwise
+  fixture-scoped safe aliases derived on the server.
 
 The server loads the fixture once, result once, and predictions in one query.
 CCPP-011B does not query per player and does not accept prediction or result
@@ -99,9 +100,16 @@ keeps global places. Ties may span page boundaries.
 
 ## Privacy Labels
 
-No inspected Rugby Rooster account/profile model currently provides an
-explicitly safe public player display name. CCPP-011B therefore uses temporary
-fixture-scoped aliases:
+CCPP-012A adds an explicitly public display-name projection. Leaderboard label
+resolution now uses:
+
+```text
+current signed-in player -> You
+other player with displayName -> displayName
+other player without displayName -> Rooster XXXXXXXX
+```
+
+The fallback alias remains:
 
 ```text
 Rooster XXXXXXXX
@@ -112,6 +120,14 @@ The alias and row ID are derived server-side from a SHA-256 digest of
 different across fixtures, and does not reveal the raw user ID or email.
 
 The signed-in player's visible label is `You`, with `isCurrentUser: true`.
+CCPP-012A deliberately keeps that primary current-user treatment instead of
+forcing the public display name into compact leaderboard rows.
+
+Public display names are resolved through
+`resolvePublicPlayerIdentities(userIds)`, which performs one batch profile
+query for all leaderboard participant user IDs and returns only
+`{ displayName: string | null }` per user internally. Missing profiles are
+normal. There is no email fallback.
 
 ## Pagination And Current User
 
@@ -139,8 +155,9 @@ Player method:
 - `predictions.getFixtureLeaderboard`
 
 The method requires a verified signed-in player. It loads canonical server-side
-fixture, result, and prediction documents, generates privacy-safe labels, calls
-the shared leaderboard builder, and returns the derived projection.
+fixture, result, and prediction documents, resolves public identities in one
+batch, generates privacy-safe labels, calls the shared leaderboard builder, and
+returns the derived projection.
 
 The client cannot supply another user ID, prediction contents, result contents,
 observations, result revision, or deduction values.
@@ -187,3 +204,7 @@ persistent score caches, background jobs, or leaderboard animations.
 CCPP-011C adds the separate current-player score-breakdown route. It does not
 change CCPP-011B leaderboard ranking, pagination, privacy labels, or projection
 shape.
+
+CCPP-012A adds public display names and keeps the leaderboard algorithm,
+pagination, lifecycle, result correction behavior, and projection field shape
+unchanged.

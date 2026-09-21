@@ -840,6 +840,42 @@ Not implemented:
 - Score persistence/cache, background score jobs, or live event ingestion.
 - Animation work.
 
+## CCPP-012A Scope
+
+Milestone status: implemented for public player display identity. Platform
+details live in `docs/PLATFORM_Player_Identity.md`, and verification evidence
+is recorded in `docs/AUDIT_012A_Player_Display_Identity.md`.
+
+Implemented:
+
+- Dedicated server-owned `player_profiles` collection with unique `userId`.
+- Owner-only `playerProfiles.getMine` and `playerProfiles.updateMine` methods.
+- Direct client insert/update/remove denial for the profile collection.
+- Public display-name validation with trimming, repeated-whitespace
+  normalization, 2-30 visible characters, Unicode support, control-character
+  rejection, and narrow reserved-name rejection.
+- Safe `PublicPlayerIdentity` projection containing only `displayName`.
+- Reusable batch public identity resolver for competitive/player views.
+- Fixture leaderboard label preference for another player's public display name,
+  with existing fixture-scoped `Rooster XXXXXXXX` alias fallback.
+- Current signed-in leaderboard player remains labelled `You`.
+- Compact Account page public-name editor with public-visibility copy,
+  success feedback, and validation/error feedback.
+- Focused unit, isolated server integration, and one focused browser journey
+  with desktop/390px/360px evidence.
+
+Not implemented:
+
+- Leagues, social features, friends, avatars, public profile pages, handles, or
+  username availability.
+- Forced onboarding or blocking name-selection flow.
+- Global display-name uniqueness.
+- Admin profile editing.
+- Moderation queues, profanity filtering, or fuzzy impersonation detection.
+- Display-name persistence into predictions, score projections, results, or
+  leaderboard data.
+- Score-breakdown redesign, visual-system overhaul, or animation work.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

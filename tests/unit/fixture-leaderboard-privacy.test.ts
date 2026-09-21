@@ -26,7 +26,6 @@ describe('fixture leaderboard privacy labels', () => {
     const identity = fixtureLeaderboardPlayerIdentity({
       fixtureId: 'fixture-a',
       player: {
-        email: 'private@example.test',
         userId: 'user-with-email',
       },
     });
@@ -34,6 +33,37 @@ describe('fixture leaderboard privacy labels', () => {
     expect(identity.displayLabel).toMatch(/^Rooster [A-F0-9]{8}$/);
     expect(identity.displayLabel).not.toContain('private@example.test');
     expect(identity.displayLabel).not.toContain('user-with-email');
+  });
+
+  it('uses a safe public display name for another player', () => {
+    const identity = fixtureLeaderboardPlayerIdentity({
+      currentUserId: 'viewer-id',
+      fixtureId: 'fixture-a',
+      player: {
+        publicIdentity: {
+          displayName: 'Pierre',
+        },
+        userId: 'player-id',
+      },
+    });
+
+    expect(identity.displayLabel).toBe('Pierre');
+    expect(identity.rowId).not.toContain('player-id');
+  });
+
+  it('keeps You as the current-player primary label even when a public name exists', () => {
+    const identity = fixtureLeaderboardPlayerIdentity({
+      currentUserId: 'current-user-id',
+      fixtureId: 'fixture-a',
+      player: {
+        publicIdentity: {
+          displayName: 'Pierre',
+        },
+        userId: 'current-user-id',
+      },
+    });
+
+    expect(identity.displayLabel).toBe('You');
   });
 
   it('uses You for the current player while keeping an opaque row id', () => {

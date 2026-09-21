@@ -173,7 +173,12 @@ Current unit test files:
 - `tests/unit/fixture-leaderboard-privacy.test.ts` - CCPP-011B
   fixture-scoped alias and opaque row ID tests, including deterministic
   same-fixture aliases, different aliases across fixtures, no raw user ID, no
-  email fallback, and current-player `You` labeling.
+  email fallback, current-player `You` labeling, and CCPP-012A public display
+  name preference.
+- `tests/unit/player-identity.test.ts` - CCPP-012A public display-name
+  validation for simple/two-word/Unicode names, trimming, whitespace
+  normalization, minimum/maximum length, blank values, control characters,
+  reserved names, and injection rejection.
 
 Commands:
 
@@ -331,6 +336,12 @@ The current browser suite covers:
   Pending row, a partially pending multi-item Tries section, result correction
   via Refresh without page reload, final score, zero pending, custom Void
   presentation, and 390px/360px no-horizontal-overflow checks.
+- Public player identity browser coverage in
+  `tests/e2e/player-identity.spec.ts`: one signed-in player journey through the
+  Account public display-name editor, leaderboard display-name preference,
+  current-user `You` treatment, `Rooster XXXXXXXX` fallback, name change,
+  near-max valid name, safe public projection readback, email absence on the
+  leaderboard, and desktop/390px/360px evidence.
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.
@@ -573,10 +584,14 @@ The integration suite includes coverage for:
   inclusion, pagination bounds, `currentUserRow`, result correction
   recalculation without prediction mutation or leaderboard persistence, score
   consistency with `getMyFixtureScore`, and response privacy.
+- Player profile methods for unauthenticated/unverified denial, owner-only
+  reads/updates, display-name upsert, `userId` and extra-field injection
+  rejection, public projection privacy, batch public identity resolution, and
+  denied direct client collection writes.
 
 The Meteor full-app test module is `imports/server/app-tests.ts`, which imports
-the existing auth, fixture, fixture leaderboard, prediction, match result, and
-player fixture-score integration suites.
+the existing auth, fixture, fixture leaderboard, prediction, match result,
+player profile, and player fixture-score integration suites.
 
 Future Meteor/database integration tests must cover:
 

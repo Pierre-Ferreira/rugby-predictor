@@ -71,6 +71,11 @@ fixture. It reuses `predictions.getMyFixtureScore` and the accepted CCPP-011A
 projection, so prediction correctness, deductions, pending counts, Void, and
 zero floor remain scoring-engine/projection concerns rather than UI formulas.
 
+CCPP-012A adds public player display names for competitive presentation.
+Display names are stored in `player_profiles`, not prediction records. Name
+changes do not rewrite saved predictions, score projections, match results, or
+leaderboard data.
+
 CCPP-009C1 corrects the development-only Kaplay Match Result presentation
 without changing prediction rules or saved data. The Rooster shove now keeps
 contact-to-push motion continuous in the pure projection, calculates exit from
@@ -166,6 +171,8 @@ Signed-in verified players see:
 now`, final, and cancelled states.
 - Their own fixture score breakdown route with awaiting-result, provisional
   `If it ended now`, final, and cancelled states.
+- An Account page field for the public player name used in competitive views,
+  while email remains private account identity.
 
 ## Supported Prediction Fields
 

@@ -3,6 +3,7 @@ import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
 import { MatchResults } from '/imports/api/matchResults/collection';
+import { PlayerProfiles } from '/imports/api/playerProfiles/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import {
   INITIAL_FIXTURE_REVISION,
@@ -17,6 +18,7 @@ import {
   INITIAL_PREDICTION_REVISION,
   type PredictionEntryDocument,
 } from '/imports/shared/predictions';
+import type { PlayerProfileDocument } from '/imports/shared/playerProfiles';
 import {
   defaultRuleset,
   type FixtureObservations,
@@ -179,6 +181,28 @@ const insertPrediction = async ({
     userId,
   } as PredictionEntryDocument);
 
+const insertPlayerProfile = async ({
+  displayName,
+  now,
+  ownerRunId,
+  userId,
+}: {
+  readonly displayName: string;
+  readonly now: Date;
+  readonly ownerRunId: string;
+  readonly userId: string;
+}) =>
+  PlayerProfiles.insertAsync({
+    _id: Random.id(),
+    createdAt: now,
+    displayName,
+    rugbyRoosterTest: {
+      ownerRunId,
+    },
+    updatedAt: now,
+    userId,
+  } as PlayerProfileDocument);
+
 const assertOwnedScenarioFixture = async (
   fixtureId: unknown,
   ownerRunId: string,
@@ -293,6 +317,105 @@ export const registerFixtureLeaderboardTestMethods = async () => {
           observations: scenarioObservations({
             matchStatus: 'provisional',
             redCardsPending: true,
+            team1YellowCards: 0,
+          }),
+          revision: INITIAL_MATCH_RESULT_REVISION,
+          ruleset: rulesetIdentity(ruleset),
+          updatedAt: now,
+          updatedByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+        } as MatchResultDocument);
+
+        return {
+          fixtureId,
+          resultId,
+        };
+      },
+
+    [TEST_FIXTURE_LEADERBOARD_METHODS.seedIdentityScenario]:
+      async function seedIdentityScenario(...args: unknown[]) {
+        assertArgCount(args, 0);
+
+        if (!this.userId) {
+          throw new Meteor.Error(
+            'not-authorized',
+            'A signed-in test user is required.',
+          );
+        }
+
+        const { owner, ownerRunId } = await testOwner();
+        const now = new Date();
+        const ruleset = defaultRuleset;
+        const fixtureId = await Fixtures.insertAsync({
+          ...owner,
+          competitionDisplayName: 'Public Identity Cup',
+          createdAt: now,
+          createdByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+          isCancelled: false,
+          publishedAt: now,
+          publishedByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+          revision: INITIAL_FIXTURE_REVISION,
+          rulesetSnapshot: ruleset,
+          scheduledKickoffAt: new Date('2098-09-12T13:00:00.000Z'),
+          team1DisplayName: 'Public Names',
+          team2DisplayName: 'Alias Keepers',
+          updatedAt: now,
+          updatedByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+          venueDisplayName: 'Loopback Stadium',
+          visibility: 'published',
+        } as unknown as FixtureDocument);
+        const namedCompetitor = await createCompetitorUser(
+          'identity-alice',
+          ownerRunId,
+        );
+        const aliasCompetitor = await createCompetitorUser(
+          'identity-fallback',
+          ownerRunId,
+        );
+
+        await Promise.all([
+          insertPlayerProfile({
+            displayName: 'Alice',
+            now,
+            ownerRunId,
+            userId: namedCompetitor,
+          }),
+          insertPrediction({
+            fixtureId,
+            now,
+            ownerRunId,
+            prediction: scenarioPrediction(0),
+            ruleset,
+            userId: namedCompetitor,
+          }),
+          insertPrediction({
+            fixtureId,
+            now,
+            ownerRunId,
+            prediction: scenarioPrediction(1),
+            ruleset,
+            userId: this.userId,
+          }),
+          insertPrediction({
+            fixtureId,
+            now,
+            ownerRunId,
+            prediction: scenarioPrediction(2),
+            ruleset,
+            userId: aliasCompetitor,
+          }),
+        ]);
+
+        const resultId = await MatchResults.insertAsync({
+          ...owner,
+          _id: Random.id(),
+          confirmedAt: now,
+          confirmedByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+          createdAt: now,
+          createdByAdminId: `test-leaderboard-admin-${ownerRunId}`,
+          fixtureId,
+          observations: scenarioObservations({
+            matchStatus: 'confirmed',
+            redCardsPending: false,
             team1YellowCards: 0,
           }),
           revision: INITIAL_MATCH_RESULT_REVISION,

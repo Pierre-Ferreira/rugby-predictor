@@ -120,6 +120,23 @@ Out of scope for this product:
 - No AI commentary, leagues, prizes, another user's breakdown, score
   persistence, background jobs, live event ingestion, or animation work.
 
+## Implemented In CCPP-012A
+
+- Owner-editable public display name for verified players.
+- Dedicated server-owned `player_profiles` collection with unique `userId`,
+  denied direct client writes, and owner-only get/update methods.
+- Display-name validation that trims, normalizes whitespace, accepts normal
+  Unicode names, rejects blank/control-character values, and blocks only narrow
+  reserved impersonation names.
+- Safe public identity projection containing only `displayName`.
+- Batch public identity resolver for competitive views.
+- Fixture leaderboard labels now prefer another player's public display name
+  and fall back to the existing fixture-scoped `Rooster XXXXXXXX` alias.
+- Current signed-in leaderboard player remains labelled `You`.
+- Account page public-name editor with explicit public-visibility copy.
+- No forced onboarding, global name uniqueness, handles, avatars, profile
+  pages, moderation workflow, leagues, social features, or animation work.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.
@@ -134,6 +151,8 @@ Out of scope for this product:
 - Message variations and the rooster's animations will enrich the prediction flow.
 - Quizzes and AI reports are later enhancements.
 - Account-access email and optional marketing preferences must be treated separately.
+- Public display names are public presentation only; account email remains
+  private and is not a display-name fallback.
 
 ## Unresolved Product Decisions
 
@@ -148,3 +167,5 @@ These require precise specifications before implementation:
 - Account deletion, support, and long-term email preference lifecycle beyond sign-in access.
 - Platform-admin management UI and audit policy.
 - Venue competition, prize, and sponsorship rules.
+- Long-term public display-name moderation, avatar, handle, and profile-page
+  policies.

@@ -1,32 +1,14 @@
 import { createHash } from 'node:crypto';
+
+import type { PublicPlayerIdentity } from '/imports/shared/playerProfiles';
 import type { FixtureLeaderboardPlayerIdentity } from './types';
 
 const DISPLAY_DIGEST_LENGTH = 8;
-const MAX_SAFE_PUBLIC_DISPLAY_NAME_LENGTH = 80;
 
 interface PlayerLabelSource {
   readonly userId: string;
-  readonly safePublicDisplayName?: unknown;
-  readonly email?: unknown;
+  readonly publicIdentity?: PublicPlayerIdentity | null;
 }
-
-const cleanSafePublicDisplayName = (value: unknown): string | null => {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const cleaned = value.trim().replace(/\s+/g, ' ');
-
-  if (
-    !cleaned ||
-    cleaned.length > MAX_SAFE_PUBLIC_DISPLAY_NAME_LENGTH ||
-    cleaned.includes('@')
-  ) {
-    return null;
-  }
-
-  return cleaned;
-};
 
 export const fixtureScopedPlayerDigest = (
   fixtureId: string,
@@ -61,15 +43,13 @@ export const fixtureLeaderboardPlayerIdentity = ({
   readonly currentUserId?: string | null;
   readonly player: PlayerLabelSource;
 }): FixtureLeaderboardPlayerIdentity => {
-  const safePublicName = cleanSafePublicDisplayName(
-    player.safePublicDisplayName,
-  );
+  const publicDisplayName = player.publicIdentity?.displayName ?? null;
 
   return {
     displayLabel:
       player.userId === currentUserId
         ? 'You'
-        : (safePublicName ??
+        : (publicDisplayName ??
           fixtureScopedPlayerAlias(fixtureId, player.userId)),
     rowId: fixtureScopedLeaderboardRowId(fixtureId, player.userId),
     userId: player.userId,

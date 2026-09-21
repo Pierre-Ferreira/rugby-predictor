@@ -1,6 +1,7 @@
 import { Meteor } from 'meteor/meteor';
 import '/imports/server/auth/server';
 import '/imports/server/fixtures/server';
+import '/imports/server/playerProfiles/server';
 import '/imports/server/fixtureLeaderboards/server';
 import '/imports/server/matchResults/server';
 import '/imports/server/playerFixtureScores/server';
@@ -9,6 +10,6 @@ import '/imports/server/pwa/server';
 
 Meteor.startup(() => {
   console.info(
-    'Rugby Rooster server started with passwordless accounts, fixtures, predictions, fixture score projections, and fixture leaderboards.',
+    'Rugby Rooster server started with passwordless accounts, fixtures, player profiles, predictions, fixture score projections, and fixture leaderboards.',
   );
 });

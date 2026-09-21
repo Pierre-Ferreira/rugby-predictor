@@ -9,6 +9,7 @@ export const FIXTURE_LEADERBOARD_METHODS = {
 } as const;
 
 export const TEST_FIXTURE_LEADERBOARD_METHODS = {
+  seedIdentityScenario: 'test.fixtureLeaderboards.seedIdentityScenario',
   seedScenario: 'test.fixtureLeaderboards.seedScenario',
   updateScenarioResult: 'test.fixtureLeaderboards.updateScenarioResult',
 } as const;

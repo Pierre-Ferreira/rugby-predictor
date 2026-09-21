@@ -31,7 +31,8 @@ Rugby Tracker / Rucks and Mauls concepts.
 - `/sign-in` - player email-link request form. `/sign-in?mode=admin&returnTo=/admin`
   renders the admin-specific request copy and acknowledgement.
 - `/auth/email-link` - confirmation page for passwordless link redemption.
-- `/account` - authenticated verified player account summary.
+- `/account` - authenticated verified player account summary plus the
+  CCPP-012A public player display-name editor.
 - `/admin` - restricted platform-admin summary.
 - `/games/:fixtureId/predict` - CCPP-006 prediction entry route that can be
   used as a validated player `returnTo` destination.
@@ -105,6 +106,11 @@ Current implemented roles:
 Prediction submission uses the verified-player role. The server derives
 prediction ownership from the authenticated invocation and never from client
 payload fields.
+
+CCPP-012A public display names live outside the Meteor user document in the
+server-owned `player_profiles` collection. The auth publication continues to
+publish only the narrow account fields needed for session UI. Email remains
+private account identity and is never used as a public display-name fallback.
 
 The admin UI is not the authority. It calls `admin.accessSummary`, and the server
 requires a verified user plus a platform-admin grant before returning the
@@ -233,12 +239,15 @@ temporary revoke block.
   admin-specific sign-in acknowledgement, same-account continuation with
   explicit link invalidation, different-account switch/keep choices, malformed
   new-link credential clearing, invalid-link recovery, blocked client user
-  updates, mobile layout, and keyboard access.
+  updates, mobile layout, and keyboard access. CCPP-012A adds separate player
+  identity tests for the Account display-name editor and public projection
+  privacy.
 
 ## Current Limits
 
-- No fixture, prediction, league, leaderboard, prize, sponsorship, quiz,
-  animation, or AI permissions exist yet.
+- Public display names are implemented, but leagues, social identity, handles,
+  avatars, profile pages, prizes, sponsorship, quiz, animation, and AI
+  permissions do not exist yet.
 - Platform-admin grants are a minimal role flag for this milestone. Rich admin
   user management is future work.
 - Account deletion, support flows, optional marketing preferences UI, and

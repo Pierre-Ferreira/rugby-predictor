@@ -19,6 +19,9 @@
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
 - `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
+- `docs/PLATFORM_Player_Identity.md` - public display-name persistence,
+  owner-only methods, validation, privacy projection, batch identity resolver,
+  Account editing, and leaderboard label policy.
 - `docs/PLATFORM_PWA.md` - minimal PWA manifest, icons, safe-area shell, installation notes, limitations, and verification guidance.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
@@ -173,6 +176,9 @@
 - `docs/AUDIT_011C_Player_Score_Breakdown.md` - CCPP-011C owner-only score
   breakdown, route, projection reuse, retained browser evidence, verification,
   and EOMD archive evidence.
+- `docs/AUDIT_012A_Player_Display_Identity.md` - CCPP-012A public display-name
+  persistence, Account editor, leaderboard identity integration, privacy
+  boundary, tests, browser evidence, and EOMD archive evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -260,6 +266,9 @@
 - `docs/TEMP_011C_Resume.md` - temporary CCPP-011C checkpoint for player score
   breakdown implementation, retained browser evidence, final verification, and
   packaging handoff.
+- `docs/TEMP_012A_Resume.md` - temporary CCPP-012A checkpoint for public
+  player identity implementation, verification, browser evidence, and
+  packaging handoff.
 
 ## Application Entry Points
 
@@ -267,15 +276,20 @@
 - `client/main.tsx` - React startup and CSS import.
 - `client/main.css` - Tailwind directives, design tokens, focus styles, and PWA safe-area shell classes.
 - `server/main.ts` - Meteor server startup plus auth, fixture, fixture
-  leaderboard, match result, player fixture-score, prediction, and PWA
-  server-module imports.
+  leaderboard, match result, player fixture-score, player profile, prediction,
+  and PWA server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
 - `imports/api/matchResults/collection.ts` - shared Meteor match result collection.
+- `imports/api/playerProfiles/collection.ts` - shared `player_profiles` Mongo
+  collection for public display names.
 - `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
 - `imports/server/fixtures/` - fixture methods, publications, indexes, ruleset snapshot attachment, and isolated fixture test helpers.
 - `imports/server/matchResults/` - result methods, admin publications,
   unique fixture index, revision handling, final confirmation, and isolated
   result test helper.
+- `imports/server/playerProfiles/` - owner-only public display-name methods,
+  batch public identity resolver, unique index setup, denied direct client
+  writes, and isolated method tests.
 - `imports/server/playerFixtureScores/` - owner-only player fixture-score
   method, canonical score-loading service, and isolated method tests.
 - `imports/server/fixtureLeaderboards/` - fixture leaderboard method,
@@ -296,7 +310,8 @@
 - `/games/:fixtureId/my-score` - `imports/ui/pages/PlayerScoreBreakdownPage.tsx` in the public layout for the signed-in player's own fixture score breakdown.
 - `/sign-in` - `imports/ui/pages/SignInPage.tsx` in the public layout, including the admin-specific `mode=admin` request mode used from `/admin`.
 - `/auth/email-link` - `imports/ui/pages/AuthEmailLinkPage.tsx` in the public layout.
-- `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout.
+- `/account` - `imports/ui/pages/AccountPage.tsx` in the public layout for the
+  verified account summary and public player display-name editor.
 - `/admin` - `imports/ui/pages/AdminPage.tsx` in the admin layout with server-authorised summary data.
 - `/admin/fixtures/:fixtureId/results` - `imports/ui/pages/AdminFixtureResultsPage.tsx` in the admin layout for result entry, final confirmation, and read-only result summary.
 - Unmatched paths - `imports/ui/pages/NotFoundPage.tsx` in the public layout.
@@ -319,6 +334,27 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/server/auth/mailSink.ts` - local/test email capture.
 - `imports/ui/auth/` - client auth state, sign-out, and method-call helpers.
 - `imports/ui/components/AuthStates.tsx` - reusable sign-in-required and access-denied UI states.
+
+## Player Identity Entry Points
+
+- `imports/shared/playerProfiles/` - CCPP-012A public display-name method
+  names, document/projection types, validation helpers, and structured
+  validation error.
+- `imports/api/playerProfiles/collection.ts` - shared `player_profiles`
+  collection.
+- `imports/server/playerProfiles/server.ts` - verified-player
+  `playerProfiles.getMine` and `playerProfiles.updateMine` methods, direct
+  write denial, and unique `userId` index setup.
+- `imports/server/playerProfiles/service.ts` - reusable batch public identity
+  resolver for competitive views.
+- `imports/server/playerProfiles/testSupport.ts` - isolated profile reset
+  helper registered only behind the private test-helper gate.
+- `imports/server/playerProfiles/playerProfiles.app-test.ts` - isolated
+  integration coverage for owner-only access, validation, projection privacy,
+  batch resolution, and direct collection write denial.
+- `imports/ui/pages/AccountPage.tsx` - public player name editor with public
+  visibility copy, no page reload, success feedback, and validation/error
+  feedback.
 
 ## Scoring Engine Entry Points
 
@@ -369,8 +405,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   pagination validation, projection types, pure ranking builder, and
   fixture-scoped privacy helpers.
 - `imports/server/fixtureLeaderboards/service.ts` - server-owned loading of the
-  fixture, current result, all fixture predictions, and privacy-safe labels
-  before derived ranking.
+  fixture, current result, all fixture predictions, public player identities,
+  and privacy-safe labels before derived ranking.
 - `imports/server/fixtureLeaderboards/server.ts` - authenticated
   `predictions.getFixtureLeaderboard` Meteor method.
 - `imports/server/fixtureLeaderboards/testSupport.ts` - isolated browser
@@ -517,13 +553,15 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   lifecycle, pagination, correction, current-user row, and 1,000-entry
   regression tests.
 - `tests/unit/fixture-leaderboard-privacy.test.ts` - fixture-scoped alias and
-  opaque row ID privacy tests.
+  opaque row ID privacy tests, including CCPP-012A display-name preference.
+- `tests/unit/player-identity.test.ts` - CCPP-012A public display-name
+  validation, reserved-name, and injection-rejection tests.
 - `tests/unit/player-score-breakdown.test.ts` - pure CCPP-011C score-breakdown
   view-model tests for lifecycle summaries, item-level Pending, custom
   Number/Choice/Void, zero floor, section ordering, and team-score presentation.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
-  fixture, fixture leaderboard, match result, player fixture-score, and
-  prediction integration suites.
+  fixture, fixture leaderboard, match result, player fixture-score, player
+  profile, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
 - `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
@@ -536,7 +574,12 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   Meteor full-app fixture leaderboard integration tests for authorization,
   awaiting/provisional/final/cancelled states, pagination bounds,
   `currentUserRow`, result corrections, score consistency with
-  `getMyFixtureScore`, and response privacy.
+  `getMyFixtureScore`, CCPP-012A public display-name/fallback behavior,
+  duplicate names, name changes, and response privacy.
+- `imports/server/playerProfiles/playerProfiles.app-test.ts` - Meteor full-app
+  player profile integration tests for auth denial, owner-only methods,
+  validation/injection rejection, public projection privacy, batch resolver, and
+  denied direct collection writes.
 - `tests/e2e/foundation.spec.ts` - browser smoke tests for current foundation routes, layouts, CCPP-004E PWA metadata, manifest/icon responses and dimensions, `/games` launch behaviour, responsive overflow, and absence of service worker registration.
 - `tests/e2e/auth.spec.ts` - browser tests for passwordless account and admin access flows.
 - `tests/e2e/fixtures.spec.ts` - browser tests for public fixture browsing,
@@ -577,6 +620,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/e2e/player-score-breakdown.spec.ts` - focused browser test for the
   player-facing score breakdown provisional, correction, final, custom Void,
   item-level partially pending Tries, and 390px/360px responsive states.
+- `tests/e2e/player-identity.spec.ts` - focused browser test for Account public
+  display-name editing, leaderboard display-name/fallback labels, current-user
+  `You`, name changes, near-max display-name layout, safe projection readback,
+  and 390px/360px responsive evidence.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 - `tests/support/kaplay-layout-evidence.ts` - CCPP-009C3B browser evidence
   helper for reading the required Kaplay Match Result semantic bridge while
@@ -592,12 +639,16 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/server/fixtures/` - fixture server methods, publications, indexes, and test helpers.
 - `imports/server/matchResults/` - match result server methods, publications,
   indexes, and test helper.
+- `imports/server/playerProfiles/` - public display-name server methods,
+  resolver, indexes, write protections, and test helper.
 - `imports/server/predictions/` - prediction server method, publications, indexes, and test helper.
 - `imports/server/pwa/` - minimal PWA server hook for static manifest response metadata.
 - `imports/shared/auth/` - shared auth constants and validation helpers.
 - `imports/shared/fixtures/` - shared fixture names, types, validation, and timezone helpers.
 - `imports/shared/matchResults/` - shared result names, types, normalization,
   lifecycle labels, revision constants, and final validation helpers.
+- `imports/shared/playerProfiles/` - shared public player identity method names,
+  types, validation, and errors.
 - `imports/shared/predictions/` - shared prediction names, types, validation, and storage-normalization helpers.
 - `imports/shared/predictionQuestions/` - shared prediction question
   configuration domain.

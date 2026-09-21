@@ -21,6 +21,10 @@ import {
   type MatchResultMutationResult,
 } from '/imports/shared/matchResults';
 import {
+  PLAYER_PROFILE_METHODS,
+  type PublicPlayerIdentity,
+} from '/imports/shared/playerProfiles';
+import {
   PREDICTION_METHODS,
   type PredictionMutationResult,
 } from '/imports/shared/predictions';
@@ -35,6 +39,7 @@ import { getAuthTestRunId } from '/imports/server/auth/settings';
 import { resetTestAuthData } from '/imports/server/auth/testSupport';
 import { resetFixtureTestData } from '/imports/server/fixtures/testSupport';
 import { resetMatchResultTestData } from '/imports/server/matchResults/testSupport';
+import { resetPlayerProfileTestData } from '/imports/server/playerProfiles/testSupport';
 import { resetPredictionTestData } from '/imports/server/predictions/testSupport';
 
 type MethodHandler = (
@@ -298,6 +303,17 @@ const getMyFixtureScore = (invocation: TestInvocation, fixtureId: string) =>
     invocation,
   );
 
+const updatePlayerProfile = (invocation: TestInvocation, displayName: string) =>
+  callMethod<PublicPlayerIdentity>(
+    PLAYER_PROFILE_METHODS.updateMine,
+    [
+      {
+        displayName,
+      },
+    ],
+    invocation,
+  );
+
 const collectionNames = async (): Promise<readonly string[]> => {
   const db = MongoInternals.defaultRemoteCollectionDriver().mongo.db;
   const collections = (await db
@@ -311,6 +327,7 @@ describe('fixture leaderboard method', function () {
   this.timeout(20_000);
 
   beforeEach(async () => {
+    await resetPlayerProfileTestData();
     await resetMatchResultTestData();
     await resetPredictionTestData();
     await resetFixtureTestData();
@@ -415,6 +432,124 @@ describe('fixture leaderboard method', function () {
       [1, 1, 1],
     );
     assert.ok(projection.rows.some((row) => row.isCurrentUser));
+  });
+
+  it('shows another player public display name when one exists', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer('player');
+    const viewer = await createVerifiedPlayer('viewer');
+    const fixtureId = await insertFixtureDocument();
+
+    await updatePlayerProfile(player.invocation, 'Pierre');
+    await submitPrediction(player.invocation, { fixtureId });
+    await saveProvisional(admin.invocation, {
+      expectedRevision: NO_MATCH_RESULT_REVISION,
+      fixtureId,
+      observations: completeObservations(),
+    });
+
+    const projection = await getFixtureLeaderboard(viewer.invocation, {
+      fixtureId,
+    });
+
+    assert.equal(projection.rows.length, 1);
+    assert.equal(projection.rows[0].displayLabel, 'Pierre');
+    assert.equal(projection.rows[0].isCurrentUser, false);
+  });
+
+  it('keeps the fixture-scoped Rooster fallback when no profile exists', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer('player');
+    const viewer = await createVerifiedPlayer('viewer');
+    const fixtureId = await insertFixtureDocument();
+
+    await submitPrediction(player.invocation, { fixtureId });
+    await saveProvisional(admin.invocation, {
+      expectedRevision: NO_MATCH_RESULT_REVISION,
+      fixtureId,
+      observations: completeObservations(),
+    });
+
+    const projection = await getFixtureLeaderboard(viewer.invocation, {
+      fixtureId,
+    });
+
+    assert.match(projection.rows[0].displayLabel, /^Rooster [A-F0-9]{8}$/);
+    assert.notEqual(projection.rows[0].displayLabel, player.userId);
+  });
+
+  it('allows duplicate public display names while keeping separate rows and ranks', async () => {
+    const admin = await createVerifiedAdmin();
+    const playerA = await createVerifiedPlayer('player-a');
+    const playerB = await createVerifiedPlayer('player-b');
+    const viewer = await createVerifiedPlayer('viewer');
+    const fixtureId = await insertFixtureDocument();
+
+    await updatePlayerProfile(playerA.invocation, 'John');
+    await updatePlayerProfile(playerB.invocation, 'John');
+    await submitPrediction(playerA.invocation, { fixtureId });
+    await submitPrediction(playerB.invocation, {
+      fixtureId,
+      prediction: validPrediction(1),
+    });
+    await saveProvisional(admin.invocation, {
+      expectedRevision: NO_MATCH_RESULT_REVISION,
+      fixtureId,
+      observations: completeObservations(),
+    });
+
+    const projection = await getFixtureLeaderboard(viewer.invocation, {
+      fixtureId,
+    });
+
+    assert.deepEqual(
+      projection.rows.map((row) => row.displayLabel),
+      ['John', 'John'],
+    );
+    assert.deepEqual(
+      projection.rows.map((row) => row.place),
+      [1, 2],
+    );
+    assert.notEqual(projection.rows[0].rowId, projection.rows[1].rowId);
+  });
+
+  it('reflects display name changes on fresh calculation without mutating predictions', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer('player');
+    const viewer = await createVerifiedPlayer('viewer');
+    const fixtureId = await insertFixtureDocument();
+
+    await updatePlayerProfile(player.invocation, 'Pierre');
+    const savedPrediction = await submitPrediction(player.invocation, {
+      fixtureId,
+    });
+    await saveProvisional(admin.invocation, {
+      expectedRevision: NO_MATCH_RESULT_REVISION,
+      fixtureId,
+      observations: completeObservations(),
+    });
+
+    const before = await getFixtureLeaderboard(viewer.invocation, {
+      fixtureId,
+    });
+
+    await updatePlayerProfile(player.invocation, 'Pete');
+
+    const after = await getFixtureLeaderboard(viewer.invocation, {
+      fixtureId,
+    });
+    const storedPrediction = await Predictions.findOneAsync({
+      fixtureId,
+      userId: player.userId,
+    });
+
+    assert.equal(before.rows[0].displayLabel, 'Pierre');
+    assert.equal(after.rows[0].displayLabel, 'Pete');
+    assert.equal(storedPrediction?.revision, savedPrediction.revision);
+    assert.equal(
+      'displayName' in (storedPrediction as unknown as Record<string, unknown>),
+      false,
+    );
   });
 
   it('returns final leaderboard rows with no pending indicator', async () => {
@@ -635,8 +770,11 @@ describe('fixture leaderboard method', function () {
     assert.equal(serialized.includes('"userId"'), false);
     assert.equal(serialized.includes('"prediction"'), false);
     assert.equal(serialized.includes('"observations"'), false);
+    assert.equal(serialized.includes('"emails"'), false);
+    assert.equal(serialized.includes('"roles"'), false);
     assert.equal(serialized.includes('"createdByAdminId"'), false);
     assert.equal(serialized.includes('"updatedByAdminId"'), false);
     assert.equal(serialized.includes('"services"'), false);
+    assert.equal(serialized.includes('"passwordless"'), false);
   });
 });
