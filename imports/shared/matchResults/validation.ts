@@ -3,8 +3,6 @@ import {
   assertValid,
   enabledQuestions,
   isBuiltInEnabled,
-  scoringComponentFields,
-  teamNumericFieldByQuestionId,
   teamSides,
   validateObservations,
   validationResult,
@@ -14,7 +12,6 @@ import {
   type ObservedValue,
   type QuestionDefinition,
   type RulesetSnapshot,
-  type ScoringComponentField,
   type ValidationIssue,
 } from '/imports/shared/scoring';
 import {
@@ -24,6 +21,7 @@ import {
   type MatchResultAdminState,
   type MatchResultDocument,
 } from './types';
+import { enabledLiveBuiltInCounterFields } from './liveCounters';
 
 type NormalizationMode = 'provisional' | 'final';
 
@@ -194,6 +192,19 @@ export const sanitizeResultMutationInput = (input: unknown) => {
   };
 };
 
+export const sanitizeStartResultTrackingInput = (input: unknown) => {
+  if (!isRecord(input)) {
+    resultError('invalid-result-request', 'Result tracking input is required.');
+  }
+  const record = input as Record<string, unknown>;
+
+  assertAllowedKeys(record, new Set(['fixtureId']), 'Result tracking input');
+
+  return {
+    fixtureId: sanitizeFixtureId(record.fixtureId),
+  };
+};
+
 export const matchResultAdminState = (
   result: MatchResultDocument | null | undefined,
 ): MatchResultAdminState => {
@@ -225,47 +236,6 @@ export const rulesetIdentity = (ruleset: RulesetSnapshot) => ({
   schemaVersion: ruleset.schemaVersion,
   version: ruleset.version,
 });
-
-const requiredScoringObservationFields = (
-  ruleset: RulesetSnapshot,
-): ReadonlySet<ScoringComponentField> => {
-  const requiredFields = new Set<ScoringComponentField>();
-
-  for (const question of enabledQuestions(ruleset)) {
-    if (question.id === 'match-result' || question.id === 'team-score') {
-      scoringComponentFields.forEach((field) => requiredFields.add(field));
-      continue;
-    }
-
-    if (question.type !== 'built-in-team-numeric') {
-      continue;
-    }
-
-    const field = teamNumericFieldByQuestionId[question.id];
-
-    if (scoringComponentFields.includes(field as ScoringComponentField)) {
-      requiredFields.add(field as ScoringComponentField);
-    }
-  }
-
-  return requiredFields;
-};
-
-const enabledTeamObservationFields = (
-  ruleset: RulesetSnapshot,
-): ReadonlySet<string> => {
-  const fields = new Set<string>(requiredScoringObservationFields(ruleset));
-
-  for (const id of ['yellow-cards', 'red-cards'] as const) {
-    const field = teamNumericFieldByQuestionId[id];
-
-    if (field && isBuiltInEnabled(ruleset, id)) {
-      fields.add(field);
-    }
-  }
-
-  return fields;
-};
 
 const enabledBuiltInCategoricalFields = (
   ruleset: RulesetSnapshot,
@@ -331,7 +301,7 @@ const validateRawObservationKeys = (
 
   validateRawMatchStatus(record.matchStatus);
 
-  const enabledTeamFields = enabledTeamObservationFields(ruleset);
+  const enabledTeamFields = enabledLiveBuiltInCounterFields(ruleset);
 
   for (const side of teamSides) {
     const team = record[side];
@@ -349,7 +319,7 @@ const validateRawObservationKeys = (
 
     assertAllowedKeys(
       team as Record<string, unknown>,
-      enabledTeamFields,
+      new Set(enabledTeamFields),
       `${side} observations`,
     );
 
@@ -485,7 +455,7 @@ export const validateFinalObservations = (
   ruleset: RulesetSnapshot,
 ) => {
   const issues: ValidationIssue[] = [];
-  const teamFields = enabledTeamObservationFields(ruleset);
+  const teamFields = enabledLiveBuiltInCounterFields(ruleset);
   const categoricalFields = enabledBuiltInCategoricalFields(ruleset);
 
   if (observations.matchStatus !== 'confirmed') {
@@ -554,7 +524,7 @@ export const normalizeResultObservations = (
   mode: NormalizationMode,
 ): FixtureObservations => {
   const raw = validateRawObservationKeys(source, ruleset);
-  const teamFields = enabledTeamObservationFields(ruleset);
+  const teamFields = enabledLiveBuiltInCounterFields(ruleset);
   const categoricalFields = enabledBuiltInCategoricalFields(ruleset);
   const normalized: {
     customAnswers?: FixtureObservations['customAnswers'];

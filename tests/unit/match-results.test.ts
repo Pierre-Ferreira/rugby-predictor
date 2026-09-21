@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  LIVE_BUILT_IN_COUNTER_FIELDS,
   MatchResultValidationError,
+  buildInitializedLiveResultObservations,
   normalizeResultObservations,
+  preserveResolvedLiveCounterObservations,
 } from '../../imports/shared/matchResults';
 import {
   createRulesetSnapshot,
   defaultRuleset,
+  teamSides,
   type FixtureObservations,
   type ObservedValue,
   type QuestionDefinition,
@@ -93,6 +97,32 @@ const captureResultError = (
 };
 
 describe('match result raw observation validation', () => {
+  it('builds explicit zero live-counter observations while leaving settlements pending', () => {
+    const observations =
+      buildInitializedLiveResultObservations(customRuleset());
+
+    expect(observations.matchStatus).toBe('provisional');
+
+    for (const side of teamSides) {
+      for (const field of LIVE_BUILT_IN_COUNTER_FIELDS) {
+        expect(observations[side][field]).toEqual({
+          status: 'provisional',
+          value: 0,
+        });
+      }
+    }
+
+    expect(observations.firstTry).toEqual({ status: 'pending' });
+    expect(observations.highestScoringHalf).toEqual({ status: 'pending' });
+    expect(observations.halfTimeLeader).toEqual({ status: 'pending' });
+    expect(observations.customAnswers?.['winning-margin']).toEqual({
+      status: 'pending',
+    });
+    expect(observations.customAnswers?.weather).toEqual({
+      status: 'pending',
+    });
+  });
+
   it('rejects malformed raw statuses before lifecycle normalization', () => {
     const ruleset = customRuleset();
     const cases: readonly {
@@ -288,5 +318,81 @@ describe('match result raw observation validation', () => {
     expect(final.team1.tries?.status).toBe('confirmed');
     expect(final.customAnswers?.['winning-margin']?.status).toBe('confirmed');
     expect(final.customAnswers?.weather?.status).toBe('void');
+  });
+
+  it('preserves resolved live counters on update without reinterpreting legacy blanks as zero', () => {
+    const initialized = buildInitializedLiveResultObservations(defaultRuleset);
+    const legacyBlank = normalizeResultObservations(
+      {
+        firstTry: { status: 'pending' },
+        halfTimeLeader: { status: 'pending' },
+        highestScoringHalf: { status: 'pending' },
+        team1: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+        team2: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+      },
+      defaultRuleset,
+      'provisional',
+    );
+    const incomingBlank = normalizeResultObservations(
+      {
+        firstTry: { status: 'pending' },
+        halfTimeLeader: { status: 'pending' },
+        highestScoringHalf: { status: 'pending' },
+        team1: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+        team2: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+      },
+      defaultRuleset,
+      'provisional',
+    );
+
+    const preserved = preserveResolvedLiveCounterObservations({
+      current: initialized,
+      incoming: incomingBlank,
+      ruleset: defaultRuleset,
+    });
+    const untouchedLegacy = preserveResolvedLiveCounterObservations({
+      current: legacyBlank,
+      incoming: incomingBlank,
+      ruleset: defaultRuleset,
+    });
+
+    expect(preserved.team1.tries).toEqual({
+      status: 'provisional',
+      value: 0,
+    });
+    expect(preserved.team2.redCards).toEqual({
+      status: 'provisional',
+      value: 0,
+    });
+    expect(untouchedLegacy.team1.tries).toEqual({ status: 'pending' });
+    expect(untouchedLegacy.team2.redCards).toEqual({ status: 'pending' });
   });
 });

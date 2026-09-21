@@ -70,6 +70,14 @@ remains metadata and is not presented as earned score.
 `if-ended-now` mode. Resolved observations contribute deductions, pending
 observations do not, and `finalScore` remains `null`.
 
+CCPP-011D keeps the important boundary between those states: no result document
+is still `awaiting_result`; starting live result tracking creates a provisional
+result whose enabled built-in live counters are real zero observations. Those
+zeros immediately resolve numeric/card components, derive team scores as `0-0`,
+and derive Match Result as Draw. First Try, Highest-Scoring Half,
+Half-Time Leader, Custom Number, and Custom Choice remain Pending until
+settled. `finalScore` remains `null` while this projection is provisional.
+
 `final` means the result is confirmed. The adapter calls the existing scoring
 engine in `final` mode, so the engine enforces final readiness. `currentScore`
 and `finalScore` are the same zero-floored value and `pendingCount` is `0`
@@ -85,6 +93,10 @@ Pending is not zero and not correct. The match-result normalizer stores blank
 admin fields as `{ status: 'pending' }`; explicit `0` is a resolved observed
 value. The score projection preserves that distinction through the engine
 breakdown.
+
+Initialized live counters are the only automatic zero case. Historical or
+manually saved provisional records with blank built-in counters remain Pending
+and are not globally reinterpreted as zero.
 
 Custom Number and Choice observations use stable custom question IDs. Custom
 Choice scoring uses stable option IDs, not labels. Custom Void is supported only

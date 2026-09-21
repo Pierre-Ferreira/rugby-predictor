@@ -117,6 +117,16 @@ Observation statuses:
 
 Pending is distinct from real zero, Draw, or No tries. A live try count of zero is usable when supplied as a provisional or confirmed value. An unresolved first-try outcome must be represented as pending.
 
+CCPP-011D defines how Rugby Rooster begins live/provisional result tracking:
+before a Match Result exists, player fixture scores remain `awaiting_result`;
+when an admin explicitly starts result tracking, the canonical provisional
+result supplies real zero observations for enabled built-in cumulative counters
+for both teams: tries, conversions, successful penalty kicks, drop goals,
+yellow cards, and red cards. The engine then scores those zeros normally.
+First Try, Highest-Scoring Half, Half-Time Leader, Custom Number, and Custom
+Choice remain Pending at start. Blank, null, and undefined observations are not
+globally treated as zero.
+
 Final scoring requires confirmed match status and confirmed observations for every enabled question. Attempts to produce an official final score with pending or provisional observations are rejected.
 
 For custom questions, Void is also final-ready and deducts zero. Built-in

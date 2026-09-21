@@ -308,6 +308,16 @@ const fillCompleteResult = async (
     .check();
 };
 
+const startTrackingFromPage = async (page: Page) => {
+  await expect(
+    page.getByRole('heading', {
+      name: "Result tracking hasn't started.",
+    }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Start result tracking' }).click();
+  await expect(page.getByText('Live result tracking started.')).toBeVisible();
+};
+
 const completeObservationPayload = () => ({
   firstTry: { status: 'provisional', value: 'team1' },
   halfTimeLeader: { status: 'provisional', value: 'team1' },
@@ -378,7 +388,7 @@ test.describe('result administration', () => {
     const team1 = uniqueLabel('Springboks');
     const team2 = uniqueLabel('All Blacks');
     await loginAsResultAdmin(page, 'result-flow');
-    const fixtureId = await createPublishedCustomFixture(page, {
+    await createPublishedCustomFixture(page, {
       competitionDisplayName: 'Result Admin Cup',
       scheduledKickoffAt: farFutureKickoff(),
       team1DisplayName: team1,
@@ -398,14 +408,9 @@ test.describe('result administration', () => {
       page.getByRole('heading', { level: 1, name: `${team1} vs ${team2}` }),
     ).toBeVisible();
 
-    await numberInput(page, `${team1} tries`).fill('0');
-    await numberInput(page, `${team1} conversions`).fill('0');
-    await page.getByRole('button', { name: 'Save provisional result' }).click();
-    await expect(page.getByText('Provisional result saved.')).toBeVisible();
-
-    await gotoLocal(page, resultPath(fixtureId));
+    await startTrackingFromPage(page);
     await expect(numberInput(page, `${team1} tries`)).toHaveValue('0');
-    await expect(numberInput(page, `${team2} tries`)).toHaveValue('');
+    await expect(numberInput(page, `${team2} tries`)).toHaveValue('0');
 
     await fillCompleteResult(page, { team1, team2 });
 
@@ -443,6 +448,7 @@ test.describe('result administration', () => {
 
     await gotoLocal(page, resultPath(fixtureId));
 
+    await startTrackingFromPage(page);
     await fillCompleteResult(page, { team1, team2 });
     await page.getByRole('button', { name: 'Save provisional result' }).click();
     await expect(page.getByText('Provisional result saved.')).toBeVisible();
@@ -450,7 +456,7 @@ test.describe('result administration', () => {
     await numberInput(page, `${team1} tries`).fill('5');
 
     await callMeteor(page, MATCH_RESULT_METHODS.saveProvisional, {
-      expectedRevision: 1,
+      expectedRevision: 2,
       fixtureId,
       observations: {
         ...completeObservationPayload(),

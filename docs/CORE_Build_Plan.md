@@ -840,6 +840,51 @@ Not implemented:
 - Score persistence/cache, background score jobs, or live event ingestion.
 - Animation work.
 
+## CCPP-011D Scope
+
+Milestone status: implemented for explicit live result initialization and
+zero-based provisional scoring. Platform details live in
+`docs/PLATFORM_Match_Results.md`, `docs/PLATFORM_Player_Fixture_Scoring.md`,
+`docs/PLATFORM_Fixture_Leaderboard.md`, and
+`docs/PLATFORM_Player_Score_Breakdown.md`. Verification evidence is recorded in
+`docs/AUDIT_011D_Live_Result_Initialization.md`.
+
+Implemented:
+
+- Explicit platform-admin `Start result tracking` transition for published,
+  non-cancelled fixtures with no existing result.
+- Shared live-counter definition and initialization helper for per-team tries,
+  conversions, successful penalty kicks, drop goals, yellow cards, and red
+  cards.
+- Canonical provisional result creation with enabled live counters initialized
+  as real zero observations.
+- First Try, Highest-Scoring Half, Half-Time Leader, Custom Number, and Custom
+  Choice remaining Pending at the start boundary.
+- Admin pre-start state with no editable provisional form and no false zeros.
+- Admin post-start state with zero-populated counters, derived rugby score
+  `0-0`, and derived current Match Result Draw.
+- Later provisional saves preserving initialized numeric counters when blank UI
+  edits are submitted, while keeping existing revision/concurrency protection.
+- CCPP-011A no-result versus initialized-zero scoring distinction:
+  `awaiting_result` before start, provisional scoring after start, zero built-in
+  items resolved, deductions applied immediately, and `finalScore` still
+  `null`.
+- CCPP-011B provisional leaderboard rows/ranks becoming meaningful immediately
+  after start, with only genuinely unresolved components counted as Pending.
+- CCPP-011C `/my-score` showing built-in numeric/card Actual values as `0`
+  with authoritative deductions while First Try, Highest-Scoring Half,
+  Half-Time Leader, Custom Number, and Custom Choice remain Pending.
+- Focused unit, Meteor integration, retained focused browser evidence,
+  documentation, and EOMD packaging.
+
+Not implemented:
+
+- Broad migration or reinterpretation of historical blank provisional result
+  fields as zero.
+- Live event capture, admin increment/decrement counters, kickoff automation,
+  half-time automation, score persistence, leaderboard persistence, background
+  scoring jobs, AI, animation work, or a result lifecycle redesign.
+
 ## CCPP-012A Scope
 
 Milestone status: implemented for public player display identity. Platform

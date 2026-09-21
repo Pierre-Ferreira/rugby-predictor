@@ -268,6 +268,18 @@ const saveProvisional = (
     invocation,
   );
 
+const startResultTracking = (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod<MatchResultMutationResult>(
+    MATCH_RESULT_METHODS.startResultTracking,
+    [input],
+    invocation,
+  );
+
 const confirmFinal = (
   invocation: TestInvocation,
   input: {
@@ -391,6 +403,41 @@ describe('fixture leaderboard method', function () {
     assert.equal(projection.currentUserParticipating, true);
     assert.deepEqual(projection.rows, []);
     assert.equal(projection.currentUserRow, undefined);
+  });
+
+  it('recalculates provisional leaderboard rows immediately after zero-result initialization', async () => {
+    const admin = await createVerifiedAdmin();
+    const playerA = await createVerifiedPlayer('player-a');
+    const playerB = await createVerifiedPlayer('player-b');
+    const fixtureId = await insertFixtureDocument();
+
+    await submitPrediction(playerA.invocation, { fixtureId });
+    await submitPrediction(playerB.invocation, {
+      fixtureId,
+      prediction: validPrediction(1),
+    });
+
+    const awaiting = await getFixtureLeaderboard(playerA.invocation, {
+      fixtureId,
+    });
+    const started = await startResultTracking(admin.invocation, { fixtureId });
+    const initialized = await getFixtureLeaderboard(playerA.invocation, {
+      fixtureId,
+    });
+
+    assert.equal(awaiting.status, 'awaiting_result');
+    assert.deepEqual(awaiting.rows, []);
+    assert.equal(initialized.status, 'provisional');
+    assert.equal(initialized.resultRevision, started.revision);
+    assert.equal(initialized.rows.length, 2);
+    assert.ok(
+      initialized.rows.every((row) => row.score < 10_000),
+      'zero observations produce immediate if-ended-now deductions',
+    );
+    assert.deepEqual(
+      initialized.rows.map((row) => row.pendingCount),
+      [3, 3],
+    );
   });
 
   it('includes all eligible saved predictions in a provisional leaderboard', async () => {

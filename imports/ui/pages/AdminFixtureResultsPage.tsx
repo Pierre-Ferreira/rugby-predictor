@@ -6,11 +6,14 @@ import { Fixtures } from '/imports/api/fixtures/collection';
 import { MatchResults } from '/imports/api/matchResults/collection';
 import type { FixtureDocument } from '/imports/shared/fixtures';
 import {
+  buildInitializedLiveResultObservations,
+  enabledLiveBuiltInCounterFields,
   MATCH_RESULT_METHODS,
   MATCH_RESULT_PUBLICATIONS,
   NO_MATCH_RESULT_REVISION,
   matchResultAdminState,
   matchResultAdminStateLabel,
+  type LiveBuiltInCounterField,
   type MatchResultDocument,
   type MatchResultMutationResult,
 } from '/imports/shared/matchResults';
@@ -20,7 +23,6 @@ import {
   enabledQuestions,
   isBuiltInEnabled,
   scoringComponentFields,
-  teamNumericFieldByQuestionId,
   teamSides,
   type FixtureObservations,
   type ObservedValue,
@@ -39,13 +41,7 @@ import { LoadingState } from '../components/Status';
 import { AppLink } from '../components/AppLink';
 import { kickoffLabel } from '../fixtures/fixtureUi';
 
-type NumericTeamField =
-  | 'tries'
-  | 'conversions'
-  | 'penaltyKicks'
-  | 'dropGoals'
-  | 'yellowCards'
-  | 'redCards';
+type NumericTeamField = LiveBuiltInCounterField;
 
 interface TeamResultForm {
   readonly conversions: string;
@@ -83,18 +79,6 @@ const numericFieldLabels = {
   tries: 'tries',
   yellowCards: 'yellow cards',
 } as const satisfies Record<NumericTeamField, string>;
-
-const scoringFields = [
-  'tries',
-  'conversions',
-  'penaltyKicks',
-  'dropGoals',
-] as const satisfies readonly NumericTeamField[];
-
-const cardFields = [
-  'yellowCards',
-  'redCards',
-] as const satisfies readonly NumericTeamField[];
 
 const emptyTeamForm = (): TeamResultForm => ({
   conversions: '',
@@ -163,46 +147,9 @@ const customQuestions = (
       question.type === 'custom-categorical',
   );
 
-const requiredScoringFields = (
-  ruleset: RulesetSnapshot,
-): ReadonlySet<NumericTeamField> => {
-  const fields = new Set<NumericTeamField>();
-
-  for (const question of enabledQuestions(ruleset)) {
-    if (question.id === 'match-result' || question.id === 'team-score') {
-      scoringFields.forEach((field) => fields.add(field));
-      continue;
-    }
-
-    if (question.type !== 'built-in-team-numeric') {
-      continue;
-    }
-
-    const field = teamNumericFieldByQuestionId[question.id];
-
-    if (scoringFields.includes(field as (typeof scoringFields)[number])) {
-      fields.add(field as NumericTeamField);
-    }
-  }
-
-  return fields;
-};
-
 const enabledTeamFields = (
   ruleset: RulesetSnapshot,
-): readonly NumericTeamField[] => {
-  const fields = new Set<NumericTeamField>(requiredScoringFields(ruleset));
-
-  if (isBuiltInEnabled(ruleset, 'yellow-cards')) {
-    fields.add('yellowCards');
-  }
-
-  if (isBuiltInEnabled(ruleset, 'red-cards')) {
-    fields.add('redCards');
-  }
-
-  return [...scoringFields, ...cardFields].filter((field) => fields.has(field));
-};
+): readonly NumericTeamField[] => enabledLiveBuiltInCounterFields(ruleset);
 
 const observationValueText = (
   value: ObservedValue<number> | undefined,
@@ -218,13 +165,17 @@ const formFromResult = (
   result: MatchResultDocument | null | undefined,
   ruleset: RulesetSnapshot,
 ): ResultFormState => {
-  const form = emptyForm(ruleset);
-
   if (!result) {
-    return form;
+    return emptyForm(ruleset);
   }
 
-  const observations = result.observations;
+  return formFromObservations(result.observations, ruleset);
+};
+
+const formFromObservations = (
+  observations: FixtureObservations,
+  ruleset: RulesetSnapshot,
+): ResultFormState => {
   const formFromTeam = (side: TeamSide): TeamResultForm => ({
     conversions: observationValueText(observations[side].conversions),
     dropGoals: observationValueText(observations[side].dropGoals),
@@ -270,10 +221,30 @@ const formFromResult = (
   };
 };
 
-const observedNumberFromText = (value: string): ObservedValue<number> =>
-  value.trim() === ''
-    ? { status: 'pending' }
-    : { status: 'provisional', value: Number(value) };
+const initializedLiveResultForm = (ruleset: RulesetSnapshot): ResultFormState =>
+  formFromObservations(
+    buildInitializedLiveResultObservations(ruleset),
+    ruleset,
+  );
+
+const observedNumberFromText = (
+  value: string,
+  currentValue: ObservedValue<number> | undefined,
+): ObservedValue<number> => {
+  if (value.trim() !== '') {
+    return { status: 'provisional', value: Number(value) };
+  }
+
+  if (
+    currentValue &&
+    currentValue.status !== 'pending' &&
+    currentValue.value !== undefined
+  ) {
+    return { status: 'provisional', value: currentValue.value };
+  }
+
+  return { status: 'pending' };
+};
 
 const observedChoiceFromText = (value: string): ObservedValue<string> =>
   value === '' ? { status: 'pending' } : { status: 'provisional', value };
@@ -281,6 +252,7 @@ const observedChoiceFromText = (value: string): ObservedValue<string> =>
 const buildObservationPayload = (
   form: ResultFormState,
   ruleset: RulesetSnapshot,
+  result?: MatchResultDocument,
 ): FixtureObservations => {
   const fields = enabledTeamFields(ruleset);
   const observations: {
@@ -302,7 +274,10 @@ const buildObservationPayload = (
     const normalizedTeam: Record<string, ObservedValue<number>> = {};
 
     for (const field of fields) {
-      normalizedTeam[field] = observedNumberFromText(team[field]);
+      normalizedTeam[field] = observedNumberFromText(
+        team[field],
+        result?.observations[side][field],
+      );
     }
 
     (observations as unknown as Record<TeamSide, typeof normalizedTeam>)[side] =
@@ -531,9 +506,9 @@ const ResultAdminEditor = ({
     readonly kind: 'error' | 'success';
     readonly message: string;
   } | null>(null);
-  const [pendingAction, setPendingAction] = useState<'confirm' | 'save' | null>(
-    null,
-  );
+  const [pendingAction, setPendingAction] = useState<
+    'confirm' | 'save' | 'start' | null
+  >(null);
   const isReadOnly =
     state === 'final' ||
     fixture.isCancelled === true ||
@@ -550,6 +525,38 @@ const ResultAdminEditor = ({
       kind: 'success',
       message: 'Latest result loaded. Unsaved values were replaced.',
     });
+  };
+
+  const startResultTracking = async () => {
+    setFeedback(null);
+    setPendingAction('start');
+
+    try {
+      const resultMutation = await callMeteorMethod<MatchResultMutationResult>(
+        MATCH_RESULT_METHODS.startResultTracking,
+        {
+          fixtureId,
+        },
+      );
+
+      setForm(initializedLiveResultForm(ruleset));
+      setEditSession({
+        expectedRevision: resultMutation.revision,
+        fixtureId,
+      });
+      setFeedback({
+        kind: 'success',
+        message: 'Live result tracking started.',
+      });
+    } catch (error) {
+      setFeedback({
+        code: codeFromError(error),
+        kind: 'error',
+        message: messageFromError(error),
+      });
+    } finally {
+      setPendingAction(null);
+    }
   };
 
   const submit = async (
@@ -578,7 +585,7 @@ const ResultAdminEditor = ({
         {
           expectedRevision: editSession.expectedRevision,
           fixtureId,
-          observations: buildObservationPayload(form, ruleset),
+          observations: buildObservationPayload(form, ruleset, result),
         },
       );
 
@@ -639,6 +646,11 @@ const ResultAdminEditor = ({
           fixture={fixture}
           result={result}
           ruleset={ruleset}
+        />
+      ) : state === 'none' ? (
+        <StartResultTrackingPanel
+          pending={pendingAction === 'start'}
+          onStart={() => void startResultTracking()}
         />
       ) : (
         <form
@@ -711,6 +723,32 @@ const ResultAdminEditor = ({
     </ResultShell>
   );
 };
+
+const StartResultTrackingPanel = ({
+  onStart,
+  pending,
+}: {
+  readonly onStart: () => void;
+  readonly pending: boolean;
+}) => (
+  <section className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+    <h2 className="text-lg font-black text-rooster-ink">
+      Result tracking hasn&apos;t started.
+    </h2>
+    <p className="mt-2 text-sm leading-6 text-rooster-muted">
+      Start result tracking when admins are ready to treat the current live
+      counters as official provisional observations.
+    </p>
+    <button
+      className="focus-ring mt-4 inline-flex min-h-11 items-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-60"
+      disabled={pending}
+      type="button"
+      onClick={onStart}
+    >
+      {pending ? 'Starting' : 'Start result tracking'}
+    </button>
+  </section>
+);
 
 const ResultShell = ({
   children,

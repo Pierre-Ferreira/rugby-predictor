@@ -12,8 +12,10 @@ or live match events.
 Admin-facing states:
 
 - `No result`: no result document exists for the fixture.
-- `Provisional`: one result document exists and observations may still be
-  Pending, Provisional, Settled, or custom Void.
+- `Provisional`: one result document exists. For results started through live
+  result tracking, built-in cumulative counters are real current observations
+  and start at zero; other observations may still be Pending, Provisional,
+  Settled, or custom Void.
 - `Final`: final confirmation succeeded. The result is read-only in this
   milestone.
 
@@ -26,12 +28,21 @@ Domain statuses:
 - `void`: custom questions only; the question cannot be reliably settled and
   deducts no points.
 
+CCPP-011D makes the live-result boundary explicit: no result document is not
+the same as a provisional result whose counters are zero. Admins start live
+result tracking intentionally from the result screen; Rugby Rooster does not
+auto-start tracking when a fixture is published, predicted, viewed, or past
+kickoff.
+
 Final confirmation is deliberate and irreversible in CCPP-008B. There is no
 delete, reset, reopen, unconfirm, or correction workflow yet.
 
 ## Pending Versus Zero
 
 Blank admin inputs are stored as Pending. An entered `0` is an observed zero.
+CCPP-011D preserves that rule and adds one explicit initialization case: when
+an admin starts live result tracking, enabled built-in cumulative counters are
+stored as observed provisional zero values for both teams.
 
 This distinction applies to:
 
@@ -55,6 +66,13 @@ For each team, admins capture:
 - enabled red cards.
 
 Values must be safe non-negative integers. Conversions cannot exceed tries.
+
+When live result tracking starts, enabled counters in this built-in set are
+initialized to zero for both teams. First Try, Highest-Scoring Half,
+Half-Time Leader, custom Number, and custom Choice observations remain Pending
+until they are determinable or explicitly settled. At the initialized `0-0`
+score, Match Result is derived as Draw for provisional if-ended-now scoring;
+`No Tries Today!` is not inferred for First Try at kickoff.
 
 The Rugby Rooster penalty-try convention is unchanged: a penalty try counts as
 one try and one conversion. Admins enter normalized totals that already include
@@ -146,3 +164,5 @@ CCPP-008B intentionally does not implement:
 Open product questions remain for balancing fixtures with different optional or
 custom deduction totals, future correction/reopen workflows, public/provisional
 if-ended-now presentation, and persisted scoring/leaderboard settlement.
+Historical provisional result records with blank built-in counters are not
+globally reinterpreted as zero.

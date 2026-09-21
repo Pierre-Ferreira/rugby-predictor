@@ -296,6 +296,18 @@ const saveProvisional = (
     invocation,
   );
 
+const startResultTracking = (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod<MatchResultMutationResult>(
+    MATCH_RESULT_METHODS.startResultTracking,
+    [input],
+    invocation,
+  );
+
 const confirmFinal = (
   invocation: TestInvocation,
   input: {
@@ -396,6 +408,44 @@ describe('player fixture score method', function () {
     assert.equal(projection?.resultRevision, null);
     assert.equal(projection?.resolvedDeduction, 0);
     assert.equal(projection?.components.length, 0);
+  });
+
+  it('separates awaiting_result from initialized zero-result provisional scoring', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer();
+    const fixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+
+    await submitPrediction(player.invocation, {
+      fixtureId,
+      prediction: validCustomPrediction(),
+    });
+
+    const awaiting = await getMyFixtureScore(player.invocation, fixtureId);
+    const started = await startResultTracking(admin.invocation, { fixtureId });
+    const initialized = await getMyFixtureScore(player.invocation, fixtureId);
+
+    assert.equal(awaiting?.status, 'awaiting_result');
+    assert.equal(awaiting?.currentScore, null);
+    assert.equal(initialized?.status, 'provisional');
+    assert.equal(initialized?.resultRevision, started.revision);
+    assert.equal(initialized?.finalScore, null);
+    assert.notEqual(initialized?.currentScore, null);
+    assert.equal(component(initialized!, 'tries').status, 'resolved');
+    assert.equal(component(initialized!, 'conversions').status, 'resolved');
+    assert.equal(component(initialized!, 'penalty-kicks').status, 'resolved');
+    assert.equal(component(initialized!, 'drop-goals').status, 'resolved');
+    assert.equal(component(initialized!, 'yellow-cards').status, 'resolved');
+    assert.equal(component(initialized!, 'red-cards').status, 'resolved');
+    assert.equal(component(initialized!, 'first-try').status, 'pending');
+    assert.equal(
+      component(initialized!, 'highest-scoring-half').status,
+      'pending',
+    );
+    assert.equal(component(initialized!, 'half-time-leader').status, 'pending');
+    assert.equal(component(initialized!, 'scrum-pressure').status, 'pending');
+    assert.equal(component(initialized!, 'player-band').status, 'pending');
   });
 
   it('distinguishes blank pending penalty kicks from observed zero through result normalization', async () => {

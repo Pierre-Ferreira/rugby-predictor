@@ -150,26 +150,29 @@ Current unit test files:
   ruleset projection, and custom snapshot projection.
 - `tests/unit/match-results.test.ts` - CCPP-008B1 raw match-result observation
   envelope validation, malformed incoming statuses, built-in Void rejection,
-  custom Void shape, unknown nested observation fields, and server-owned
-  provisional/final lifecycle normalization.
+  custom Void shape, unknown nested observation fields, server-owned
+  provisional/final lifecycle normalization, and CCPP-011D live-result start
+  initialization for zero built-in counters versus legacy blank Pending values.
 - `tests/unit/player-fixture-score.test.ts` - CCPP-011A player fixture-score
   projection tests for awaiting-result, provisional pending handling, final
   scores, Draw semantics, zero floor, custom Number/Choice with Void,
-  cancelled fixtures, revision metadata, and inconsistent canonical input
-  failure.
+  cancelled fixtures, revision metadata, CCPP-011D initialized-zero provisional
+  scoring, and inconsistent canonical input failure.
 - `tests/unit/player-score-breakdown.test.ts` - CCPP-011C pure score-breakdown
   view-model tests for awaiting/provisional/final/cancelled/no-prediction
   summaries, zero-floor display, built-in label resolution, item-level
   partially pending team rows, card grouping, custom Number and Choice label
   resolution from the fixture ruleset, custom Void, disabled-question omission,
-  prediction-sequence ordering, and the derived `Predicted Score` treatment for
-  the authoritative team-score component.
+  prediction-sequence ordering, CCPP-011D zero actual display for initialized
+  built-in counters, and the derived `Predicted Score` treatment for the
+  authoritative team-score component.
 - `tests/unit/fixture-leaderboard.test.ts` - CCPP-011B pure fixture
   leaderboard tests for descending sort, standard competition ranking
   (`1,2,2,4` and `1,1,3`), zero-score ties, deterministic tie ordering,
   pagination after global ranking, current-user row behavior,
   awaiting-result/cancelled states, provisional/final score use, result
-  correction recalculation, and roughly 1,000 synthetic entries.
+  correction recalculation, CCPP-011D initialized-zero provisional ranking, and
+  roughly 1,000 synthetic entries.
 - `tests/unit/fixture-leaderboard-privacy.test.ts` - CCPP-011B
   fixture-scoped alias and opaque row ID tests, including deterministic
   same-fixture aliases, different aliases across fixtures, no raw user ID, no
@@ -327,6 +330,13 @@ The current browser suite covers:
   rugby score display, custom Number observed values beyond prediction range,
   custom Choice Void, final confirmation read-only summary, and result conflict
   preservation plus explicit latest-result reload.
+- CCPP-011D live result initialization browser coverage in
+  `tests/e2e/live-result-initialization.spec.ts`: one focused admin/player
+  journey through the pre-start admin state, explicit `Start result tracking`,
+  zero-initialized provisional counters, derived rugby score `0-0`, derived
+  current Match Result Draw, `/my-score` zero actuals and deductions, provisional
+  leaderboard participation, and a later save proving initialized counters stay
+  numeric.
 - Fixture leaderboard browser coverage in
   `tests/e2e/fixture-leaderboard.spec.ts`: one signed-in player journey through
   provisional `If it ended now`, shared-place ties, current-user highlight,
@@ -583,21 +593,24 @@ The integration suite includes coverage for:
   submissions, stale revisions, server-owned field injection rejection, and
   locked saved-entry readability.
 - Result admin authorization, published/non-cancelled fixture eligibility,
-  partial provisional saves, Pending versus zero storage, duplicate first-result
+  explicit start result tracking, zero-initialized live counters, partial
+  provisional saves, Pending versus zero storage, duplicate first-result
   creation conflict, stale result revisions, server-owned field injection
   rejection, disabled/unknown observation rejection, custom Void final
-  confirmation, final read-only enforcement, and admin-only result
-  publications.
+  confirmation, final read-only enforcement, legacy blank provisional Pending
+  behavior, and admin-only result publications.
 - Player fixture-score method authorization, no-prediction `null` contract,
   owner-only access, no-result `awaiting_result`, provisional scoring,
   Pending-versus-zero score projection through real result normalization,
-  result-revision recalculation without prediction mutation, final score with
-  custom Void, and cancelled fixture non-score behavior.
+  initialized-zero provisional scoring, result-revision recalculation without
+  prediction mutation, final score with custom Void, and cancelled fixture
+  non-score behavior.
 - Fixture leaderboard method authorization, viewer-without-prediction access,
   awaiting/provisional/final/cancelled contracts, all eligible prediction
   inclusion, pagination bounds, `currentUserRow`, result correction
-  recalculation without prediction mutation or leaderboard persistence, score
-  consistency with `getMyFixtureScore`, and response privacy.
+  recalculation without prediction mutation or leaderboard persistence,
+  initialized-zero provisional ranking, score consistency with
+  `getMyFixtureScore`, and response privacy.
 - Player profile methods for unauthenticated/unverified denial, owner-only
   reads/updates, display-name upsert, `userId` and extra-field injection
   rejection, public projection privacy, batch public identity resolution, and
@@ -612,6 +625,26 @@ Future Meteor/database integration tests must cover:
 - Match-event corrections and recalculated results.
 
 Database-backed tests will require isolated test data, explicit test configuration, and cleanup limited to test-owned data. They must never connect to production services.
+
+## CCPP-011D Verification History
+
+Implementation verification recorded on September 21, 2026:
+
+- `meteor npm run typecheck` passed after the core, server, and admin UI
+  implementation.
+- The focused unit slice passed with 40 tests.
+- The Meteor full-app integration launcher passed 101 server tests.
+- The first focused browser journey failed at the `Start result tracking`
+  button. Inspection showed the secondary admin browser page had not become the
+  active interaction context; this was a Playwright context issue, not a product
+  defect.
+- The focused browser spec was corrected to foreground the admin page before
+  interaction. Product code was unchanged for that correction.
+- The corrected focused browser journey passed and produced final screenshots
+  under `test-results/ccpp011d-live-result-initialization/`.
+
+Closeout retains that browser and integration evidence because only
+documentation/static packaging changes followed the successful run.
 
 ## CI
 

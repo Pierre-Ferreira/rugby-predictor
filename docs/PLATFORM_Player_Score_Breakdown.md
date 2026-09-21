@@ -124,6 +124,13 @@ starting points as an earned current score.
 `provisional` shows `If it ended now`, the authoritative current score,
 starting points, resolved deductions, and pending count.
 
+After CCPP-011D live result tracking starts, `/my-score` receives the same
+011A projection with enabled built-in live counters resolved to actual `0`.
+Tries, Conversions, Penalty Kicks, Drop Goals, Yellow Cards, and Red Cards show
+zero actuals and their authoritative deductions instead of Pending. First Try,
+Highest-Scoring Half, Half-Time Leader, Custom Number, and Custom Choice still
+show Pending until settled.
+
 `final` shows `Final Score`, final/current score, and total deductions without
 pending indicators except engine-supported Void rows.
 

@@ -14,8 +14,8 @@
   settlement/Void semantics, and unresolved balancing policy.
 - `docs/CORE_Match_Results.md` - CCPP-008B admin match-result lifecycle,
   Pending versus zero, built-in and custom settlement semantics, custom Void,
-  final immutability, unresolved card/extra-time conventions, and out-of-scope
-  scoring/leaderboard work.
+  CCPP-011D live-result start boundary, final immutability, unresolved
+  card/extra-time conventions, and out-of-scope scoring/leaderboard work.
 - `docs/PLATFORM_Architecture.md` - architecture, boundaries, dependencies, and security posture.
 - `docs/PLATFORM_Authentication.md` - passwordless account, email-link, settings, mail capture, and authorisation architecture.
 - `docs/PLATFORM_Email.md` - email delivery configuration, Postmark adapter choice, local development settings, and manual verification steps.
@@ -47,7 +47,8 @@
   limitations, and CCPP-010A superseded-route status.
 - `docs/PLATFORM_Match_Results.md` - match result schema, unique fixture
   relationship, observation normalization, methods/publications, authorization,
-  revision handling, final confirmation, and custom Void scoring preparation.
+  revision handling, explicit result-tracking start, live-counter
+  initialization, final confirmation, and custom Void scoring preparation.
 - `docs/PLATFORM_Player_Fixture_Scoring.md` - CCPP-011A derived player
   fixture-score projection, canonical input sources, lifecycle statuses,
   Pending versus zero, custom Void, revision behavior, owner-only method, and
@@ -184,6 +185,9 @@
 - `docs/AUDIT_011C_Player_Score_Breakdown.md` - CCPP-011C owner-only score
   breakdown, route, projection reuse, retained browser evidence, verification,
   and EOMD archive evidence.
+- `docs/AUDIT_011D_Live_Result_Initialization.md` - CCPP-011D explicit
+  result-tracking start, zero-initialized live counters, 011A/011B/011C
+  effects, retained browser evidence, final checks, and EOMD archive evidence.
 - `docs/AUDIT_012A_Player_Display_Identity.md` - CCPP-012A public display-name
   persistence, Account editor, leaderboard identity integration, privacy
   boundary, tests, browser evidence, and EOMD archive evidence.
@@ -284,6 +288,9 @@
 - `docs/TEMP_011C_Resume.md` - temporary CCPP-011C checkpoint for player score
   breakdown implementation, retained browser evidence, final verification, and
   packaging handoff.
+- `docs/TEMP_011D_Resume.md` - temporary CCPP-011D checkpoint for live-result
+  initialization, retained browser evidence, static closeout, and packaging
+  handoff.
 - `docs/TEMP_012A_Resume.md` - temporary CCPP-012A checkpoint for public
   player identity implementation, verification, browser evidence, and
   packaging handoff.
@@ -404,16 +411,17 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 ## Match Result Entry Points
 
 - `imports/shared/matchResults/` - result method/publication names, persistence
-  types, lifecycle labels, revision constants, observation normalization, and
-  final completeness validation.
+  types, lifecycle labels, revision constants, live-counter initialization,
+  observation normalization, and final completeness validation.
 - `imports/api/matchResults/collection.ts` - shared `match_results` Mongo collection.
-- `imports/server/matchResults/server.ts` - result save/confirm methods,
-  fixture eligibility checks, admin-only publications, denied client writes, and
-  indexes.
+- `imports/server/matchResults/server.ts` - result start/save/confirm methods,
+  fixture eligibility checks, admin-only publications, denied client writes,
+  and indexes.
 - `imports/server/matchResults/testSupport.ts` - isolated result test reset helper.
-- `imports/ui/pages/AdminFixtureResultsPage.tsx` - admin result entry, derived
-  rugby score display, custom settlement/Void UI, final confirmation, read-only
-  final summary, and result conflict reload.
+- `imports/ui/pages/AdminFixtureResultsPage.tsx` - admin result entry, explicit
+  result-tracking start panel, derived rugby score display, custom
+  settlement/Void UI, final confirmation, read-only final summary, and result
+  conflict reload.
 
 ## Player Fixture Score Entry Points
 
@@ -594,7 +602,14 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   colour-token availability, and status badge rendering.
 - `tests/unit/player-score-breakdown.test.ts` - pure CCPP-011C score-breakdown
   view-model tests for lifecycle summaries, item-level Pending, custom
-  Number/Choice/Void, zero floor, section ordering, and team-score presentation.
+  Number/Choice/Void, zero floor, section ordering, team-score presentation,
+  and CCPP-011D initialized-zero Actual rows.
+- `tests/unit/match-results.test.ts` - match-result normalization tests,
+  including CCPP-011D live-result initialization, zero/Pending preservation,
+  and legacy blank provisional behavior.
+- `tests/unit/player-fixture-score.test.ts` - CCPP-011A player fixture-score
+  projection tests, including CCPP-011D no-result versus initialized-zero
+  scoring regressions.
 - `imports/server/app-tests.ts` - Meteor full-app test entry importing auth,
   fixture, fixture leaderboard, match result, player fixture-score, player
   profile, and prediction integration suites.
@@ -603,15 +618,22 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
 - `imports/server/matchResults/matchResults.app-test.ts` - Meteor full-app
   result integration tests for authorization, fixture eligibility, provisional
-  saves, Pending versus zero, duplicate first creation, stale revisions, field
-  injection, final confirmation, custom Void, read-only final results, and
-  admin-only publications.
+  saves, explicit start result tracking, Pending versus zero, duplicate first
+  creation, stale revisions, field injection, final confirmation, custom Void,
+  read-only final results, legacy blank provisional behavior, and admin-only
+  publications.
 - `imports/server/fixtureLeaderboards/fixtureLeaderboards.app-test.ts` -
   Meteor full-app fixture leaderboard integration tests for authorization,
   awaiting/provisional/final/cancelled states, pagination bounds,
   `currentUserRow`, result corrections, score consistency with
   `getMyFixtureScore`, CCPP-012A public display-name/fallback behavior,
-  duplicate names, name changes, and response privacy.
+  duplicate names, name changes, CCPP-011D initialized-zero ranking, and
+  response privacy.
+- `imports/server/playerFixtureScores/playerFixtureScores.app-test.ts` -
+  Meteor full-app player fixture-score integration tests for owner-only access,
+  no-result awaiting behavior, provisional/final/cancelled states,
+  result-revision recalculation, custom Void, and CCPP-011D initialized-zero
+  scoring.
 - `imports/server/playerProfiles/playerProfiles.app-test.ts` - Meteor full-app
   player profile integration tests for auth denial, owner-only methods,
   validation/injection rejection, public projection privacy, batch resolver, and
@@ -650,6 +672,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only
   summary, stale conflict preservation, and explicit latest-result reload.
+- `tests/e2e/live-result-initialization.spec.ts` - focused CCPP-011D browser
+  journey for admin pre-start, explicit start, zero-initialized provisional
+  counters, `/my-score` zero actuals/deductions, provisional leaderboard, and
+  retained final screenshots.
 - `tests/e2e/fixture-leaderboard.spec.ts` - focused browser test for the
   player-facing fixture leaderboard provisional, correction, final, current-user
   highlight, shared-place, and 390px/360px responsive states.

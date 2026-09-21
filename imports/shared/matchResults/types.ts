@@ -40,3 +40,7 @@ export interface MatchResultMutationInput {
   readonly fixtureId: unknown;
   readonly observations: unknown;
 }
+
+export interface StartResultTrackingInput {
+  readonly fixtureId: unknown;
+}

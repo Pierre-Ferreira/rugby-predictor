@@ -444,6 +444,181 @@ describe('player score breakdown view model', () => {
     });
   });
 
+  it('shows initialized live-counter zero actuals while unresolved questions remain pending', () => {
+    const ruleset = customRuleset();
+    const model = buildPlayerScoreBreakdownViewModel({
+      fixture: fixture(ruleset),
+      scoreProjection: projection(
+        {
+          components: [
+            teamNumericComponent(
+              'tries',
+              'Tries',
+              numericItem({
+                deduction: 200,
+                observed: 0,
+                prediction: 4,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 150,
+                observed: 0,
+                prediction: 3,
+                team: 'team2',
+              }),
+            ),
+            teamNumericComponent(
+              'conversions',
+              'Conversions',
+              numericItem({
+                deduction: 150,
+                observed: 0,
+                prediction: 3,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 150,
+                observed: 0,
+                prediction: 3,
+                team: 'team2',
+              }),
+            ),
+            teamNumericComponent(
+              'penalty-kicks',
+              'Penalty kicks',
+              numericItem({
+                deduction: 100,
+                observed: 0,
+                prediction: 1,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team2',
+              }),
+            ),
+            teamNumericComponent(
+              'drop-goals',
+              'Drop goals',
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team2',
+              }),
+            ),
+            teamNumericComponent(
+              'yellow-cards',
+              'Yellow cards',
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team2',
+              }),
+            ),
+            teamNumericComponent(
+              'red-cards',
+              'Red cards',
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team1',
+              }),
+              numericItem({
+                deduction: 0,
+                observed: 0,
+                prediction: 0,
+                team: 'team2',
+              }),
+            ),
+            component({
+              deduction: null,
+              items: [
+                categoricalItem({
+                  deduction: null,
+                  observed: null,
+                  prediction: 'team1',
+                  status: 'pending',
+                }),
+              ],
+              label: 'First try',
+              questionId: 'first-try',
+              status: 'pending',
+              type: 'built-in-categorical',
+            }),
+            component({
+              deduction: null,
+              items: [
+                numericItem({
+                  deduction: null,
+                  observed: null,
+                  prediction: 4,
+                  status: 'pending',
+                }),
+              ],
+              label: 'How many scrum penalties will the All Blacks concede?',
+              questionId: 'scrum-pressure',
+              status: 'pending',
+              type: 'custom-numeric',
+            }),
+          ],
+          pendingCount: 2,
+        },
+        ruleset,
+      ),
+    });
+
+    expect(section(model, 'tries').rows).toEqual([
+      expect.objectContaining({
+        actualLabel: '0',
+        itemLabel: 'Springboks',
+        predictionLabel: '4',
+        status: 'resolved',
+      }),
+      expect.objectContaining({
+        actualLabel: '0',
+        itemLabel: 'All Blacks',
+        predictionLabel: '3',
+        status: 'resolved',
+      }),
+    ]);
+    expect(section(model, 'conversions').rows[0].actualLabel).toBe('0');
+    expect(section(model, 'penalty-kicks').rows[0].actualLabel).toBe('0');
+    expect(section(model, 'drop-goals').rows[1].actualLabel).toBe('0');
+    expect(section(model, 'cards').rows.map((row) => row.actualLabel)).toEqual([
+      '0',
+      '0',
+      '0',
+      '0',
+    ]);
+    expect(section(model, 'first-try').rows[0]).toMatchObject({
+      actualLabel: 'Pending',
+      deductionLabel: 'Pending',
+      status: 'pending',
+    });
+    expect(section(model, 'scrum-pressure').rows[0]).toMatchObject({
+      actualLabel: 'Pending',
+      deductionLabel: 'Pending',
+      status: 'pending',
+    });
+  });
+
   it('groups cards by team while keeping yellow and red rows separate', () => {
     const model = buildPlayerScoreBreakdownViewModel({
       fixture: fixture(),

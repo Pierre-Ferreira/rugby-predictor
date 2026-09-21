@@ -7,6 +7,7 @@ import {
   type PlayerFixtureScoreProjection,
   type PlayerFixtureScoreResultInput,
 } from '../../imports/shared/playerFixtureScores';
+import { buildInitializedLiveResultObservations } from '../../imports/shared/matchResults';
 import {
   buildConfiguredRulesetSnapshot,
   defaultFixturePredictionQuestionConfig,
@@ -225,6 +226,104 @@ describe('player fixture score projection', () => {
       deduction: null,
       status: 'pending',
     });
+  });
+
+  it('distinguishes no result from initialized live zero observations', () => {
+    const awaiting = calculatePlayerFixtureScoreProjection({
+      fixture: fixture(),
+      prediction: predictionEntry(),
+      result: null,
+    });
+    const initialized = calculatePlayerFixtureScoreProjection({
+      fixture: fixture(),
+      prediction: predictionEntry(),
+      result: resultEntry(
+        buildInitializedLiveResultObservations(defaultRuleset),
+      ),
+    });
+
+    expect(awaiting.status).toBe('awaiting_result');
+    expect(awaiting.currentScore).toBeNull();
+    expect(initialized.status).toBe('provisional');
+    expect(initialized.currentScore).not.toBeNull();
+    expect(initialized.finalScore).toBeNull();
+    expect(component(initialized, 'tries')).toMatchObject({
+      status: 'resolved',
+    });
+    expect(component(initialized, 'conversions')).toMatchObject({
+      status: 'resolved',
+    });
+    expect(component(initialized, 'yellow-cards')).toMatchObject({
+      status: 'resolved',
+    });
+    expect(component(initialized, 'first-try')).toMatchObject({
+      deduction: null,
+      status: 'pending',
+    });
+    expect(component(initialized, 'highest-scoring-half')).toMatchObject({
+      deduction: null,
+      status: 'pending',
+    });
+    expect(component(initialized, 'half-time-leader')).toMatchObject({
+      deduction: null,
+      status: 'pending',
+    });
+  });
+
+  it('scores initialized zero actuals immediately and derives Match Result as Draw until score observations change', () => {
+    const initialized = calculatePlayerFixtureScoreProjection({
+      fixture: fixture(),
+      prediction: predictionEntry(),
+      result: resultEntry(
+        buildInitializedLiveResultObservations(defaultRuleset),
+      ),
+    });
+    const matchResultAtZero = component(initialized, 'match-result');
+
+    expect(matchResultAtZero.deduction).toBe(5_000);
+    expect(matchResultAtZero.items[0]).toMatchObject({
+      observed: 'draw',
+      prediction: 'team1',
+      status: 'provisional',
+    });
+    expect(component(initialized, 'tries').items).toEqual([
+      expect.objectContaining({
+        deduction: 100,
+        observed: 0,
+        prediction: 2,
+        status: 'provisional',
+      }),
+      expect.objectContaining({
+        deduction: 50,
+        observed: 0,
+        prediction: 1,
+        status: 'provisional',
+      }),
+    ]);
+
+    const team1LeadingObservations =
+      buildInitializedLiveResultObservations(defaultRuleset);
+    const corrected = calculatePlayerFixtureScoreProjection({
+      fixture: fixture(),
+      prediction: predictionEntry(),
+      result: resultEntry({
+        ...team1LeadingObservations,
+        team1: {
+          ...team1LeadingObservations.team1,
+          conversions: observed(1, 'provisional'),
+          tries: observed(1, 'provisional'),
+        },
+      }),
+    });
+    const correctedMatchResult = component(corrected, 'match-result');
+
+    expect(correctedMatchResult.deduction).toBe(0);
+    expect(correctedMatchResult.items[0]).toMatchObject({
+      observed: 'team1',
+      prediction: 'team1',
+      status: 'provisional',
+    });
+    expect(corrected.currentScore).toBeGreaterThan(initialized.currentScore!);
   });
 
   it('projects final score, zero pending components, and stable finalScore', () => {

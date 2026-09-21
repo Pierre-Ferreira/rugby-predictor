@@ -14,9 +14,12 @@ import {
   MatchResultValidationError,
   assertExpectedFirstResultRevision,
   assertExistingResultRevision,
+  buildInitializedLiveResultObservations,
   normalizeResultObservations,
+  preserveResolvedLiveCounterObservations,
   rulesetIdentity,
   sanitizeResultMutationInput,
+  sanitizeStartResultTrackingInput,
   sanitizeResultSummaryFixtureIds,
   type MatchResultDocument,
   type MatchResultMutationResult,
@@ -343,7 +346,7 @@ const registerResultMethods = () => {
         const adminId = await requireAdminId(this);
         const input = sanitizeResultMutationInput(rawInput);
         const { ruleset } = await loadEligibleFixture(input.fixtureId);
-        const observations = normalizeResultObservations(
+        let observations = normalizeResultObservations(
           input.observations,
           ruleset,
           'provisional',
@@ -360,6 +363,26 @@ const registerResultMethods = () => {
           });
         }
 
+        const current = await MatchResults.findOneAsync(
+          {
+            fixtureId: input.fixtureId,
+            revision: input.expectedRevision,
+          },
+          {
+            fields: {
+              observations: 1,
+            },
+          },
+        );
+
+        if (current?.observations.matchStatus === 'provisional') {
+          observations = preserveResolvedLiveCounterObservations({
+            current: current.observations,
+            incoming: observations,
+            ruleset,
+          });
+        }
+
         return await updateResultEntry({
           adminId,
           expectedRevision: input.expectedRevision,
@@ -371,6 +394,26 @@ const registerResultMethods = () => {
         throw asMeteorResultError(error);
       }
     },
+
+    [MATCH_RESULT_METHODS.startResultTracking]:
+      async function startResultTracking(
+        rawInput: unknown,
+      ): Promise<MatchResultMutationResult> {
+        try {
+          const adminId = await requireAdminId(this);
+          const input = sanitizeStartResultTrackingInput(rawInput);
+          const { ruleset } = await loadEligibleFixture(input.fixtureId);
+
+          return await createResultEntry({
+            adminId,
+            fixtureId: input.fixtureId,
+            observations: buildInitializedLiveResultObservations(ruleset),
+            ruleset,
+          });
+        } catch (error) {
+          throw asMeteorResultError(error);
+        }
+      },
 
     [MATCH_RESULT_METHODS.confirmFinal]: async function confirmFinal(
       rawInput: unknown,

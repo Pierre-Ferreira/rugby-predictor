@@ -302,6 +302,18 @@ const saveProvisional = (
     invocation,
   );
 
+const startResultTracking = (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod<MatchResultMutationResult>(
+    MATCH_RESULT_METHODS.startResultTracking,
+    [input],
+    invocation,
+  );
+
 const confirmFinal = (
   invocation: TestInvocation,
   input: {
@@ -352,6 +364,190 @@ describe('match result administration', function () {
     assert.equal(saved?.observations.team2.tries?.status, 'pending');
     assert.equal('value' in (saved?.observations.team2.tries ?? {}), false);
     assert.equal(saved?.observations.team1.conversions?.value, 0);
+  });
+
+  it('starts provisional live result tracking with zero counters and pending settlements', async () => {
+    const admin = await createVerifiedAdmin();
+    const fixtureId = await insertFixtureDocument({
+      rulesetSnapshot: customRulesetSnapshot(),
+    });
+
+    const result = await startResultTracking(admin.invocation, { fixtureId });
+    const saved = await MatchResults.findOneAsync({ fixtureId });
+    const context = await fetchPublication<MatchResultDocument>(
+      MATCH_RESULT_PUBLICATIONS.adminFixtureContext,
+      [fixtureId],
+      admin.userId,
+    );
+    const publishedResult = context.find(
+      (document) =>
+        (document as unknown as MatchResultDocument).fixtureId === fixtureId &&
+        'observations' in (document as unknown as Record<string, unknown>),
+    ) as MatchResultDocument | undefined;
+
+    assert.equal(result.status, 'created');
+    assert.equal(result.revision, 1);
+    assert.equal(saved?.observations.matchStatus, 'provisional');
+    assert.equal(saved?.observations.team1.tries?.value, 0);
+    assert.equal(saved?.observations.team1.conversions?.value, 0);
+    assert.equal(saved?.observations.team1.penaltyKicks?.value, 0);
+    assert.equal(saved?.observations.team1.dropGoals?.value, 0);
+    assert.equal(saved?.observations.team1.yellowCards?.value, 0);
+    assert.equal(saved?.observations.team1.redCards?.value, 0);
+    assert.equal(saved?.observations.team2.tries?.value, 0);
+    assert.equal(saved?.observations.team2.conversions?.value, 0);
+    assert.equal(saved?.observations.team2.penaltyKicks?.value, 0);
+    assert.equal(saved?.observations.team2.dropGoals?.value, 0);
+    assert.equal(saved?.observations.team2.yellowCards?.value, 0);
+    assert.equal(saved?.observations.team2.redCards?.value, 0);
+    assert.equal(saved?.observations.firstTry?.status, 'pending');
+    assert.equal(saved?.observations.highestScoringHalf?.status, 'pending');
+    assert.equal(saved?.observations.halfTimeLeader?.status, 'pending');
+    assert.equal(
+      saved?.observations.customAnswers?.['scrum-pressure']?.status,
+      'pending',
+    );
+    assert.equal(
+      saved?.observations.customAnswers?.['player-band']?.status,
+      'pending',
+    );
+    assert.equal(publishedResult?.observations.team1.tries?.value, 0);
+    assert.equal(publishedResult?.observations.team2.redCards?.value, 0);
+  });
+
+  it('denies unauthorized or ineligible live result tracking starts', async () => {
+    const admin = await createVerifiedAdmin();
+    const ordinaryPlayer = await createVerifiedPlayerInvocation();
+    const publishedFixtureId = await insertFixtureDocument();
+    const draftFixtureId = await insertFixtureDocument({
+      publishedAt: undefined,
+      publishedByAdminId: undefined,
+      rulesetSnapshot: undefined,
+      visibility: 'draft',
+    });
+    const cancelledFixtureId = await insertFixtureDocument({
+      cancelledAt: new Date('2026-01-02T00:00:00.000Z'),
+      cancelledByAdminId: 'match-result-test-admin',
+      isCancelled: true,
+    });
+
+    await assert.rejects(
+      () =>
+        startResultTracking(makeInvocation('anonymous'), {
+          fixtureId: publishedFixtureId,
+        }),
+      /not-authenticated|admin area|access|not-authorized/i,
+    );
+    await assert.rejects(
+      () =>
+        startResultTracking(ordinaryPlayer, {
+          fixtureId: publishedFixtureId,
+        }),
+      /admin area|access|not-authorized/i,
+    );
+    await assert.rejects(
+      () =>
+        startResultTracking(admin.invocation, { fixtureId: draftFixtureId }),
+      /fixture-not-published/i,
+    );
+    await assert.rejects(
+      () =>
+        startResultTracking(admin.invocation, {
+          fixtureId: cancelledFixtureId,
+        }),
+      /fixture-cancelled/i,
+    );
+  });
+
+  it('does not overwrite initialized or existing provisional values on repeat start', async () => {
+    const admin = await createVerifiedAdmin();
+    const initializedFixtureId = await insertFixtureDocument();
+    const existingFixtureId = await insertFixtureDocument();
+
+    await startResultTracking(admin.invocation, {
+      fixtureId: initializedFixtureId,
+    });
+
+    await assert.rejects(
+      () =>
+        startResultTracking(admin.invocation, {
+          fixtureId: initializedFixtureId,
+        }),
+      /result-conflict/i,
+    );
+
+    const created = await saveProvisional(admin.invocation, {
+      expectedRevision: 0,
+      fixtureId: existingFixtureId,
+      observations: completeObservations({
+        team1: {
+          ...completeObservations().team1,
+          conversions: { status: 'provisional', value: 2 },
+          tries: { status: 'provisional', value: 4 },
+        },
+      }),
+    });
+
+    await assert.rejects(
+      () =>
+        startResultTracking(admin.invocation, {
+          fixtureId: existingFixtureId,
+        }),
+      /result-conflict/i,
+    );
+
+    const initialized = await MatchResults.findOneAsync({
+      fixtureId: initializedFixtureId,
+    });
+    const existing = await MatchResults.findOneAsync({
+      fixtureId: existingFixtureId,
+    });
+
+    assert.equal(initialized?.revision, 1);
+    assert.equal(initialized?.observations.team1.tries?.value, 0);
+    assert.equal(existing?.revision, created.revision);
+    assert.equal(existing?.observations.team1.tries?.value, 4);
+    assert.equal(existing?.observations.team1.conversions?.value, 2);
+  });
+
+  it('preserves initialized live counters when a later provisional save submits blanks', async () => {
+    const admin = await createVerifiedAdmin();
+    const fixtureId = await insertFixtureDocument();
+    const started = await startResultTracking(admin.invocation, { fixtureId });
+
+    const updated = await saveProvisional(admin.invocation, {
+      expectedRevision: started.revision,
+      fixtureId,
+      observations: {
+        firstTry: { status: 'pending' },
+        halfTimeLeader: { status: 'pending' },
+        highestScoringHalf: { status: 'pending' },
+        team1: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+        team2: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
+          tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
+        },
+      },
+    });
+    const saved = await MatchResults.findOneAsync({ fixtureId });
+
+    assert.equal(updated.revision, 2);
+    assert.equal(saved?.observations.team1.tries?.value, 0);
+    assert.equal(saved?.observations.team1.tries?.status, 'provisional');
+    assert.equal(saved?.observations.team2.redCards?.value, 0);
+    assert.equal(saved?.observations.team2.redCards?.status, 'provisional');
+    assert.equal(saved?.observations.firstTry?.status, 'pending');
   });
 
   it('prevents duplicate first result creation and rejects stale revisions', async () => {

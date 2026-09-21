@@ -76,6 +76,13 @@ score is assigned.
 011A `currentScore`, preserve `pendingCount`, and the player-facing heading is
 `If it ended now`.
 
+After CCPP-011D live result tracking starts, the zero-initialized provisional
+result immediately makes the leaderboard meaningful: enabled built-in
+numeric/card observations resolve to `0`, derived Match Result is Draw at
+`0-0`, and rows rank against those current deductions. Pending counts then
+represent only genuinely unresolved First Try, Highest-Scoring Half,
+Half-Time Leader, Custom Number, and Custom Choice components.
+
 `final` means the result is confirmed. Rows use the final/current 011A score,
 `pendingCount` is zero, and the UI labels the state `Final leaderboard`.
 
@@ -206,6 +213,9 @@ persistent score caches, background jobs, or leaderboard animations.
 CCPP-011C adds the separate current-player score-breakdown route. It does not
 change CCPP-011B leaderboard ranking, pagination, privacy labels, or projection
 shape.
+
+CCPP-011D changes only canonical result initialization. It does not add
+leaderboard persistence, jobs, queues, caches, or score mutation.
 
 CCPP-012A adds public display names and keeps the leaderboard algorithm,
 pagination, lifecycle, result correction behavior, and projection field shape
