@@ -11,7 +11,13 @@ import {
   AccessDeniedState,
   SignInRequiredState,
 } from '../components/AuthStates';
-import { LoadingState } from '../components/Status';
+import {
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge,
+} from '../components/player';
 
 const errorMessage = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -106,66 +112,61 @@ export const AccountPage = () => {
   };
 
   if (auth.isLoading) {
-    return <LoadingState label="Checking your Rugby Rooster session" />;
+    return (
+      <PlayerPage>
+        <PlayerLoadingState label="Checking your Rugby Rooster session" />
+      </PlayerPage>
+    );
   }
 
   if (!auth.isAuthenticated) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+      <PlayerPage>
         <SignInRequiredState
           currentPath="/account"
           message="Your account page is available after you open a Rugby Rooster email sign-in link."
           title="Sign in to view your account"
         />
-      </main>
+      </PlayerPage>
     );
   }
 
   if (!auth.isVerified) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+      <PlayerPage>
         <AccessDeniedState
           message="Open the latest Rugby Rooster sign-in email to verify the address attached to this account."
           title="Email verification is required"
         />
-      </main>
+      </PlayerPage>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <section className="rounded-lg border border-rooster-line bg-white p-6 sm:p-8">
-        <p className="text-sm font-black uppercase text-rooster-red">
-          Player account
-        </p>
-        <h1 className="mt-3 text-3xl font-black text-rooster-ink">
-          Your Rugby Rooster account
-        </h1>
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-md border border-rooster-line p-4">
-            <dt className="text-sm font-black text-rooster-muted">Email</dt>
-            <dd className="mt-2 break-words text-base font-bold text-rooster-ink">
-              {auth.primaryEmail?.address}
-            </dd>
-          </div>
-          <div className="rounded-md border border-rooster-line p-4">
-            <dt className="text-sm font-black text-rooster-muted">Status</dt>
-            <dd className="mt-2 text-base font-bold text-rooster-ink">
-              Verified player
-            </dd>
-          </div>
-        </dl>
+    <PlayerPage>
+      <PlayerPageHeader
+        eyebrow="Player account"
+        personality={
+          <RugbyRoosterPersonality
+            message="Name on the board. Email in the shed."
+            mood="neutral"
+            size="sm"
+          />
+        }
+        subtitle="Manage the public name other players may see and keep private account details separate."
+        title="Your Rugby Rooster account"
+      />
+
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <form
           aria-label="Public player name section"
-          className="mt-6 rounded-md border border-rooster-line p-4"
+          className="rr-surface rr-surface--raised"
           onSubmit={(event) => void savePublicPlayerName(event)}
         >
-          <label
-            className="text-sm font-black uppercase text-rooster-red"
-            htmlFor="public-player-name"
-          >
+          <label className="rr-section-eyebrow" htmlFor="public-player-name">
             Public player name
           </label>
+          <h2 className="rr-section-title mt-2">Leaderboard identity</h2>
           <input
             className="focus-ring mt-3 min-h-11 w-full rounded-md border border-rooster-line bg-white px-3 text-base font-bold text-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-paper"
             disabled={isProfileLoading || isSavingProfile}
@@ -182,7 +183,7 @@ export const AccountPage = () => {
           />
           <p className="mt-2 text-sm leading-6 text-rooster-muted">
             This name may be shown to other Rugby Rooster players on
-            leaderboards and other competitive views.
+            leaderboards and other competitive views. Your email stays private.
           </p>
           {activeProfileError ? (
             <p
@@ -201,17 +202,33 @@ export const AccountPage = () => {
             </p>
           ) : null}
           <button
-            className="focus-ring mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
+            className="focus-ring rr-button rr-button-primary mt-4 w-full sm:w-auto"
             disabled={isProfileLoading || isSavingProfile}
             type="submit"
           >
             {isSavingProfile ? 'Saving' : 'Save'}
           </button>
         </form>
-        <div className="mt-6">
-          <SignOutButton />
-        </div>
-      </section>
-    </main>
+
+        <section className="rr-surface">
+          <p className="rr-section-eyebrow">Private account</p>
+          <dl className="mt-4 grid gap-4">
+            <div className="rr-mini-stat">
+              <dt>Email</dt>
+              <dd>{auth.primaryEmail?.address}</dd>
+            </div>
+            <div className="rr-mini-stat">
+              <dt>Status</dt>
+              <dd className="flex flex-wrap items-center gap-2">
+                <StatusBadge label="Verified player" tone="success" />
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-5">
+            <SignOutButton className="focus-ring rr-button rr-button-secondary" />
+          </div>
+        </section>
+      </div>
+    </PlayerPage>
   );
 };

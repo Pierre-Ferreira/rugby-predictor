@@ -11,10 +11,19 @@ import {
 } from '/imports/shared/fixtures';
 import { AppLink } from '../components/AppLink';
 import {
+  PlayerEmptyState,
+  PlayerErrorState,
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge,
+} from '../components/player';
+import {
   fixtureDetailPath,
+  fixturePlayerStatusLabel,
+  fixturePlayerStatusTone,
   fixturePredictionPath,
-  fixtureStatusClassName,
-  fixtureStatusLabel,
   kickoffLabel,
 } from '../fixtures/fixtureUi';
 
@@ -183,21 +192,14 @@ export const GamesPage = () => {
     });
   };
 
+  const nowMs = new Date(boundary).getTime();
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <section className="border-b border-rooster-line pb-6">
-        <p className="text-sm font-black uppercase text-rooster-red">Games</p>
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-black text-rooster-ink">
-              {modeLabel(mode)}
-            </h1>
-            <p className="mt-3 max-w-2xl text-base leading-7 text-rooster-muted">
-              {modeDescription(mode)}
-            </p>
-          </div>
+    <PlayerPage>
+      <PlayerPageHeader
+        actions={
           <div
-            className="inline-flex w-full rounded-md border border-rooster-line bg-white p-1 sm:w-auto"
+            className="inline-flex w-full rounded-md border border-rr-border bg-rr-surface p-1 sm:w-auto"
             role="group"
             aria-label="Fixture list view"
           >
@@ -206,8 +208,8 @@ export const GamesPage = () => {
                 className={[
                   'focus-ring min-h-10 flex-1 rounded px-3 text-sm font-black transition sm:flex-none',
                   mode === candidate
-                    ? 'bg-rooster-ink text-white'
-                    : 'text-rooster-muted hover:bg-rooster-paper hover:text-rooster-ink',
+                    ? 'bg-rr-brand text-white'
+                    : 'text-rr-muted hover:bg-rr-brand/10 hover:text-rr-text',
                 ].join(' ')}
                 key={candidate}
                 type="button"
@@ -220,45 +222,45 @@ export const GamesPage = () => {
               </button>
             ))}
           </div>
-        </div>
-      </section>
+        }
+        eyebrow="Games"
+        personality={
+          <RugbyRoosterPersonality
+            message={
+              mode === 'upcoming'
+                ? 'Match day radar on.'
+                : 'Old calls, new bragging rights.'
+            }
+            mood={mode === 'upcoming' ? 'confident' : 'waiting'}
+            size="md"
+          />
+        }
+        subtitle={modeDescription(mode)}
+        title={modeLabel(mode)}
+      />
 
       {!isConnected && !isReady ? (
-        <section
-          className="mt-6 rounded-md border border-rooster-red/30 bg-white p-6"
-          role="status"
-        >
-          <h2 className="text-xl font-black text-rooster-ink">
-            Fixture browsing is unavailable right now
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Reconnect to Rugby Rooster to load the latest published fixtures.
-          </p>
-        </section>
+        <PlayerErrorState
+          body="Reconnect to Rugby Rooster to load the latest published fixtures."
+          title="Fixture browsing is unavailable right now"
+        />
       ) : !isReady ? (
-        <section
-          className="mt-6 rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading fixtures
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading fixtures" />
       ) : visibleFixtures.length === 0 ? (
-        <section className="mt-6 rounded-md border border-dashed border-rooster-line bg-white p-6">
-          <h2 className="text-xl font-black text-rooster-ink">
-            No {mode === 'upcoming' ? 'upcoming' : 'past'} fixtures are
-            available
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Check back when a platform admin publishes fixtures.
-          </p>
-        </section>
+        <PlayerEmptyState
+          body="Check back when a platform admin publishes fixtures."
+          mood="thinking"
+          title={`No ${mode === 'upcoming' ? 'upcoming' : 'past'} fixtures are available`}
+        />
       ) : (
-        <section className="mt-6">
+        <section>
           <ul className="grid gap-4">
             {visibleFixtures.map((fixture) => (
-              <FixtureListItem fixture={fixture} key={fixture._id} />
+              <FixtureListItem
+                fixture={fixture}
+                key={fixture._id}
+                nowMs={nowMs}
+              />
             ))}
           </ul>
 
@@ -266,7 +268,7 @@ export const GamesPage = () => {
             <div className="mt-5 flex flex-wrap gap-2">
               {hasPreviousPage ? (
                 <button
-                  className="focus-ring min-h-11 rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                  className="focus-ring rr-button rr-button-secondary"
                   type="button"
                   onClick={goToPreviousPage}
                 >
@@ -275,7 +277,7 @@ export const GamesPage = () => {
               ) : null}
               {hasNextPage ? (
                 <button
-                  className="focus-ring min-h-11 rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                  className="focus-ring rr-button rr-button-secondary"
                   type="button"
                   onClick={goToNextPage}
                 >
@@ -286,39 +288,36 @@ export const GamesPage = () => {
           ) : null}
         </section>
       )}
-    </main>
+    </PlayerPage>
   );
 };
 
 const FixtureListItem = ({
   fixture,
+  nowMs,
 }: {
   readonly fixture: FixtureDocument;
+  readonly nowMs: number;
 }) => (
-  <li className="rounded-md border border-rooster-line bg-white p-5">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div>
+  <li className="rr-match-card">
+    <div className="rr-match-card__inner">
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={[
-              'inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase',
-              fixtureStatusClassName(fixture),
-            ].join(' ')}
-          >
-            {fixtureStatusLabel(fixture)}
-          </span>
-          <span className="text-xs font-bold uppercase text-rooster-muted">
-            {fixture.competitionDisplayName}
-          </span>
+          <StatusBadge
+            label={fixturePlayerStatusLabel(fixture, nowMs)}
+            tone={fixturePlayerStatusTone(fixture, nowMs)}
+          />
+          <span className="rr-meta-copy">{fixture.competitionDisplayName}</span>
         </div>
-        <h2 className="mt-3 text-2xl font-black text-rooster-ink">
-          {fixture.team1DisplayName} vs {fixture.team2DisplayName}
+        <h2 className="rr-fixture-title mt-3">
+          {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
+          {fixture.team2DisplayName}
         </h2>
-        <p className="mt-2 text-sm font-bold text-rooster-muted">
+        <p className="mt-3 text-sm font-bold text-rr-muted">
           {kickoffLabel(fixture)}
         </p>
         {fixture.venueDisplayName ? (
-          <p className="mt-1 text-sm text-rooster-muted">
+          <p className="mt-1 text-sm font-semibold text-rr-muted">
             {fixture.venueDisplayName}
           </p>
         ) : null}
@@ -326,13 +325,13 @@ const FixtureListItem = ({
 
       <div className="flex flex-wrap gap-2 sm:justify-end">
         <AppLink
-          className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-ink px-4 text-sm font-black text-white transition hover:bg-rooster-red"
+          className="focus-ring rr-button rr-button-primary"
           to={fixtureDetailPath(fixture._id)}
         >
           View fixture
         </AppLink>
         <AppLink
-          className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+          className="focus-ring rr-button rr-button-secondary"
           to={fixturePredictionPath(fixture._id)}
         >
           Predict

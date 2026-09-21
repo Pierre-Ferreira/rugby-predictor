@@ -137,6 +137,27 @@ Out of scope for this product:
 - No forced onboarding, global name uniqueness, handles, avatars, profile
   pages, moderation workflow, leagues, social features, or animation work.
 
+## Implemented In CCPP-012B
+
+- Player-facing visual identity foundation for Home, Games, Game Detail,
+  Prediction shell, Fixture Leaderboard, My Score Breakdown, and Account.
+- Semantic `--rr-*` colour tokens and Tailwind `rr.*` aliases.
+- Shared player-facing page shells, surfaces, buttons, status badges, loading,
+  empty, and error state patterns.
+- Static Rooster personality component and typed mood catalog based only on
+  assets actually present in the repository.
+- Page-state personality mapping for current player journeys without adding a
+  new animation system.
+- Leaderboard result revision hidden from normal player-facing UI while
+  remaining available internally.
+- Account page presentation now separates public player name from private email
+  account details.
+- 012A display-name validation hardening completed: Unicode format-control
+  characters (`\p{Cf}`) are rejected while normal Unicode names and diacritics
+  remain supported.
+- No leagues, venues, prizes, AI commentary, avatars, new prediction
+  animations, backend scoring changes, or Admin visual overhaul.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.

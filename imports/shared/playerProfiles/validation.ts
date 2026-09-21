@@ -49,7 +49,7 @@ export const validatePlayerDisplayName = (value: unknown): string => {
 
   const rawDisplayName = value as string;
 
-  if (/\p{Cc}/u.test(rawDisplayName)) {
+  if (/[\p{Cc}\p{Cf}]/u.test(rawDisplayName)) {
     profileError(
       'invalid-player-display-name',
       'Public player name cannot contain control characters.',

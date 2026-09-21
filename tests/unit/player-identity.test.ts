@@ -51,6 +51,16 @@ describe('player public identity validation', () => {
     );
   });
 
+  it.each([
+    ['U+200B zero width space', 'Pierre\u200BRooster'],
+    ['U+202E right-to-left override', 'Pierre\u202ERooster'],
+    ['U+2060 word joiner', 'Pierre\u2060Rooster'],
+  ])('rejects Unicode format-control character %s', (_label, input) => {
+    expect(() => validatePlayerDisplayName(input)).toThrow(
+      /control characters/i,
+    );
+  });
+
   it.each(['Rugby Rooster', 'Admin', 'Administrator', 'System'])(
     'rejects reserved name %s',
     (displayName) => {

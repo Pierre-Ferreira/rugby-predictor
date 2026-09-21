@@ -1,5 +1,6 @@
 import type { FixtureDocument } from '/imports/shared/fixtures';
 import { formatUtcInstantForJohannesburgDisplay } from '/imports/shared/fixtures';
+import type { PlayerStatusTone } from '../components/player';
 
 export const fixtureStatusLabel = (fixture: FixtureDocument): string => {
   if (fixture.isCancelled) {
@@ -19,6 +20,30 @@ export const fixtureStatusClassName = (fixture: FixtureDocument): string => {
   }
 
   return 'border-rooster-line bg-rooster-paper text-rooster-muted';
+};
+
+export const fixturePlayerStatusLabel = (
+  fixture: FixtureDocument,
+  nowMs = Date.now(),
+): string => {
+  if (fixture.isCancelled) {
+    return 'Cancelled';
+  }
+
+  return nowMs < fixture.scheduledKickoffAt.getTime()
+    ? 'Prediction open'
+    : 'Locked';
+};
+
+export const fixturePlayerStatusTone = (
+  fixture: FixtureDocument,
+  nowMs = Date.now(),
+): PlayerStatusTone => {
+  if (fixture.isCancelled) {
+    return 'danger';
+  }
+
+  return nowMs < fixture.scheduledKickoffAt.getTime() ? 'success' : 'warning';
 };
 
 export const kickoffLabel = (fixture: FixtureDocument): string =>

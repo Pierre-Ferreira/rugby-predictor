@@ -32,11 +32,21 @@ import { useAuthState } from '../auth/useAuthState';
 import { SignInRequiredState } from '../components/AuthStates';
 import { AppLink } from '../components/AppLink';
 import {
+  PlayerEmptyState,
+  PlayerErrorState,
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge as PlayerStatusBadge,
+  type RugbyRoosterMood,
+} from '../components/player';
+import {
   fixtureDetailPath,
   fixtureLeaderboardPath,
+  fixturePlayerStatusLabel,
+  fixturePlayerStatusTone,
   fixturePredictionPath,
-  fixtureStatusClassName,
-  fixtureStatusLabel,
   kickoffLabel,
 } from '../fixtures/fixtureUi';
 
@@ -65,11 +75,7 @@ const ScoreBreakdownShell = ({
   children,
 }: {
   readonly children: ReactNode;
-}) => (
-  <main className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-8 sm:px-6 lg:py-10">
-    {children}
-  </main>
-);
+}) => <PlayerPage maxWidth="narrow">{children}</PlayerPage>;
 
 type ScopedScoreState = {
   readonly fixtureId: string;
@@ -230,17 +236,10 @@ export const PlayerScoreBreakdownPage = () => {
   if (!isConnected && !isReady) {
     return (
       <ScoreBreakdownShell>
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="status"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Score breakdown is unavailable right now
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Reconnect to Rugby Rooster to load your score.
-          </p>
-        </section>
+        <PlayerErrorState
+          body="Reconnect to Rugby Rooster to load your score."
+          title="Score breakdown is unavailable right now"
+        />
       </ScoreBreakdownShell>
     );
   }
@@ -248,14 +247,7 @@ export const PlayerScoreBreakdownPage = () => {
   if (!isReady || auth.isLoading) {
     return (
       <ScoreBreakdownShell>
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading score breakdown
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading score breakdown" />
       </ScoreBreakdownShell>
     );
   }
@@ -263,23 +255,19 @@ export const PlayerScoreBreakdownPage = () => {
   if (!fixture) {
     return (
       <ScoreBreakdownShell>
-        <section className="rounded-md border border-dashed border-rooster-line bg-white p-6">
-          <p className="text-sm font-black uppercase text-rooster-red">
-            Your score
-          </p>
-          <h1 className="mt-3 text-2xl font-black text-rooster-ink">
-            Fixture not found
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-rooster-muted">
-            Draft fixtures and unknown fixture links are not publicly available.
-          </p>
-          <AppLink
-            className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-rooster-ink px-4 text-sm font-black text-white transition hover:bg-rooster-red"
-            to="/games"
-          >
-            Back to games
-          </AppLink>
-        </section>
+        <PlayerEmptyState
+          action={
+            <AppLink
+              className="focus-ring rr-button rr-button-primary"
+              to="/games"
+            >
+              Back to games
+            </AppLink>
+          }
+          body="Draft fixtures and unknown fixture links are not publicly available."
+          mood="thinking"
+          title="Fixture not found"
+        />
       </ScoreBreakdownShell>
     );
   }
@@ -331,35 +319,23 @@ export const PlayerScoreBreakdownPage = () => {
 
       {(isInitialLoading || (canRequestScore && !activeInitialError)) &&
       !viewModel ? (
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading score breakdown
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading score breakdown" />
       ) : null}
 
       {activeInitialError && !viewModel ? (
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="alert"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Score breakdown unavailable
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            {activeInitialError}
-          </p>
-          <button
-            className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
-            type="button"
-            onClick={() => void loadScore()}
-          >
-            Retry
-          </button>
-        </section>
+        <PlayerErrorState
+          action={
+            <button
+              className="focus-ring rr-button rr-button-danger"
+              type="button"
+              onClick={() => void loadScore()}
+            >
+              Retry
+            </button>
+          }
+          body={activeInitialError}
+          title="Score breakdown unavailable"
+        />
       ) : null}
 
       {viewModel ? (
@@ -384,50 +360,94 @@ const ScoreFixtureHeader = ({
 }: {
   readonly fixture: FixtureDocument;
 }) => (
-  <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <AppLink
-        className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
-        to={fixtureDetailPath(fixture._id)}
-      >
-        Back to fixture
-      </AppLink>
-      <div className="flex flex-wrap gap-2">
+  <PlayerPageHeader
+    actions={
+      <>
         <AppLink
-          className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+          className="focus-ring rr-button rr-button-secondary"
+          to={fixtureDetailPath(fixture._id)}
+        >
+          Back to fixture
+        </AppLink>
+        <AppLink
+          className="focus-ring rr-button rr-button-secondary"
           to={fixtureLeaderboardPath(fixture._id)}
         >
           Leaderboard
         </AppLink>
         <AppLink
-          className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+          className="focus-ring rr-button rr-button-secondary"
           to={fixturePredictionPath(fixture._id)}
         >
           Prediction
         </AppLink>
-      </div>
-    </div>
-    <div className="mt-5 flex flex-wrap items-center gap-2">
-      <span
-        className={[
-          'inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase',
-          fixtureStatusClassName(fixture),
-        ].join(' ')}
-      >
-        {fixtureStatusLabel(fixture)}
-      </span>
-      <span className="text-xs font-bold uppercase text-rooster-muted">
-        {fixture.competitionDisplayName}
-      </span>
-    </div>
-    <h1 className="mt-4 break-words text-3xl font-black text-rooster-ink sm:text-4xl">
-      {fixture.team1DisplayName} vs {fixture.team2DisplayName}
-    </h1>
-    <p className="mt-3 text-sm font-bold text-rooster-muted">
-      Kickoff: {kickoffLabel(fixture)}
-    </p>
-  </section>
+      </>
+    }
+    eyebrow={
+      <>
+        <PlayerStatusBadge
+          label={fixturePlayerStatusLabel(fixture)}
+          tone={fixturePlayerStatusTone(fixture)}
+        />
+        <span>{fixture.competitionDisplayName}</span>
+      </>
+    }
+    meta={<span>Kickoff: {kickoffLabel(fixture)}</span>}
+    subtitle="Your score breakdown explains what resolved, what is pending, and where deductions came from."
+    title={
+      <>
+        {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
+        {fixture.team2DisplayName}
+      </>
+    }
+  />
 );
+
+const scorePersonalityForViewModel = (
+  viewModel: PlayerScoreBreakdownViewModel,
+): { readonly message: string; readonly mood: RugbyRoosterMood } => {
+  if (viewModel.status === 'no_prediction') {
+    return {
+      message: 'You sat this one out.',
+      mood: 'shocked',
+    };
+  }
+
+  if (viewModel.status === 'awaiting_result') {
+    return {
+      message: 'Now we wait.',
+      mood: 'waiting',
+    };
+  }
+
+  if (viewModel.status === 'cancelled') {
+    return {
+      message: 'Match called off.',
+      mood: 'neutral',
+    };
+  }
+
+  const score = Number(viewModel.scoreLabel?.replace(/[^\d]/g, '') ?? NaN);
+
+  if (Number.isFinite(score) && score >= 9500) {
+    return {
+      message: 'You knew your rugby.',
+      mood: 'celebrating',
+    };
+  }
+
+  if (Number.isFinite(score) && score <= 8000) {
+    return {
+      message: 'That one hurt.',
+      mood: 'disappointed',
+    };
+  }
+
+  return {
+    message: viewModel.status === 'provisional' ? 'Still alive.' : 'Not bad.',
+    mood: 'confident',
+  };
+};
 
 const ScoreSummaryPanel = ({
   fixtureId,
@@ -445,17 +465,14 @@ const ScoreSummaryPanel = ({
   const canRefresh =
     viewModel.status === 'awaiting_result' ||
     viewModel.status === 'provisional';
+  const personality = scorePersonalityForViewModel(viewModel);
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
+    <section className="rr-surface rr-surface--raised">
       <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <p className="text-sm font-black uppercase text-rooster-red">
-            Your score
-          </p>
-          <h2 className="mt-2 break-words text-2xl font-black text-rooster-ink sm:text-3xl">
-            {viewModel.title}
-          </h2>
+          <p className="rr-section-eyebrow">Your score</p>
+          <h2 className="rr-section-title mt-2">{viewModel.title}</h2>
           {viewModel.scoreLabel ? (
             <p className="mt-3 text-4xl font-black leading-none text-rooster-ink sm:text-5xl">
               {viewModel.scoreLabel}
@@ -465,9 +482,14 @@ const ScoreSummaryPanel = ({
             {viewModel.notice}
           </p>
         </div>
+        <RugbyRoosterPersonality
+          message={personality.message}
+          mood={personality.mood}
+          size="sm"
+        />
         {canRefresh ? (
           <button
-            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
+            className="focus-ring rr-button rr-button-secondary"
             disabled={isRefreshing}
             type="button"
             onClick={onRefresh}
@@ -503,13 +525,13 @@ const ScoreSummaryPanel = ({
       {viewModel.status === 'no_prediction' ? (
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
           <AppLink
-            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+            className="focus-ring rr-button rr-button-primary"
             to={fixturePredictionPath(fixtureId)}
           >
             View prediction page
           </AppLink>
           <AppLink
-            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            className="focus-ring rr-button rr-button-secondary"
             to={fixtureLeaderboardPath(fixtureId)}
           >
             View leaderboard
@@ -552,7 +574,7 @@ const ScoreBreakdownSection = ({
 }: {
   readonly section: PlayerScoreBreakdownSection;
 }) => (
-  <section className="rounded-md border border-rooster-line bg-white p-5">
+  <section className="rr-surface">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <h2 className="break-words text-sm font-black uppercase text-rooster-ink">
@@ -598,7 +620,7 @@ const ScoreBreakdownRowView = ({
             {row.itemLabel}
           </p>
         ) : null}
-        <dl className="mt-2 grid gap-3 sm:grid-cols-2">
+        <dl className="mt-2 grid gap-3 rounded-md bg-rr-bg p-3 sm:grid-cols-2">
           <ScoreDetail
             label={row.predictionHeading}
             value={row.predictionLabel}

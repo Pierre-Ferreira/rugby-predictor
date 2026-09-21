@@ -22,6 +22,12 @@
 - `docs/PLATFORM_Player_Identity.md` - public display-name persistence,
   owner-only methods, validation, privacy projection, batch identity resolver,
   Account editing, and leaderboard label policy.
+- `docs/PLATFORM_Visual_Identity.md` - CCPP-012B semantic colour tokens,
+  typography hierarchy, surfaces, buttons, page shells, status language, and
+  player-facing state patterns.
+- `docs/PLATFORM_Rooster_Personality.md` - CCPP-012B static Rooster
+  personality component, mood catalog, asset mapping, copy rules, usage limits,
+  and failure/performance behaviour.
 - `docs/PLATFORM_PWA.md` - minimal PWA manifest, icons, safe-area shell, installation notes, limitations, and verification guidance.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
 - `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
@@ -60,9 +66,9 @@
   snapshot, and custom publication architecture.
 - `docs/PLATFORM_Testing.md` - static checks, unit tests, browser tests, CI, and integration-test boundaries.
 - `docs/MAP_System.md` - this map.
-- `docs/MAP_Rooster_Assets.md` - CCPP-009A current repository Rooster/app icon
-  asset inventory, missing runtime animation asset requirements, and the
-  CCPP-009C supplied-art availability blocker.
+- `docs/MAP_Rooster_Assets.md` - current repository Rooster/app icon asset
+  inventory, CCPP-012B active static personality assets, Match Result
+  animation-specific assets, and reference/historical source art.
 - `docs/AUDIT_001_Project_Foundation.md` - CCPP-001 completion evidence.
 - `docs/AUDIT_002_Testing_Infrastructure.md` - CCPP-002 completion evidence.
 - `docs/AUDIT_003_Scoring_Engine.md` - CCPP-003 completion evidence.
@@ -179,6 +185,9 @@
 - `docs/AUDIT_012A_Player_Display_Identity.md` - CCPP-012A public display-name
   persistence, Account editor, leaderboard identity integration, privacy
   boundary, tests, browser evidence, and EOMD archive evidence.
+- `docs/AUDIT_012B_Visual_Foundation_Personality.md` - CCPP-012B visual
+  foundation, static Rooster personality system, 012A `Cf` validation
+  hardening, screenshots, tests, and verification evidence.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -269,6 +278,9 @@
 - `docs/TEMP_012A_Resume.md` - temporary CCPP-012A checkpoint for public
   player identity implementation, verification, browser evidence, and
   packaging handoff.
+- `docs/TEMP_012B_Resume.md` - temporary CCPP-012B checkpoint for visual
+  foundation implementation, personality mapping, browser budget, verification,
+  and packaging handoff.
 
 ## Application Entry Points
 
@@ -555,7 +567,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/fixture-leaderboard-privacy.test.ts` - fixture-scoped alias and
   opaque row ID privacy tests, including CCPP-012A display-name preference.
 - `tests/unit/player-identity.test.ts` - CCPP-012A public display-name
-  validation, reserved-name, and injection-rejection tests.
+  validation, CCPP-012B Unicode format-control hardening, reserved-name, and
+  injection-rejection tests.
+- `tests/unit/player-visual.test.ts` - CCPP-012B player visual primitive tests
+  for Rooster mood-to-asset mapping, image failure fallback, and status badge
+  rendering.
 - `tests/unit/player-score-breakdown.test.ts` - pure CCPP-011C score-breakdown
   view-model tests for lifecycle summaries, item-level Pending, custom
   Number/Choice/Void, zero floor, section ordering, and team-score presentation.
@@ -624,6 +640,10 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   display-name editing, leaderboard display-name/fallback labels, current-user
   `You`, name changes, near-max display-name layout, safe projection readback,
   and 390px/360px responsive evidence.
+- `tests/e2e/visual-foundation-personality.spec.ts` - focused CCPP-012B
+  player visual journey covering Home, Games, Game Detail, Prediction shell,
+  provisional/final Leaderboard, My Score, Account, mobile evidence,
+  fixture-not-found empty state, and induced leaderboard retry state.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 - `tests/support/kaplay-layout-evidence.ts` - CCPP-009C3B browser evidence
   helper for reading the required Kaplay Match Result semantic bridge while
@@ -655,6 +675,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/` - framework-independent scoring rules engine.
 - `imports/ui/auth/` - client auth state and auth action helpers.
 - `imports/ui/components/` - reusable UI primitives.
+- `imports/ui/components/player/` - CCPP-012B player-facing visual primitives
+  and static Rooster personality component.
 - `imports/ui/fixtures/` - fixture-specific UI helpers and admin manager.
 - `imports/ui/layouts/` - public and admin layout shells.
 - `imports/ui/pages/` - route page components.

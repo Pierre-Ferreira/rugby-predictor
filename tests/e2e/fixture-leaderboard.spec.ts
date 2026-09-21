@@ -280,7 +280,7 @@ test.describe('fixture leaderboard', () => {
       },
     );
     await page.getByRole('button', { name: 'Refresh' }).click();
-    await expect(page.getByText('Result revision 2')).toBeVisible();
+    await expect(page.getByText('Result revision 2')).toHaveCount(0);
 
     const correctedRows = await readDesktopRows(page);
     const correctedCurrentRow = page.locator('tbody tr', { hasText: 'You' });
@@ -299,7 +299,7 @@ test.describe('fixture leaderboard', () => {
     );
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText('Final leaderboard')).toBeVisible();
-    await expect(page.getByText('Result revision 3')).toBeVisible();
+    await expect(page.getByText('Result revision 3')).toHaveCount(0);
     await expect(page.getByText('pending')).toHaveCount(0);
 
     const finalRows = await readDesktopRows(page);

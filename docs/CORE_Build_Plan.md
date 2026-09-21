@@ -876,6 +876,41 @@ Not implemented:
   leaderboard data.
 - Score-breakdown redesign, visual-system overhaul, or animation work.
 
+## CCPP-012B Scope
+
+Milestone status: implemented for the player-facing visual foundation and
+Rooster personality system. Platform details live in
+`docs/PLATFORM_Visual_Identity.md` and
+`docs/PLATFORM_Rooster_Personality.md`; verification evidence is recorded in
+`docs/AUDIT_012B_Visual_Foundation_Personality.md`.
+
+Current product priority remains player experience quality, with feature
+expansion paused.
+
+Implemented:
+
+- Semantic Rugby Rooster brand colour tokens and Tailwind aliases.
+- Shared player-facing page shell, surfaces, buttons, status badges, loading,
+  empty, and error states.
+- Static Rooster personality component with a typed mood catalog mapped only to
+  existing prepared assets.
+- Visual-system application to Home, Games, Game Detail, Prediction shell,
+  Fixture Leaderboard, My Score Breakdown, and Account.
+- Leaderboard player-facing revision text hidden while projection metadata stays
+  internal.
+- Account visual split between public display name and private email identity.
+- Display-name `\p{Cf}` validation hardening closing the accepted CCPP-012A
+  follow-up.
+- Focused unit and browser visual evidence coverage.
+
+Not implemented:
+
+- Leagues, venue competitions, prizes, sponsorships, AI, avatars, profile
+  pages, quiz gameplay, or new backend scoring features.
+- New animation systems, page transitions, mascot animation framework, or
+  regenerated art.
+- Detailed Admin visual overhaul.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

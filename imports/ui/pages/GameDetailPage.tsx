@@ -1,15 +1,25 @@
 import { Meteor } from 'meteor/meteor';
 import { useTracker } from 'meteor/react-meteor-data';
+import { useState } from 'react';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
 import { FIXTURE_PUBLICATIONS } from '/imports/shared/fixtures';
 import { AppLink } from '../components/AppLink';
 import {
-  fixtureStatusClassName,
-  fixtureStatusLabel,
+  PlayerEmptyState,
+  PlayerErrorState,
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge,
+} from '../components/player';
+import {
   fixtureLeaderboardPath,
-  kickoffLabel,
+  fixturePlayerStatusLabel,
+  fixturePlayerStatusTone,
   fixturePredictionPath,
+  kickoffLabel,
 } from '../fixtures/fixtureUi';
 
 const fixtureIdFromLocation = (): string =>
@@ -17,6 +27,7 @@ const fixtureIdFromLocation = (): string =>
 
 export const GameDetailPage = () => {
   const fixtureId = fixtureIdFromLocation();
+  const [nowMs] = useState(() => Date.now());
   const { fixture, isConnected, isReady } = useTracker(() => {
     const handle = Meteor.subscribe(
       FIXTURE_PUBLICATIONS.publicDetail,
@@ -35,122 +46,115 @@ export const GameDetailPage = () => {
 
   if (!isConnected && !isReady) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="status"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Fixture is unavailable right now
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Reconnect to Rugby Rooster to load this fixture.
-          </p>
-        </section>
-      </main>
+      <PlayerPage>
+        <PlayerErrorState
+          body="Reconnect to Rugby Rooster to load this fixture."
+          title="Fixture is unavailable right now"
+        />
+      </PlayerPage>
     );
   }
 
   if (!isReady) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading fixture
-          </p>
-        </section>
-      </main>
+      <PlayerPage>
+        <PlayerLoadingState label="Loading fixture" />
+      </PlayerPage>
     );
   }
 
   if (!fixture) {
     return (
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <section className="rounded-md border border-dashed border-rooster-line bg-white p-6">
-          <p className="text-sm font-black uppercase text-rooster-red">Games</p>
-          <h1 className="mt-3 text-2xl font-black text-rooster-ink">
-            Fixture not found
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-rooster-muted">
-            Draft fixtures and unknown fixture links are not publicly available.
-          </p>
-          <AppLink
-            className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-rooster-ink px-4 text-sm font-black text-white transition hover:bg-rooster-red"
-            to="/games"
-          >
-            Back to games
-          </AppLink>
-        </section>
-      </main>
+      <PlayerPage>
+        <PlayerEmptyState
+          action={
+            <AppLink
+              className="focus-ring rr-button rr-button-primary"
+              to="/games"
+            >
+              Back to games
+            </AppLink>
+          }
+          body="Draft fixtures and unknown fixture links are not publicly available."
+          mood="thinking"
+          title="Fixture not found"
+        />
+      </PlayerPage>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <article className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-        <AppLink
-          className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
-          to="/games"
-        >
-          Back to games
-        </AppLink>
-
-        <div className="mt-6 flex flex-wrap items-center gap-2">
-          <span
-            className={[
-              'inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase',
-              fixtureStatusClassName(fixture),
-            ].join(' ')}
-          >
-            {fixtureStatusLabel(fixture)}
-          </span>
-          <span className="text-xs font-bold uppercase text-rooster-muted">
-            {fixture.competitionDisplayName}
-          </span>
-        </div>
-
-        <h1 className="mt-4 text-3xl font-black text-rooster-ink sm:text-4xl">
-          {fixture.team1DisplayName} vs {fixture.team2DisplayName}
-        </h1>
-
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-md border border-rooster-line p-4">
-            <dt className="text-sm font-black text-rooster-muted">Kickoff</dt>
-            <dd className="mt-2 text-lg font-black text-rooster-ink">
-              {kickoffLabel(fixture)}
-            </dd>
-          </div>
-          <div className="rounded-md border border-rooster-line p-4">
-            <dt className="text-sm font-black text-rooster-muted">Venue</dt>
-            <dd className="mt-2 text-lg font-black text-rooster-ink">
-              {fixture.venueDisplayName ?? 'Venue to be confirmed'}
-            </dd>
-          </div>
-        </dl>
-
-        <div className="mt-6 rounded-md border border-rooster-line bg-rooster-paper p-4">
-          <p className="text-sm font-black text-rooster-ink">
-            Predictions are open until scheduled kickoff for signed-in players.
-          </p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+    <PlayerPage>
+      <PlayerPageHeader
+        actions={
+          <>
             <AppLink
-              className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+              className="focus-ring rr-button rr-button-primary"
               to={fixturePredictionPath(fixture._id)}
             >
               Enter prediction
             </AppLink>
             <AppLink
-              className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+              className="focus-ring rr-button rr-button-secondary"
               to={fixtureLeaderboardPath(fixture._id)}
             >
               Leaderboard
             </AppLink>
-          </div>
-        </div>
-      </article>
-    </main>
+            <AppLink
+              className="focus-ring rr-button rr-button-ghost"
+              to="/games"
+            >
+              Back to games
+            </AppLink>
+          </>
+        }
+        eyebrow={
+          <>
+            <StatusBadge
+              label={fixturePlayerStatusLabel(fixture, nowMs)}
+              tone={fixturePlayerStatusTone(fixture, nowMs)}
+            />
+            <span>{fixture.competitionDisplayName}</span>
+          </>
+        }
+        meta={
+          <span>
+            Kickoff: {kickoffLabel(fixture)}
+            {fixture.venueDisplayName
+              ? ` | ${fixture.venueDisplayName}`
+              : ' | Venue to be confirmed'}
+          </span>
+        }
+        personality={
+          <RugbyRoosterPersonality
+            message="Big game. Bigger call."
+            mood="thinking"
+            size="md"
+          />
+        }
+        subtitle="Make your fixture call before scheduled kickoff, then come back for the leaderboard and your score breakdown."
+        title={
+          <>
+            {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
+            {fixture.team2DisplayName}
+          </>
+        }
+      />
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <dl className="rr-mini-stat">
+          <dt>Competition</dt>
+          <dd>{fixture.competitionDisplayName}</dd>
+        </dl>
+        <dl className="rr-mini-stat">
+          <dt>Kickoff</dt>
+          <dd>{kickoffLabel(fixture)}</dd>
+        </dl>
+        <dl className="rr-mini-stat">
+          <dt>Venue</dt>
+          <dd>{fixture.venueDisplayName ?? 'Venue to be confirmed'}</dd>
+        </dl>
+      </section>
+    </PlayerPage>
   );
 };

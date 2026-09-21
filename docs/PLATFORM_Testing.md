@@ -178,7 +178,11 @@ Current unit test files:
 - `tests/unit/player-identity.test.ts` - CCPP-012A public display-name
   validation for simple/two-word/Unicode names, trimming, whitespace
   normalization, minimum/maximum length, blank values, control characters,
-  reserved names, and injection rejection.
+  CCPP-012B Unicode format-control hardening, reserved names, and injection
+  rejection.
+- `tests/unit/player-visual.test.ts` - CCPP-012B player visual primitive tests
+  for Rooster mood-to-asset mapping, soft image-failure fallback, and status
+  badge text/tone rendering.
 
 Commands:
 
@@ -342,6 +346,11 @@ The current browser suite covers:
   current-user `You` treatment, `Rooster XXXXXXXX` fallback, name change,
   near-max valid name, safe public projection readback, email absence on the
   leaderboard, and desktop/390px/360px evidence.
+- Visual foundation/personality browser evidence in
+  `tests/e2e/visual-foundation-personality.spec.ts`: one focused CCPP-012B
+  player journey through Home, Games, Game Detail, Prediction shell,
+  provisional/final Leaderboard, My Score, Account, mobile 390px/360px states,
+  fixture-not-found empty state, and safe induced leaderboard retry state.
 - Cancelled fixture with existing provisional result remaining accessible to an
   authorised admin as a read-only provisional summary without confirmed-result
   wording or mutation controls.

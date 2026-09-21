@@ -28,11 +28,21 @@ import { useAuthState } from '../auth/useAuthState';
 import { SignInRequiredState } from '../components/AuthStates';
 import { AppLink } from '../components/AppLink';
 import {
+  PlayerEmptyState,
+  PlayerErrorState,
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge,
+  type RugbyRoosterMood,
+} from '../components/player';
+import {
   fixtureDetailPath,
   fixturePredictionPath,
   fixtureScoreBreakdownPath,
-  fixtureStatusClassName,
-  fixtureStatusLabel,
+  fixturePlayerStatusLabel,
+  fixturePlayerStatusTone,
   kickoffLabel,
 } from '../fixtures/fixtureUi';
 
@@ -110,9 +120,7 @@ const mergeLeaderboardPage = (
 };
 
 const LeaderboardShell = ({ children }: { readonly children: ReactNode }) => (
-  <main className="mx-auto grid w-full max-w-6xl gap-5 px-4 py-8 sm:px-6 lg:py-10">
-    {children}
-  </main>
+  <PlayerPage>{children}</PlayerPage>
 );
 
 type ScopedLeaderboardError = {
@@ -292,17 +300,10 @@ export const FixtureLeaderboardPage = () => {
   if (!isConnected && !isReady) {
     return (
       <LeaderboardShell>
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="status"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Leaderboard is unavailable right now
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Reconnect to Rugby Rooster to load this fixture leaderboard.
-          </p>
-        </section>
+        <PlayerErrorState
+          body="Reconnect to Rugby Rooster to load this fixture leaderboard."
+          title="Leaderboard is unavailable right now"
+        />
       </LeaderboardShell>
     );
   }
@@ -310,14 +311,7 @@ export const FixtureLeaderboardPage = () => {
   if (!isReady || auth.isLoading) {
     return (
       <LeaderboardShell>
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading leaderboard
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading leaderboard" />
       </LeaderboardShell>
     );
   }
@@ -325,23 +319,19 @@ export const FixtureLeaderboardPage = () => {
   if (!fixture) {
     return (
       <LeaderboardShell>
-        <section className="rounded-md border border-dashed border-rooster-line bg-white p-6">
-          <p className="text-sm font-black uppercase text-rooster-red">
-            Leaderboard
-          </p>
-          <h1 className="mt-3 text-2xl font-black text-rooster-ink">
-            Fixture not found
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-rooster-muted">
-            Draft fixtures and unknown fixture links are not publicly available.
-          </p>
-          <AppLink
-            className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-rooster-ink px-4 text-sm font-black text-white transition hover:bg-rooster-red"
-            to="/games"
-          >
-            Back to games
-          </AppLink>
-        </section>
+        <PlayerEmptyState
+          action={
+            <AppLink
+              className="focus-ring rr-button rr-button-primary"
+              to="/games"
+            >
+              Back to games
+            </AppLink>
+          }
+          body="Draft fixtures and unknown fixture links are not publicly available."
+          mood="thinking"
+          title="Fixture not found"
+        />
       </LeaderboardShell>
     );
   }
@@ -366,40 +356,28 @@ export const FixtureLeaderboardPage = () => {
 
       {(isInitialLoading || (canRequestLeaderboard && !activeInitialError)) &&
       !activeLeaderboard ? (
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading leaderboard
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading leaderboard" />
       ) : null}
 
       {activeInitialError && !activeLeaderboard ? (
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="alert"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Leaderboard unavailable
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            {activeInitialError}
-          </p>
-          <button
-            className="focus-ring mt-5 inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
-            type="button"
-            onClick={() =>
-              void loadLeaderboard({
-                limit: pageSize,
-                offset: 0,
-              })
-            }
-          >
-            Retry
-          </button>
-        </section>
+        <PlayerErrorState
+          action={
+            <button
+              className="focus-ring rr-button rr-button-danger"
+              type="button"
+              onClick={() =>
+                void loadLeaderboard({
+                  limit: pageSize,
+                  offset: 0,
+                })
+              }
+            >
+              Retry
+            </button>
+          }
+          body={activeInitialError}
+          title="Leaderboard unavailable"
+        />
       ) : null}
 
       {activeLeaderboard ? (
@@ -419,10 +397,8 @@ export const FixtureLeaderboardPage = () => {
           <LeaderboardRows leaderboard={activeLeaderboard} />
 
           {activeLeaderboard.currentUserRow ? (
-            <section className="rounded-md border border-rooster-line bg-white p-5">
-              <h2 className="text-sm font-black uppercase text-rooster-red">
-                Your position
-              </h2>
+            <section className="rr-surface rr-surface--raised">
+              <h2 className="rr-section-eyebrow">Your position</h2>
               <div className="mt-4">
                 <MobileLeaderboardRow
                   row={activeLeaderboard.currentUserRow}
@@ -435,7 +411,7 @@ export const FixtureLeaderboardPage = () => {
           {canLoadMore ? (
             <div className="flex justify-center">
               <button
-                className="focus-ring inline-flex min-h-11 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted sm:w-auto"
+                className="focus-ring rr-button rr-button-secondary w-full sm:w-auto"
                 disabled={isLoadingMore}
                 type="button"
                 onClick={() =>
@@ -461,41 +437,41 @@ const LeaderboardFixtureHeader = ({
 }: {
   readonly fixture: FixtureDocument;
 }) => (
-  <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <AppLink
-        className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
-        to={fixtureDetailPath(fixture._id)}
-      >
-        Back to fixture
-      </AppLink>
-      <AppLink
-        className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
-        to={fixturePredictionPath(fixture._id)}
-      >
-        Prediction
-      </AppLink>
-    </div>
-    <div className="mt-5 flex flex-wrap items-center gap-2">
-      <span
-        className={[
-          'inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase',
-          fixtureStatusClassName(fixture),
-        ].join(' ')}
-      >
-        {fixtureStatusLabel(fixture)}
-      </span>
-      <span className="text-xs font-bold uppercase text-rooster-muted">
-        {fixture.competitionDisplayName}
-      </span>
-    </div>
-    <h1 className="mt-4 text-3xl font-black text-rooster-ink sm:text-4xl">
-      {fixture.team1DisplayName} vs {fixture.team2DisplayName}
-    </h1>
-    <p className="mt-3 text-sm font-bold text-rooster-muted">
-      Kickoff: {kickoffLabel(fixture)}
-    </p>
-  </section>
+  <PlayerPageHeader
+    actions={
+      <>
+        <AppLink
+          className="focus-ring rr-button rr-button-secondary"
+          to={fixtureDetailPath(fixture._id)}
+        >
+          Back to fixture
+        </AppLink>
+        <AppLink
+          className="focus-ring rr-button rr-button-secondary"
+          to={fixturePredictionPath(fixture._id)}
+        >
+          Prediction
+        </AppLink>
+      </>
+    }
+    eyebrow={
+      <>
+        <StatusBadge
+          label={fixturePlayerStatusLabel(fixture)}
+          tone={fixturePlayerStatusTone(fixture)}
+        />
+        <span>{fixture.competitionDisplayName}</span>
+      </>
+    }
+    meta={<span>Kickoff: {kickoffLabel(fixture)}</span>}
+    subtitle="Fixture standings rank saved predictions only. Ties share the same place."
+    title={
+      <>
+        {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
+        {fixture.team2DisplayName}
+      </>
+    }
+  />
 );
 
 const LeaderboardStatusPanel = ({
@@ -525,15 +501,20 @@ const LeaderboardStatusPanel = ({
       : isFinal
         ? 'Official fixture scores are confirmed.'
         : 'This fixture was cancelled, so no leaderboard score or rank is assigned.';
+  const mood: RugbyRoosterMood = isAwaiting
+    ? 'waiting'
+    : isProvisional
+      ? 'nervous'
+      : isFinal
+        ? 'celebrating'
+        : 'disappointed';
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
+    <section className="rr-surface rr-surface--raised">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-sm font-black uppercase text-rooster-red">
-            {title}
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-rooster-ink">
+        <div className="min-w-0">
+          <p className="rr-section-eyebrow">{title}</p>
+          <h2 className="rr-section-title mt-2">
             {predictionCountLabel(leaderboard.totalEntries)}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-rooster-muted">
@@ -545,22 +526,22 @@ const LeaderboardStatusPanel = ({
                 {"You're in."}
               </p>
               <AppLink
-                className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                className="focus-ring rr-button rr-button-secondary"
                 to={fixtureScoreBreakdownPath(leaderboard.fixtureId)}
               >
                 View my score
               </AppLink>
             </div>
           ) : null}
-          {leaderboard.resultRevision !== null ? (
-            <p className="mt-2 text-xs font-bold uppercase text-rooster-muted">
-              Result revision {leaderboard.resultRevision}
-            </p>
-          ) : null}
         </div>
+        <RugbyRoosterPersonality
+          message={isFinal ? 'Final whistle.' : 'Now we wait.'}
+          mood={mood}
+          size="sm"
+        />
         {!isFinal && !isCancelled ? (
           <button
-            className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted"
+            className="focus-ring rr-button rr-button-secondary"
             disabled={isRefreshing}
             type="button"
             onClick={onRefresh}
@@ -597,16 +578,16 @@ const LeaderboardRows = ({
 
   if (leaderboard.rows.length === 0) {
     return (
-      <section className="rounded-md border border-dashed border-rooster-line bg-white p-6">
-        <p className="text-sm font-semibold text-rooster-muted">
-          No saved predictions are on this fixture leaderboard yet.
-        </p>
-      </section>
+      <PlayerEmptyState
+        body="No saved predictions are on this fixture leaderboard yet."
+        mood="thinking"
+        title="No leaderboard rows yet"
+      />
     );
   }
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-0 sm:p-5">
+    <section className="rr-surface rr-surface--raised p-0 sm:p-5">
       <div className="hidden sm:block">
         <table className="w-full table-fixed border-collapse text-left">
           <thead>

@@ -13,18 +13,24 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
   const auth = useAuthState();
 
   return (
-    <div className="app-shell bg-rooster-paper text-rooster-ink">
-      <header className="app-shell-header border-b border-rooster-line bg-white/95">
+    <div className="app-shell bg-rr-bg text-rr-text">
+      <header className="app-shell-header border-b border-rr-border bg-rr-surface/95">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <AppLink
             className="focus-ring inline-flex min-h-11 items-center gap-3 rounded-md text-lg font-black"
             to="/"
           >
             <span
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-rooster-red text-base font-black text-white"
+              className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-rr-brand text-base font-black text-white shadow-sm"
               aria-hidden="true"
             >
-              RR
+              <img
+                alt=""
+                className="h-full w-full object-cover"
+                height="40"
+                src="/icons/rr-icon-192.png"
+                width="40"
+              />
             </span>
             <span>Rugby Rooster</span>
           </AppLink>
@@ -37,8 +43,8 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
                     className={[
                       'focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-bold transition',
                       currentPath === route.path
-                        ? 'bg-rooster-ink text-white'
-                        : 'text-rooster-muted hover:bg-rooster-grass/10 hover:text-rooster-ink',
+                        ? 'bg-rr-brand text-white'
+                        : 'text-rr-muted hover:bg-rr-brand/10 hover:text-rr-text',
                     ].join(' ')}
                     aria-current={
                       currentPath === route.path ? 'page' : undefined
@@ -54,8 +60,8 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
                   className={[
                     'focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-bold transition',
                     currentPath === '/account' || currentPath === '/sign-in'
-                      ? 'bg-rooster-ink text-white'
-                      : 'text-rooster-muted hover:bg-rooster-grass/10 hover:text-rooster-ink',
+                      ? 'bg-rr-brand text-white'
+                      : 'text-rr-muted hover:bg-rr-brand/10 hover:text-rr-text',
                   ].join(' ')}
                   aria-current={
                     currentPath === '/account' || currentPath === '/sign-in'
@@ -69,7 +75,7 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
               </li>
               {auth.isAuthenticated ? (
                 <li>
-                  <SignOutButton className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-bold text-rooster-muted transition hover:bg-rooster-grass/10 hover:text-rooster-ink" />
+                  <SignOutButton className="focus-ring inline-flex min-h-10 items-center rounded-md px-3 text-sm font-bold text-rr-muted transition hover:bg-rr-brand/10 hover:text-rr-text" />
                 </li>
               ) : null}
             </ul>
@@ -79,11 +85,11 @@ export const PublicLayout = ({ children, currentPath }: PublicLayoutProps) => {
 
       {children}
 
-      <footer className="app-shell-footer border-t border-rooster-line bg-white">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-rooster-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p>Rugby Rooster account access build.</p>
+      <footer className="app-shell-footer border-t border-rr-border bg-rr-surface">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-4 py-6 text-sm text-rr-muted sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p>Predict rugby. Keep your feathers. Mostly.</p>
           <AppLink
-            className="focus-ring rounded-md font-bold text-rooster-red"
+            className="focus-ring rounded-md font-bold text-rr-brand"
             to="/admin"
           >
             Admin

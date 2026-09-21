@@ -41,11 +41,20 @@ import { useAuthState } from '../auth/useAuthState';
 import { SignInRequiredState } from '../components/AuthStates';
 import { AppLink } from '../components/AppLink';
 import {
+  PlayerEmptyState,
+  PlayerErrorState,
+  PlayerLoadingState,
+  PlayerPage,
+  PlayerPageHeader,
+  RugbyRoosterPersonality,
+  StatusBadge,
+} from '../components/player';
+import {
   fixtureDetailPath,
   fixtureLeaderboardPath,
+  fixturePlayerStatusLabel,
+  fixturePlayerStatusTone,
   fixtureScoreBreakdownPath,
-  fixtureStatusClassName,
-  fixtureStatusLabel,
   kickoffLabel,
 } from '../fixtures/fixtureUi';
 import {
@@ -114,9 +123,7 @@ const fixtureIdFromLocation = (): string =>
   window.location.pathname.split('/').filter(Boolean)[1] ?? '';
 
 const PredictionShell = ({ children }: { readonly children: ReactNode }) => (
-  <main className="mx-auto grid w-full max-w-5xl gap-5 px-4 py-8 sm:px-6 lg:py-10">
-    {children}
-  </main>
+  <PlayerPage maxWidth="narrow">{children}</PlayerPage>
 );
 
 export const PredictionEntryPage = () => {
@@ -174,17 +181,10 @@ export const PredictionEntryPage = () => {
   if (!isConnected && !isFixtureReady) {
     return (
       <PredictionShell>
-        <section
-          className="rounded-md border border-rooster-red/30 bg-white p-6"
-          role="status"
-        >
-          <h1 className="text-2xl font-black text-rooster-ink">
-            Prediction page is unavailable right now
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-rooster-muted">
-            Reconnect to Rugby Rooster to load this fixture.
-          </p>
-        </section>
+        <PlayerErrorState
+          body="Reconnect to Rugby Rooster to load this fixture."
+          title="Prediction page is unavailable right now"
+        />
       </PredictionShell>
     );
   }
@@ -192,14 +192,7 @@ export const PredictionEntryPage = () => {
   if (!isFixtureReady || auth.isLoading) {
     return (
       <PredictionShell>
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading prediction page
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading prediction page" />
       </PredictionShell>
     );
   }
@@ -207,24 +200,19 @@ export const PredictionEntryPage = () => {
   if (!fixture) {
     return (
       <PredictionShell>
-        <section className="rounded-md border border-dashed border-rooster-line bg-white p-6">
-          <p className="text-sm font-black uppercase text-rooster-red">
-            Predictions
-          </p>
-          <h1 className="mt-3 text-2xl font-black text-rooster-ink">
-            Fixture not found
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-rooster-muted">
-            Draft fixtures and unknown fixture links are not available for
-            prediction entry.
-          </p>
-          <AppLink
-            className="focus-ring mt-5 inline-flex min-h-11 items-center rounded-md bg-rooster-ink px-4 text-sm font-black text-white transition hover:bg-rooster-red"
-            to="/games"
-          >
-            Back to games
-          </AppLink>
-        </section>
+        <PlayerEmptyState
+          action={
+            <AppLink
+              className="focus-ring rr-button rr-button-primary"
+              to="/games"
+            >
+              Back to games
+            </AppLink>
+          }
+          body="Draft fixtures and unknown fixture links are not available for prediction entry."
+          mood="thinking"
+          title="Fixture not found"
+        />
       </PredictionShell>
     );
   }
@@ -278,14 +266,7 @@ export const PredictionEntryPage = () => {
           fixture={fixture}
           isLockedByKickoff={isLockedByKickoff}
         />
-        <section
-          className="rounded-md border border-rooster-line bg-white p-6"
-          role="status"
-        >
-          <p className="text-sm font-bold text-rooster-muted">
-            Loading saved prediction
-          </p>
-        </section>
+        <PlayerLoadingState label="Loading saved prediction" />
       </PredictionShell>
     );
   }
@@ -452,44 +433,52 @@ const FixtureHeader = ({
   readonly fixture: FixtureDocument;
   readonly isLockedByKickoff: boolean;
 }) => (
-  <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <AppLink
-        className="focus-ring inline-flex min-h-10 items-center rounded-md text-sm font-black text-rooster-red"
-        to={fixtureDetailPath(fixture._id)}
-      >
-        Back to fixture
-      </AppLink>
-      <AppLink
-        className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
-        to={fixtureLeaderboardPath(fixture._id)}
-      >
-        Leaderboard
-      </AppLink>
-    </div>
-    <div className="mt-5 flex flex-wrap items-center gap-2">
-      <span
-        className={[
-          'inline-flex rounded-full border px-2.5 py-1 text-xs font-black uppercase',
-          fixtureStatusClassName(fixture),
-        ].join(' ')}
-      >
-        {fixtureStatusLabel(fixture)}
-      </span>
-      <span className="text-xs font-bold uppercase text-rooster-muted">
-        {isLockedByKickoff ? 'Locked' : 'Open before kickoff'}
-      </span>
-      <span className="text-xs font-bold uppercase text-rooster-muted">
-        {fixture.competitionDisplayName}
-      </span>
-    </div>
-    <h1 className="mt-4 text-3xl font-black text-rooster-ink sm:text-4xl">
-      {fixture.team1DisplayName} vs {fixture.team2DisplayName}
-    </h1>
-    <p className="mt-3 text-sm font-bold text-rooster-muted">
-      Kickoff: {kickoffLabel(fixture)}
-    </p>
-  </section>
+  <PlayerPageHeader
+    actions={
+      <>
+        <AppLink
+          className="focus-ring rr-button rr-button-secondary"
+          to={fixtureDetailPath(fixture._id)}
+        >
+          Back to fixture
+        </AppLink>
+        <AppLink
+          className="focus-ring rr-button rr-button-secondary"
+          to={fixtureLeaderboardPath(fixture._id)}
+        >
+          Leaderboard
+        </AppLink>
+      </>
+    }
+    eyebrow={
+      <>
+        <StatusBadge
+          label={
+            isLockedByKickoff ? 'Locked' : fixturePlayerStatusLabel(fixture)
+          }
+          tone={
+            isLockedByKickoff ? 'warning' : fixturePlayerStatusTone(fixture)
+          }
+        />
+        <span>{fixture.competitionDisplayName}</span>
+      </>
+    }
+    meta={<span>Kickoff: {kickoffLabel(fixture)}</span>}
+    personality={
+      <RugbyRoosterPersonality
+        message={isLockedByKickoff ? 'Pens down.' : 'Make it brave.'}
+        mood={isLockedByKickoff ? 'waiting' : 'confident'}
+        size="sm"
+      />
+    }
+    subtitle="Your calls stay editable until scheduled kickoff. After that, the saved prediction becomes read-only."
+    title={
+      <>
+        {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
+        {fixture.team2DisplayName}
+      </>
+    }
+  />
 );
 
 const PredictionFeedback = ({
@@ -524,7 +513,7 @@ const PredictionFeedback = ({
               prediction to replace them.
             </p>
             <button
-              className="focus-ring mt-3 min-h-10 rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+              className="focus-ring rr-button rr-button-secondary mt-3"
               type="button"
               onClick={onReload}
             >
@@ -544,7 +533,7 @@ const PredictionFeedback = ({
         are still on screen.
         <div className="mt-3">
           <button
-            className="focus-ring min-h-10 rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            className="focus-ring rr-button rr-button-secondary"
             type="button"
             onClick={onReload}
           >
@@ -557,18 +546,25 @@ const PredictionFeedback = ({
 );
 
 const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
-  <section className="rounded-md border border-rooster-line bg-white p-6 sm:p-8">
-    <p className="text-sm font-black uppercase text-rooster-red">
-      Make your prediction
-    </p>
-    <h2 className="mt-4 text-3xl font-black text-rooster-ink sm:text-4xl">
-      {predictionIntroMessage.heading}
-    </h2>
-    <p className="mt-4 max-w-3xl text-base font-semibold leading-7 text-rooster-ink">
-      {predictionIntroMessage.body}
-    </p>
+  <section className="rr-surface rr-surface--raised">
+    <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0">
+        <p className="rr-section-eyebrow">Make your prediction</p>
+        <h2 className="rr-section-title mt-3">
+          {predictionIntroMessage.heading}
+        </h2>
+        <p className="mt-4 max-w-3xl text-base font-semibold leading-7 text-rr-text">
+          {predictionIntroMessage.body}
+        </p>
+      </div>
+      <RugbyRoosterPersonality
+        message="Ten thousand to start. Try not to donate them all."
+        mood="confident"
+        size="sm"
+      />
+    </div>
     <div className="mt-6 grid gap-3 md:grid-cols-2">
-      <div className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+      <div className="rr-mini-stat">
         <h3 className="text-sm font-black uppercase text-rooster-muted">
           Rugby Rooster competition points
         </h3>
@@ -578,7 +574,7 @@ const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
           prediction errors cause deductions.
         </p>
       </div>
-      <div className="rounded-md border border-rooster-line bg-rooster-paper p-4">
+      <div className="rr-mini-stat">
         <h3 className="text-sm font-black uppercase text-rooster-muted">
           Predicted rugby match scores
         </h3>
@@ -589,7 +585,7 @@ const PredictionIntro = ({ onStart }: { readonly onStart: () => void }) => (
       </div>
     </div>
     <button
-      className="focus-ring mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink sm:w-auto"
+      className="focus-ring rr-button rr-button-primary mt-6 w-full sm:w-auto"
       type="button"
       onClick={onStart}
     >
@@ -634,7 +630,7 @@ const PredictionStepView = ({
   }
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
+    <section className="rr-surface rr-surface--raised">
       <PredictionProgress current={position.current} total={position.total} />
       <div className="mt-5">
         <p className="text-sm font-black uppercase text-rooster-red">
@@ -737,7 +733,7 @@ const PredictionProgress = ({
         <span
           className={[
             'h-2 flex-1 rounded-full',
-            index < current ? 'bg-rooster-red' : 'bg-rooster-line',
+            index < current ? 'bg-rr-brand' : 'bg-rooster-line',
           ].join(' ')}
           key={index}
         />
@@ -765,7 +761,7 @@ const StepNavigation = ({
 }) => (
   <div className="mt-7 flex flex-col-reverse gap-3 border-t border-rooster-line pt-5 sm:flex-row sm:items-center sm:justify-between">
     <button
-      className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
+      className="focus-ring rr-button rr-button-secondary w-full sm:w-auto"
       type="button"
       onClick={onBack}
     >
@@ -774,7 +770,7 @@ const StepNavigation = ({
     <div className="flex flex-col gap-3 sm:flex-row">
       {returnToReviewAvailable ? (
         <button
-          className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:text-rooster-muted sm:w-auto"
+          className="focus-ring rr-button rr-button-secondary w-full sm:w-auto"
           disabled={returnToReviewDisabled}
           type="button"
           onClick={onReturnToReview}
@@ -783,7 +779,7 @@ const StepNavigation = ({
         </button>
       ) : null}
       <button
-        className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
+        className="focus-ring rr-button rr-button-primary w-full sm:w-auto"
         disabled={forwardNavigationDisabled}
         type="button"
         onClick={onContinue}
@@ -1320,11 +1316,9 @@ const PredictionReviewScreen = ({
     : 'Discard changes';
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-5 sm:p-6">
-      <p className="text-sm font-black uppercase text-rooster-red">Review</p>
-      <h2 className="mt-2 text-2xl font-black text-rooster-ink sm:text-3xl">
-        Review predictions
-      </h2>
+    <section className="rr-surface rr-surface--raised">
+      <p className="rr-section-eyebrow">Review</p>
+      <h2 className="rr-section-title mt-2">Review predictions</h2>
       <p className="mt-3 max-w-3xl text-sm leading-6 text-rooster-muted">
         This is your predicted rugby match score and prediction detail. Rugby
         Rooster competition points are deductions calculated after the match.
@@ -1384,14 +1378,14 @@ const PredictionReviewScreen = ({
             </p>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row">
               <button
-                className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md border border-rooster-line bg-white px-4 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+                className="focus-ring rr-button rr-button-secondary"
                 type="button"
                 onClick={onCancelDiscard}
               >
                 Keep editing
               </button>
               <button
-                className="focus-ring inline-flex min-h-11 items-center justify-center rounded-md bg-rooster-red px-4 text-sm font-black text-white transition hover:bg-rooster-ink"
+                className="focus-ring rr-button rr-button-danger"
                 type="button"
                 onClick={onConfirmDiscard}
               >
@@ -1402,7 +1396,7 @@ const PredictionReviewScreen = ({
         ) : null}
         <div className="mt-4 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
-            className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
+            className="focus-ring rr-button rr-button-secondary w-full sm:w-auto"
             type="button"
             onClick={onBack}
           >
@@ -1410,7 +1404,7 @@ const PredictionReviewScreen = ({
           </button>
           <div className="flex flex-col gap-3 sm:flex-row">
             <button
-              className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md border border-rooster-line bg-white px-5 text-base font-black text-rooster-ink transition hover:bg-rooster-paper sm:w-auto"
+              className="focus-ring rr-button rr-button-secondary w-full sm:w-auto"
               disabled={!canRequestDiscard}
               type="button"
               onClick={onRequestDiscard}
@@ -1418,7 +1412,7 @@ const PredictionReviewScreen = ({
               {discardActionLabel}
             </button>
             <button
-              className="focus-ring inline-flex min-h-12 w-full items-center justify-center rounded-md bg-rooster-red px-5 text-base font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:bg-rooster-muted sm:w-auto"
+              className="focus-ring rr-button rr-button-primary w-full sm:w-auto"
               disabled={!canSubmit}
               type="submit"
             >
@@ -1761,8 +1755,8 @@ const ReadOnlyPrediction = ({
     : null;
 
   return (
-    <section className="rounded-md border border-rooster-line bg-white p-5">
-      <h2 className="text-xl font-black text-rooster-ink">Saved prediction</h2>
+    <section className="rr-surface rr-surface--raised">
+      <h2 className="rr-section-title">Saved prediction</h2>
       <p className="mt-2 text-sm leading-6 text-rooster-muted">{reason}</p>
       {entry && savedForm ? (
         <>
@@ -1770,7 +1764,7 @@ const ReadOnlyPrediction = ({
             Saved revision {entry.revision}.
           </p>
           <AppLink
-            className="focus-ring mt-4 inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper"
+            className="focus-ring rr-button rr-button-secondary mt-4"
             to={fixtureScoreBreakdownPath(fixture._id)}
           >
             View my score

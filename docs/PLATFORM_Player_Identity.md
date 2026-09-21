@@ -70,7 +70,9 @@ assembling competitive views. Those user IDs stay server-side.
 - minimum 2 visible characters;
 - maximum 30 visible characters;
 - reject blank-only names;
-- reject control characters;
+- reject Unicode control characters (`\p{Cc}`);
+- reject Unicode format-control characters (`\p{Cf}`), including invisible and
+  bidirectional controls such as U+200B, U+202E, and U+2060;
 - preserve ordinary Unicode human names and nicknames.
 
 Accepted examples include `Pierre`, `Pete`, `John Smith`, `Big Dave`,

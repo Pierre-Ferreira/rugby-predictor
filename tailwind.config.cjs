@@ -13,6 +13,18 @@ module.exports = {
           red: 'rgb(var(--color-rooster-red) / <alpha-value>)',
           sun: 'rgb(var(--color-rooster-sun) / <alpha-value>)',
         },
+        rr: {
+          accent: 'rgb(var(--rr-accent) / <alpha-value>)',
+          bg: 'rgb(var(--rr-bg) / <alpha-value>)',
+          border: 'rgb(var(--rr-border) / <alpha-value>)',
+          brand: 'rgb(var(--rr-brand) / <alpha-value>)',
+          danger: 'rgb(var(--rr-danger) / <alpha-value>)',
+          info: 'rgb(var(--rr-info) / <alpha-value>)',
+          muted: 'rgb(var(--rr-text-muted) / <alpha-value>)',
+          surface: 'rgb(var(--rr-surface) / <alpha-value>)',
+          text: 'rgb(var(--rr-text) / <alpha-value>)',
+          warning: 'rgb(var(--rr-warning) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: [
