@@ -178,6 +178,8 @@ path. It shows:
 - provisional `If it ended now` rows with pending counts;
 - final rows without pending counts;
 - shared place numbers for ties;
+- alternating soft green/gold row styling based on rendered row order, not
+  shared-place value;
 - visible current-user highlighting with a `YOU` badge;
 - a `View my score` link for the signed-in participating player, pointing to
   `/games/:fixtureId/my-score`;
@@ -208,3 +210,8 @@ shape.
 CCPP-012A adds public display names and keeps the leaderboard algorithm,
 pagination, lifecycle, result correction behavior, and projection field shape
 unchanged.
+
+CCPP-012B2 adds the alternating green/gold row presentation and shared green
+page-header treatment only. It does not change leaderboard ranking, tie
+handling, pagination, privacy labels, refresh behavior, method inputs, or
+projection fields.

@@ -4,9 +4,11 @@
 
 CCPP-012B established the first coherent player-facing Rugby Rooster visual
 foundation. CCPP-012B1 aligns that foundation to the approved mascot and colour
-style board. It is presentation work over the existing routes and behaviours;
-it does not change routing, auth, predictions, scoring, leaderboard ranking,
-identity privacy, fixture lifecycle, or admin workflows.
+style board. CCPP-012B2 extends the approved Home green hero treatment across
+the main player-facing page headers and adds green/gold alternating fixture
+leaderboard rows. It is presentation work over the existing routes and
+behaviours; it does not change routing, auth, predictions, scoring,
+leaderboard ranking, identity privacy, fixture lifecycle, or admin workflows.
 
 Detailed Admin visual redesign remains deferred. Admin may inherit base tokens
 and typography only.
@@ -47,11 +49,13 @@ older `rooster.*` colours and semantic `rr.*` colours in
 Approved usage direction:
 
 - Field Green is the primary brand anchor for selected navigation, primary
-  buttons, strong page accents, and Home's hero surface.
-- Gold is the main highlight for Home's primary CTA, achievement/winner
-  accents, progress emphasis, and compact details.
-- Rooster Red is used for personality emphasis, `vs`, error/destructive
-  states, and attention copy.
+  buttons, strong page accents, and the shared player page-header surface.
+- Gold is the main highlight for primary actions on green headers,
+  achievement/winner accents, progress emphasis, leaderboard alternation, and
+  compact details.
+- Rooster Red is used for personality emphasis, green-header accent stripes,
+  light `vs`/attention moments, error/destructive states, and current-player
+  emphasis.
 - Cobalt Blue is selective, mostly links/information and small secondary
   competitive accents.
 - Cream and warm surface tones keep player pages readable.
@@ -71,7 +75,7 @@ web-font dependency were introduced.
 Hierarchy:
 
 - Page title: large, compact, heavy, and allowed to wrap.
-- Fixture/team title: prominent and compact, with red `vs` emphasis.
+- Fixture/team title: prominent and compact, with restrained `vs` emphasis.
 - Step and section titles: strong but smaller than page titles.
 - Section eyebrow: small uppercase label style for route/status context.
 - Body: medium-weight readable copy.
@@ -129,10 +133,23 @@ Applied player-facing pages:
 - My Score Breakdown.
 - Account.
 
-CCPP-012B1 gives Home a stronger Field Green hero/header surface with cream
-copy, a Gold primary CTA, Rooster Red accent stripe, and the approved confident
-mascot. Other player pages keep the existing 012B shell and receive targeted
-colour/mood alignment only.
+CCPP-012B2 makes `rr-page-header` itself the shared green hero/top-surface
+treatment. Home keeps the same approved green look, and Games, Game Detail,
+Prediction, Fixture Leaderboard, My Score Breakdown, and Account now inherit the
+same Field Green surface, cream copy, Gold primary/header accents, Rooster Red
+accent stripe, readable badges, and green-header button treatment.
+
+Leaderboard rows use shared `rr-leaderboard-row` classes that alternate by
+rendered row order:
+
+- row 1: soft green tint;
+- row 2: soft gold tint;
+- row 3: soft green tint;
+- row 4: soft gold tint.
+
+The current-user row keeps the visible `YOU` badge and receives a slightly
+stronger inset emphasis layered over the green/gold row tone. Winner emphasis is
+also layered without changing ranking, tie, pagination, or score data.
 
 The visual direction should not become rainbow-like. Field Green leads; Cream
 keeps pages readable; Gold, Rooster Red, Cobalt Blue, and Tan Feather are

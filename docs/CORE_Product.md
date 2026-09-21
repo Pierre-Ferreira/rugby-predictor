@@ -176,6 +176,20 @@ Out of scope for this product:
   animation system, mascot redesign, backend feature, league, venue, prize, AI,
   avatar, or Admin overhaul work was added.
 
+## Implemented In CCPP-012B2
+
+- The approved Home Field Green hero treatment now applies to the shared
+  player-facing page header used by Games, Game Detail, Prediction, Fixture
+  Leaderboard, My Score Breakdown, and Account.
+- Page content remains on cream/light readable surfaces while green and gold
+  provide the dominant structural palette.
+- Fixture leaderboard rows now alternate soft green and gold treatments by
+  rendered row order, while preserving the `YOU` current-player badge and
+  winner emphasis.
+- This was a visual alignment pass only. No prediction, scoring, leaderboard
+  calculation, routing, publication, method, auth, fixture, mascot asset, or
+  Admin workflow behavior changed.
+
 ## Agreed Product Direction
 
 - Players start each fixture with 10,000 points; deductions apply, with a minimum final score of zero.

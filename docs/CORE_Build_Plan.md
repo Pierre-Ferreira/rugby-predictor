@@ -949,6 +949,36 @@ Not implemented:
 - Leagues, venue competitions, prizes, sponsorships, AI, avatars, profile
   pages, quiz gameplay, Admin visual overhaul, or backend scoring changes.
 
+## CCPP-012B2 Scope
+
+Milestone status: implemented for global player-facing green surface alignment
+and fixture leaderboard alternating palette rows. Platform details live in
+`docs/PLATFORM_Visual_Identity.md` and
+`docs/PLATFORM_Fixture_Leaderboard.md`; verification evidence is recorded in
+`docs/AUDIT_012B2_Global_Green_Surface_Alignment.md`.
+
+Implemented:
+
+- Promoted the approved Home Field Green hero/header treatment to the shared
+  `rr-page-header` player primitive.
+- Kept detailed content, fixture cards, score rows, and data-heavy panels on
+  cream/light readable surfaces.
+- Adjusted shared header buttons, badges, `vs` treatment, mascot-message
+  surfaces, and section eyebrows to keep the green/gold palette coherent.
+- Added fixture leaderboard row classes that alternate soft green and gold
+  styling by rendered row index.
+- Preserved current-user `YOU` highlighting and winner emphasis within the
+  alternating row system.
+- Added focused browser assertions and screenshots for desktop and mobile
+  visual acceptance.
+
+Not implemented:
+
+- Prediction logic, scoring logic, leaderboard calculation logic, routing,
+  publications, methods, auth behavior, fixture workflow changes, new mascot
+  artwork, animation work, broad shell refactors, Admin redesign, or backend
+  feature expansion.
+
 ## Roadmap Discipline
 
 Future work should keep product-decision status separate from implementation status. Promote product decisions from unresolved to agreed only when requirements are explicit, and promote implementation status only when code and verification evidence exist. When a decision is missing, document the gap instead of filling it with assumptions.

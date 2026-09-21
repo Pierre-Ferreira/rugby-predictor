@@ -401,8 +401,10 @@ export const FixtureLeaderboardPage = () => {
               <h2 className="rr-section-eyebrow">Your position</h2>
               <div className="mt-4">
                 <MobileLeaderboardRow
+                  rowIndex={0}
                   row={activeLeaderboard.currentUserRow}
                   showPending={activeLeaderboard.status === 'provisional'}
+                  status={activeLeaderboard.status}
                 />
               </div>
             </section>
@@ -635,9 +637,10 @@ const LeaderboardRows = ({
             </tr>
           </thead>
           <tbody>
-            {leaderboard.rows.map((row) => (
+            {leaderboard.rows.map((row, index) => (
               <DesktopLeaderboardRow
                 key={row.rowId}
+                rowIndex={index}
                 row={row}
                 showPending={showPending}
                 status={leaderboard.status}
@@ -647,9 +650,10 @@ const LeaderboardRows = ({
         </table>
       </div>
       <div className="grid gap-2 p-3 sm:hidden">
-        {leaderboard.rows.map((row) => (
+        {leaderboard.rows.map((row, index) => (
           <MobileLeaderboardRow
             key={row.rowId}
+            rowIndex={index}
             row={row}
             showPending={showPending}
             status={leaderboard.status}
@@ -663,15 +667,19 @@ const LeaderboardRows = ({
 const rowClassName = ({
   isCurrentUser,
   isWinner,
+  rowIndex,
 }: {
   readonly isCurrentUser: boolean;
   readonly isWinner: boolean;
+  readonly rowIndex: number;
 }): string =>
   [
-    isCurrentUser
-      ? 'border-rooster-red bg-rooster-red/10'
-      : 'border-rooster-line',
-    isWinner && !isCurrentUser ? 'bg-rooster-sun/10' : '',
+    'rr-leaderboard-row',
+    rowIndex % 2 === 0
+      ? 'rr-leaderboard-row--green'
+      : 'rr-leaderboard-row--gold',
+    isCurrentUser ? 'rr-leaderboard-row--current-user' : '',
+    isWinner ? 'rr-leaderboard-row--winner' : '',
   ].join(' ');
 
 const CurrentUserBadge = () => (
@@ -681,10 +689,12 @@ const CurrentUserBadge = () => (
 );
 
 const DesktopLeaderboardRow = ({
+  rowIndex,
   row,
   showPending,
   status,
 }: {
+  readonly rowIndex: number;
   readonly row: FixtureLeaderboardRow;
   readonly showPending: boolean;
   readonly status: FixtureLeaderboardProjection['status'];
@@ -698,6 +708,7 @@ const DesktopLeaderboardRow = ({
         rowClassName({
           isCurrentUser: row.isCurrentUser,
           isWinner,
+          rowIndex,
         }),
       ].join(' ')}
     >
@@ -730,10 +741,12 @@ const DesktopLeaderboardRow = ({
 };
 
 const MobileLeaderboardRow = ({
+  rowIndex,
   row,
   showPending,
   status = 'provisional',
 }: {
+  readonly rowIndex: number;
   readonly row: FixtureLeaderboardRow;
   readonly showPending: boolean;
   readonly status?: FixtureLeaderboardProjection['status'];
@@ -747,6 +760,7 @@ const MobileLeaderboardRow = ({
         rowClassName({
           isCurrentUser: row.isCurrentUser,
           isWinner,
+          rowIndex,
         }),
       ].join(' ')}
     >

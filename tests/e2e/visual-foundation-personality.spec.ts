@@ -13,14 +13,14 @@ import { TEST_PLAYER_PROFILE_METHODS } from '../../imports/shared/playerProfiles
 import { TEST_PREDICTION_METHODS } from '../../imports/shared/predictions';
 
 const uniqueEmail = (label: string) =>
-  `ccpp012b1-e2e-${label}-${Date.now()}-${Math.random()
+  `ccpp012b2-e2e-${label}-${Date.now()}-${Math.random()
     .toString(16)
     .slice(2)}@example.test`;
 
 const NAVIGATION_ATTEMPT_TIMEOUT_MS = 15_000;
 const evidenceDir = path.resolve(
   process.env.RUGBY_ROOSTER_E2E_EVIDENCE_DIR ??
-    'test-results/ccpp012b1-mascot-colour-alignment',
+    'test-results/ccpp012b2-global-green-surface-alignment',
 );
 
 const expectedMoodAssetSrc = {
@@ -235,12 +235,45 @@ const expectVisibleMood = async (page: Page, mood: BrowserPersonalityMood) => {
     .toBe(true);
 };
 
+const expectGreenPageHeader = async (page: Page) => {
+  const header = page.locator('.rr-page-header').first();
+
+  await expect(header).toBeVisible();
+  await expect
+    .poll(() =>
+      header.evaluate((node) => {
+        const styles = window.getComputedStyle(node);
+
+        return {
+          backgroundColor: styles.backgroundColor,
+          color: styles.color,
+        };
+      }),
+    )
+    .toEqual({
+      backgroundColor: 'rgb(0, 109, 67)',
+      color: 'rgb(255, 248, 230)',
+    });
+};
+
 const expectNoGenericRunningMoodLeak = async (page: Page) => {
   await expect(
     page.locator(
       '[data-mood]:not([data-mood="running"]) img[src*="/match-result/frames/"]',
     ),
   ).toHaveCount(0);
+};
+
+const expectAlternatingLeaderboardRows = async (
+  page: Page,
+  rowSelector: 'article.rr-leaderboard-row' | 'tr.rr-leaderboard-row',
+) => {
+  const rows = page.locator(rowSelector);
+
+  await expect(rows.first()).toBeVisible();
+  await expect(rows.nth(0)).toHaveClass(/rr-leaderboard-row--green/);
+  await expect(rows.nth(1)).toHaveClass(/rr-leaderboard-row--gold/);
+  await expect(page.getByText('YOU').first()).toBeVisible();
 };
 
 const navigateInApp = async (page: Page, pathName: string) => {
@@ -281,7 +314,7 @@ declare global {
   }
 }
 
-test.describe('CCPP-012B1 mascot colour alignment', () => {
+test.describe('CCPP-012B2 global green surface alignment', () => {
   test('captures the focused player-facing journey', async ({ page }) => {
     test.setTimeout(120_000);
 
@@ -290,6 +323,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Rugby Rooster' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'confident');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-home');
@@ -306,6 +340,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { name: 'Your Rugby Rooster account' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'confident');
     const input = page.getByRole('textbox', { name: 'Public player name' });
 
@@ -319,17 +354,37 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
       readonly fixtureId: string;
     }>(page, TEST_FIXTURE_LEADERBOARD_METHODS.seedScenario);
 
+    await callMeteor(page, TEST_FIXTURE_METHODS.createPublished, {
+      details: {
+        competitionDisplayName: 'Archive Shield',
+        scheduledKickoffAt: '2024-06-15T13:00:00.000Z',
+        team1DisplayName: 'Old Greens',
+        team2DisplayName: 'Gold Veterans',
+        venueDisplayName: 'History Park',
+      },
+    });
+
     await gotoLocal(page, '/games');
     await expect(
       page.getByRole('heading', { level: 1, name: 'Upcoming fixtures' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'running');
-    await screenshot(page, 'desktop-games');
+    await screenshot(page, 'desktop-games-upcoming');
+
+    await page.getByRole('button', { name: 'Past' }).click();
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'Past scheduled fixtures' }),
+    ).toBeVisible();
+    await expectGreenPageHeader(page);
+    await expectVisibleMood(page, 'thinking');
+    await screenshot(page, 'desktop-games-past');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}`);
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'thinking');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-game-detail');
@@ -338,12 +393,15 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'confident');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-prediction');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/leaderboard`);
     await expect(page.getByText('If it ended now')).toBeVisible();
+    await expectGreenPageHeader(page);
+    await expectAlternatingLeaderboardRows(page, 'tr.rr-leaderboard-row');
     await expectVisibleMood(page, 'nervous');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-leaderboard-provisional');
@@ -407,11 +465,14 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     );
     await page.getByRole('button', { name: 'Refresh' }).click();
     await expect(page.getByText('Final leaderboard')).toBeVisible();
+    await expectGreenPageHeader(page);
+    await expectAlternatingLeaderboardRows(page, 'tr.rr-leaderboard-row');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-leaderboard-final');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/my-score`);
     await expect(page.getByText('Final Score')).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'desktop-my-score');
 
@@ -420,6 +481,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Rugby Rooster' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'confident');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-390-home');
@@ -428,6 +490,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Upcoming fixtures' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'running');
     await screenshot(page, 'mobile-390-games');
 
@@ -435,6 +498,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { name: /Red Roosters.*Blue Boots/ }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'thinking');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-390-game-detail');
@@ -442,11 +506,14 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await page.setViewportSize({ width: 360, height: 900 });
     await gotoLocal(page, `/games/${seeded.fixtureId}/leaderboard`);
     await expect(page.getByText('Final leaderboard')).toBeVisible();
+    await expectGreenPageHeader(page);
+    await expectAlternatingLeaderboardRows(page, 'article.rr-leaderboard-row');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-360-leaderboard');
 
     await gotoLocal(page, `/games/${seeded.fixtureId}/my-score`);
     await expect(page.getByText('Final Score')).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-360-my-score');
 
@@ -455,6 +522,7 @@ test.describe('CCPP-012B1 mascot colour alignment', () => {
     await expect(
       page.getByRole('heading', { name: 'Your Rugby Rooster account' }),
     ).toBeVisible();
+    await expectGreenPageHeader(page);
     await expectVisibleMood(page, 'confident');
     await expectNoGenericRunningMoodLeak(page);
     await screenshot(page, 'mobile-390-account');

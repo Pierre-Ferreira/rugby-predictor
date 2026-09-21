@@ -22,9 +22,10 @@
 - `docs/PLATFORM_Player_Identity.md` - public display-name persistence,
   owner-only methods, validation, privacy projection, batch identity resolver,
   Account editing, and leaderboard label policy.
-- `docs/PLATFORM_Visual_Identity.md` - CCPP-012B/012B1 semantic colour tokens,
-  approved palette alignment, typography hierarchy, surfaces, buttons, page
-  shells, status language, and player-facing state patterns.
+- `docs/PLATFORM_Visual_Identity.md` - CCPP-012B/012B1/012B2 semantic colour
+  tokens, approved palette alignment, shared green player page headers,
+  typography hierarchy, surfaces, buttons, leaderboard row tones, page shells,
+  status language, and player-facing state patterns.
 - `docs/PLATFORM_Rooster_Personality.md` - CCPP-012B/012B1 static Rooster
   personality component, approved mood catalog, asset mapping, copy rules,
   usage limits, and failure/performance behaviour.
@@ -193,6 +194,9 @@
   source preservation, runtime personality asset preparation, real mood
   mapping, colour alignment, focused browser evidence, final checks, and EOMD
   archive evidence.
+- `docs/AUDIT_012B2_Global_Green_Surface_Alignment.md` - CCPP-012B2 shared
+  green page-header alignment, fixture leaderboard green/gold alternating row
+  treatment, focused browser evidence, and verification notes.
 - `docs/AUDIT_004A_Login_Navigation_Fix.md` - historical CCPP-004A login-navigation and test-stability checkpoint.
 - `docs/AUDIT_004A_Throttle_Correction.md` - historical CCPP-004A throttle correction checkpoint.
 - `docs/AUDIT_004A_Database_Isolation_Verification.md` - historical CCPP-004A database isolation checkpoint that preserved an unresolved runtime-verification blocker.
@@ -656,12 +660,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   display-name editing, leaderboard display-name/fallback labels, current-user
   `You`, name changes, near-max display-name layout, safe projection readback,
   and 390px/360px responsive evidence.
-- `tests/e2e/visual-foundation-personality.spec.ts` - focused CCPP-012B1
-  player visual journey covering Home, Games, Game Detail, Prediction shell,
-  provisional/final Leaderboard, My Score, Account, mobile evidence,
-  fixture-not-found empty state, induced leaderboard retry state, approved
-  mascot asset loading, non-running mood separation from old run/push frames,
-  and horizontal-overflow checks.
+- `tests/e2e/visual-foundation-personality.spec.ts` - focused CCPP-012B2
+  player visual journey covering Home, Games Upcoming/Past, Game Detail,
+  Prediction shell, provisional/final Leaderboard, My Score, Account, mobile
+  evidence, shared green page-header assertions, green/gold leaderboard row
+  alternation, fixture-not-found empty state, induced leaderboard retry state,
+  approved mascot asset loading, non-running mood separation from old run/push
+  frames, and horizontal-overflow checks.
 - `tests/support/playwright-target.ts` - Playwright target guard that rejects non-local hosts.
 - `tests/support/kaplay-layout-evidence.ts` - CCPP-009C3B browser evidence
   helper for reading the required Kaplay Match Result semantic bridge while
@@ -695,8 +700,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/scoring/` - framework-independent scoring rules engine.
 - `imports/ui/auth/` - client auth state and auth action helpers.
 - `imports/ui/components/` - reusable UI primitives.
-- `imports/ui/components/player/` - CCPP-012B/012B1 player-facing visual
-  primitives and static Rooster personality component.
+- `imports/ui/components/player/` - CCPP-012B/012B1/012B2 player-facing visual
+  primitives, shared green page headers, and static Rooster personality
+  component.
 - `imports/ui/fixtures/` - fixture-specific UI helpers and admin manager.
 - `imports/ui/layouts/` - public and admin layout shells.
 - `imports/ui/pages/` - route page components.
