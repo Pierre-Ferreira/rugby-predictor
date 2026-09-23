@@ -26,14 +26,15 @@ CCPP-011D — Live Result Initialization & Zero-Based Provisional Scoring.
 - `observations.matchStatus` is `provisional` or `confirmed`; absence of a
   result document is the separate `No result` / `awaiting_result` state.
 
-## Current Create/Save Behavior
+## Historical Create/Save Behavior Superseded By CCPP-011D1
 
-- Existing `matchResults.admin.saveProvisional` still accepts an admin-owned
-  result mutation with `expectedRevision`, `fixtureId`, and `observations`.
-- `expectedRevision: 0` creates the first result through a unique fixture
-  upsert; existing first-result races receive `result-conflict`.
-- Existing updates require a stored provisional result at the captured revision
-  and increment `revision`.
+- At the CCPP-011D checkpoint, `matchResults.admin.saveProvisional` still
+  accepted `expectedRevision: 0` as the first-create path.
+- CCPP-011D1 supersedes that behavior: production
+  `matchResults.admin.saveProvisional` now updates an existing provisional
+  result only, and `expectedRevision: 0` without a result is rejected.
+- `matchResults.admin.startResultTracking` is now the only production path that
+  creates the first canonical result document at revision `1`.
 - CCPP-011D adds `matchResults.admin.startResultTracking`, accepting only
   `{ fixtureId }`, requiring platform-admin authorization and published,
   non-cancelled fixture eligibility, and creating the first provisional result

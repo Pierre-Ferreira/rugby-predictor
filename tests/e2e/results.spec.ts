@@ -493,8 +493,15 @@ test.describe('result administration', () => {
         team2DisplayName: team2,
       });
 
+    const started = await callMeteor<{ readonly revision: number }>(
+      page,
+      MATCH_RESULT_METHODS.startResultTracking,
+      {
+        fixtureId,
+      },
+    );
     await callMeteor(page, MATCH_RESULT_METHODS.saveProvisional, {
-      expectedRevision: 0,
+      expectedRevision: started.revision,
       fixtureId,
       observations: completeObservationPayload(),
     });

@@ -34,8 +34,24 @@ result tracking intentionally from the result screen; Rugby Rooster does not
 auto-start tracking when a fixture is published, predicted, viewed, or past
 kickoff.
 
+CCPP-011D1 keeps that explicit start boundary and makes it part of prediction
+access. In automatic prediction-access mode, starting result tracking locks
+future prediction writes. An admin may explicitly reopen predictions after
+result tracking has started, and later saves/corrections to the provisional
+result do not reset that override. Final confirmation locks predictions and
+cannot be reopened for editing.
+
 Final confirmation is deliberate and irreversible in CCPP-008B. There is no
 delete, reset, reopen, unconfirm, or correction workflow yet.
+
+## First Creation Boundary
+
+`matchResults.admin.startResultTracking` is the production path that creates
+the first canonical result document at revision `1`.
+
+`matchResults.admin.saveProvisional` updates an existing provisional result
+only. In production, `saveProvisional` with `expectedRevision: 0` and no result
+document is rejected; it no longer creates the first result.
 
 ## Pending Versus Zero
 

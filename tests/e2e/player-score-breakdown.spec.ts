@@ -420,11 +420,22 @@ test.describe('player score breakdown', () => {
     try {
       await gotoLocal(adminPage, '/');
       await loginWithTestToken(adminPage, adminEmail);
-      await callMeteor(adminPage, MATCH_RESULT_METHODS.saveProvisional, {
-        expectedRevision: 0,
-        fixtureId,
-        observations: provisionalObservations(),
-      });
+      const started = await callMeteor<{ readonly revision: number }>(
+        adminPage,
+        MATCH_RESULT_METHODS.startResultTracking,
+        {
+          fixtureId,
+        },
+      );
+      const provisional = await callMeteor<{ readonly revision: number }>(
+        adminPage,
+        MATCH_RESULT_METHODS.saveProvisional,
+        {
+          expectedRevision: started.revision,
+          fixtureId,
+          observations: provisionalObservations(),
+        },
+      );
 
       await gotoLocal(page, `/games/${fixtureId}/my-score`);
 
@@ -467,7 +478,7 @@ test.describe('player score breakdown', () => {
         });
 
       await callMeteor(adminPage, MATCH_RESULT_METHODS.saveProvisional, {
-        expectedRevision: 1,
+        expectedRevision: provisional.revision,
         fixtureId,
         observations: correctedObservations(),
       });
@@ -478,7 +489,7 @@ test.describe('player score breakdown', () => {
       await expect(page.getByText('1 pending')).toBeVisible();
 
       await callMeteor(adminPage, MATCH_RESULT_METHODS.confirmFinal, {
-        expectedRevision: 2,
+        expectedRevision: provisional.revision + 1,
         fixtureId,
         observations: finalObservations(),
       });

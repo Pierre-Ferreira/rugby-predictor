@@ -1,6 +1,7 @@
 import { Meteor } from 'meteor/meteor';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { PredictionAccessAudits } from '/imports/api/predictionAccessAudits/collection';
 import {
   INITIAL_FIXTURE_REVISION,
   TEST_FIXTURE_METHODS,
@@ -122,9 +123,14 @@ const disableBuiltInQuestions = (
 export const resetFixtureTestData = async () => {
   const testEnvironment = await assertVerifiedAuthTestEnvironment();
 
-  await Fixtures.removeAsync({
-    'rugbyRoosterTest.ownerRunId': testEnvironment.runId,
-  });
+  await Promise.all([
+    Fixtures.removeAsync({
+      'rugbyRoosterTest.ownerRunId': testEnvironment.runId,
+    }),
+    PredictionAccessAudits.removeAsync({
+      'rugbyRoosterTest.ownerRunId': testEnvironment.runId,
+    }),
+  ]);
 };
 
 export const registerFixtureTestMethods = async () => {

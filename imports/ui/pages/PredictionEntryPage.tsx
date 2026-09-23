@@ -10,6 +10,7 @@ import { Meteor } from 'meteor/meteor';
 import { useTracker } from 'meteor/react-meteor-data';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import { signInPathForReturnTo } from '/imports/shared/auth/redirects';
 import {
@@ -32,6 +33,11 @@ import {
   PREDICTION_PUBLICATIONS,
 } from '/imports/shared/predictions';
 import {
+  predictionAccessPlayerLockedReason,
+  resolvePredictionAccess,
+  type PredictionAccessResult,
+} from '/imports/shared/predictionAccess';
+import {
   isBuiltInEnabled,
   type FirstTryAnswer,
   type RulesetSnapshot,
@@ -52,8 +58,6 @@ import {
 import {
   fixtureDetailPath,
   fixtureLeaderboardPath,
-  fixturePlayerStatusLabel,
-  fixturePlayerStatusTone,
   fixtureScoreBreakdownPath,
   kickoffLabel,
 } from '../fixtures/fixtureUi';
@@ -131,7 +135,7 @@ export const PredictionEntryPage = () => {
   const auth = useAuthState();
   const [now, setNow] = useState(() => new Date().getTime());
 
-  const { entry, fixture, isConnected, isEntryReady, isFixtureReady } =
+  const { entry, fixture, isConnected, isEntryReady, isFixtureReady, result } =
     useTracker(() => {
       const publicFixtureHandle = Meteor.subscribe(
         FIXTURE_PUBLICATIONS.publicDetail,
@@ -161,6 +165,7 @@ export const PredictionEntryPage = () => {
         isFixtureReady:
           publicFixtureHandle.ready() &&
           (privateFixtureHandle?.ready() ?? true),
+        result: userId ? MatchResults.findOne({ fixtureId }) : null,
       };
     }, [fixtureId, auth.userId]);
 
@@ -173,10 +178,15 @@ export const PredictionEntryPage = () => {
   }, []);
 
   const ruleset = fixture?.rulesetSnapshot;
-  const isLockedByKickoff = fixture
-    ? now >= fixture.scheduledKickoffAt.getTime()
-    : false;
-  const isReadOnly = Boolean(fixture?.isCancelled || isLockedByKickoff);
+  const predictionAccess = fixture
+    ? resolvePredictionAccess({
+        fixture,
+        hasResultTrackingStarted: Boolean(result),
+        isResultFinal: result?.observations.matchStatus === 'confirmed',
+        now: new Date(now),
+      })
+    : null;
+  const isReadOnly = predictionAccess ? !predictionAccess.isOpen : true;
 
   if (!isConnected && !isFixtureReady) {
     return (
@@ -222,10 +232,7 @@ export const PredictionEntryPage = () => {
   if (!auth.isAuthenticated || !auth.isVerified) {
     return (
       <PredictionShell>
-        <FixtureHeader
-          fixture={fixture}
-          isLockedByKickoff={isLockedByKickoff}
-        />
+        <FixtureHeader fixture={fixture} predictionAccess={predictionAccess} />
         <SignInRequiredState
           currentPath={window.location.pathname}
           message="Sign in with the existing email-link flow to save or revisit your prediction for this fixture."
@@ -239,10 +246,7 @@ export const PredictionEntryPage = () => {
   if (!ruleset) {
     return (
       <PredictionShell>
-        <FixtureHeader
-          fixture={fixture}
-          isLockedByKickoff={isLockedByKickoff}
-        />
+        <FixtureHeader fixture={fixture} predictionAccess={predictionAccess} />
         <section
           className="rounded-md border border-rooster-red/30 bg-white p-6"
           role="alert"
@@ -262,19 +266,26 @@ export const PredictionEntryPage = () => {
   if (!isEntryReady) {
     return (
       <PredictionShell>
-        <FixtureHeader
-          fixture={fixture}
-          isLockedByKickoff={isLockedByKickoff}
-        />
+        <FixtureHeader fixture={fixture} predictionAccess={predictionAccess} />
         <PlayerLoadingState label="Loading saved prediction" />
       </PredictionShell>
     );
   }
 
-  const readOnlyReason = fixture.isCancelled
-    ? 'This fixture has been cancelled, so predictions are read-only.'
-    : isLockedByKickoff
-      ? 'Scheduled kickoff has passed, so predictions are read-only.'
+  if (!predictionAccess) {
+    return (
+      <PredictionShell>
+        <PlayerErrorState
+          body="Reload this page to refresh prediction access for the fixture."
+          title="Prediction access is unavailable"
+        />
+      </PredictionShell>
+    );
+  }
+
+  const readOnlyReason =
+    predictionAccess && !predictionAccess.isOpen
+      ? predictionAccessPlayerLockedReason(predictionAccess.reason)
       : null;
 
   const initialForm = normalizeInitialPredictionForm(
@@ -293,8 +304,8 @@ export const PredictionEntryPage = () => {
       fixtureId={fixtureId}
       initialExpectedRevision={entry?.revision ?? null}
       initialForm={initialForm}
-      isLockedByKickoff={isLockedByKickoff}
       isReadOnly={isReadOnly}
+      predictionAccess={predictionAccess}
       readOnlyReason={readOnlyReason}
       ruleset={ruleset}
       userId={userId}
@@ -308,8 +319,8 @@ const PredictionEntrySession = ({
   fixtureId,
   initialExpectedRevision,
   initialForm,
-  isLockedByKickoff,
   isReadOnly,
+  predictionAccess,
   readOnlyReason,
   ruleset,
   userId,
@@ -319,8 +330,8 @@ const PredictionEntrySession = ({
   readonly fixtureId: string;
   readonly initialExpectedRevision: number | null;
   readonly initialForm: PredictionFormState;
-  readonly isLockedByKickoff: boolean;
   readonly isReadOnly: boolean;
+  readonly predictionAccess: PredictionAccessResult;
   readonly readOnlyReason: string | null;
   readonly ruleset: RulesetSnapshot;
   readonly userId: string;
@@ -348,10 +359,7 @@ const PredictionEntrySession = ({
 
   return (
     <PredictionShell>
-      <FixtureHeader
-        fixture={fixture}
-        isLockedByKickoff={isLockedByKickoff || isReadOnly}
-      />
+      <FixtureHeader fixture={fixture} predictionAccess={predictionAccess} />
 
       <PredictionFeedback
         feedback={session.state.feedback}
@@ -428,10 +436,10 @@ const StandardPredictionRenderer = ({
 
 const FixtureHeader = ({
   fixture,
-  isLockedByKickoff,
+  predictionAccess,
 }: {
   readonly fixture: FixtureDocument;
-  readonly isLockedByKickoff: boolean;
+  readonly predictionAccess: PredictionAccessResult | null;
 }) => (
   <PlayerPageHeader
     actions={
@@ -453,12 +461,8 @@ const FixtureHeader = ({
     eyebrow={
       <>
         <StatusBadge
-          label={
-            isLockedByKickoff ? 'Locked' : fixturePlayerStatusLabel(fixture)
-          }
-          tone={
-            isLockedByKickoff ? 'warning' : fixturePlayerStatusTone(fixture)
-          }
+          label={predictionAccess?.isOpen ? 'Prediction open' : 'Locked'}
+          tone={predictionAccess?.isOpen ? 'success' : 'warning'}
         />
         <span>{fixture.competitionDisplayName}</span>
       </>
@@ -466,12 +470,12 @@ const FixtureHeader = ({
     meta={<span>Kickoff: {kickoffLabel(fixture)}</span>}
     personality={
       <RugbyRoosterPersonality
-        message={isLockedByKickoff ? 'Pens down.' : 'Make it brave.'}
-        mood={isLockedByKickoff ? 'thinking' : 'confident'}
+        message={predictionAccess?.isOpen ? 'Make it brave.' : 'Pens down.'}
+        mood={predictionAccess?.isOpen ? 'confident' : 'thinking'}
         size="compact"
       />
     }
-    subtitle="Your calls stay editable until scheduled kickoff. After that, the saved prediction becomes read-only."
+    subtitle="Prediction access follows kickoff, result tracking, and admin controls."
     title={
       <>
         {fixture.team1DisplayName} <span className="rr-versus">vs</span>{' '}
@@ -1757,7 +1761,12 @@ const ReadOnlyPrediction = ({
   return (
     <section className="rr-surface rr-surface--raised">
       <h2 className="rr-section-title">Saved prediction</h2>
-      <p className="mt-2 text-sm leading-6 text-rooster-muted">{reason}</p>
+      <p className="mt-2 text-sm font-bold leading-6 text-rooster-ink">
+        Predictions are locked for this fixture.
+      </p>
+      {reason !== 'Predictions are locked for this fixture.' ? (
+        <p className="mt-1 text-sm leading-6 text-rooster-muted">{reason}</p>
+      ) : null}
       {entry && savedForm ? (
         <>
           <p className="mt-2 text-sm font-bold text-rooster-muted">

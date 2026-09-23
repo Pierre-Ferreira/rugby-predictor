@@ -9,6 +9,9 @@ Authoritative server code lives under `imports/server/predictions/`. Shared
 method names, publication names, types, and submission validation live under
 `imports/shared/predictions/`.
 
+Shared prediction-access resolution lives under
+`imports/shared/predictionAccess/`.
+
 Client collection writes are denied. Authoritative writes go through Meteor
 methods.
 
@@ -64,6 +67,13 @@ The method requires an authenticated verified account through the existing
 verified-player authorization convention. Anonymous and unverified attempts are
 rejected.
 
+Before either first creation or revision update, `predictions.submit` loads the
+published fixture plus the current match result server-side and calls
+`resolvePredictionAccess(...)`. The client cannot provide an authoritative
+timestamp, access override, kickoff time, result-start state, final state, or
+cancellation state. A locked result raises `prediction-access-locked` and no
+prediction write is attempted.
+
 `predictions.getMyFixtureScore` accepts a fixture ID and returns the signed-in
 verified player's derived `PlayerFixtureScoreProjection`, or `null` when that
 player has no saved prediction for the fixture. It never accepts a user ID,
@@ -92,16 +102,25 @@ Submissions are accepted only when all of these are true:
 
 - The fixture exists.
 - The fixture is `published`.
-- The fixture is not cancelled.
 - The fixture has a valid stored `rulesetSnapshot`.
-- Server time is strictly before `scheduledKickoffAt`.
+- The shared prediction-access resolver returns open.
 
 Draft, missing, cancelled, snapshotless, invalid-snapshot, and locked fixtures
 reject writes. At kickoff equality, writes are locked.
 
-CCPP-006 intentionally follows the fixture's current scheduled kickoff. If an
-admin correction moves kickoff from the past back into the future, prediction
-editing can reopen. A permanent lock policy is deferred.
+Prediction access is:
+
+- Automatic before kickoff with no result tracking: open.
+- Automatic at or after kickoff by server time: locked.
+- Automatic after result tracking starts: locked.
+- Admin locked: locked even before kickoff.
+- Admin reopened: open even after kickoff or result tracking start.
+- Final: locked and cannot be reopened.
+- Cancelled: locked and cannot be reopened.
+
+The final and cancelled checks run before admin overrides. The explicit admin
+open override is otherwise intentional and accepted after kickoff and after
+result tracking has started.
 
 ## Snapshot Validation
 
@@ -164,9 +183,10 @@ Published entry fields:
 `rugbyRoosterTest` metadata is not published.
 
 `predictions.fixtureContext` publishes one published fixture to a verified user
-with public fixture fields plus `rulesetSnapshot`. This lets the prediction form
-render the questions from the stored snapshot without adding the snapshot to the
-public fixture publications. Prediction answers are never included in public
+with public fixture fields plus `rulesetSnapshot` and `predictionLockOverride`.
+It also publishes the fixture's current match result context. This lets the
+prediction route render the questions from the stored snapshot and mirror the
+server access resolver for UX without adding prediction answers to public
 fixture publications.
 
 CCPP-006 does not add public prediction lists, admin prediction lists, or
@@ -230,7 +250,9 @@ saved data only replaces client state and the captured revision; it does not
 call the prediction submission method and does not create a new stored revision.
 
 The page refreshes time-sensitive UI every 15 seconds so an open page reflects
-kickoff passing. Server checks remain authoritative.
+kickoff passing. Match result and fixture publications can also move the page
+between editable and read-only states after result tracking, admin lock/reopen,
+final, or cancellation. Server checks remain authoritative.
 
 The fixture leaderboard page also uses a 15-second visible-page refresh while
 the leaderboard is awaiting results or provisional. It stops automatic refresh
@@ -252,11 +274,20 @@ as a `Predicted Score` section after Drop Goals rather than being hidden or
 recomputed in the UI.
 
 When `isReadOnly` becomes true because scheduled kickoff has passed or the
-fixture is cancelled, the read-only saved-entry view derives its review values
-from the current persisted prediction entry. It does not read from mutable form
-state, so dirty unsaved values cannot be shown as saved answers. If the current
-user has no entry, the locked view shows the no-saved-prediction state. This
-same persisted-entry rule applies to custom answers.
+fixture is cancelled, locked by admin, locked by result tracking, or final, the
+read-only saved-entry view derives its review values from the current persisted
+prediction entry. It does not read from mutable form state, so dirty unsaved
+values cannot be shown as saved answers. If the current user has no entry, the
+locked view shows the no-saved-prediction state. This same persisted-entry rule
+applies to custom answers.
+
+The high-risk stale-page path is server guarded: an editor opened while access
+was open can submit after an admin lock, but the method re-resolves canonical
+fixture/result state and rejects the write. The existing saved prediction
+remains unchanged. When the page receives the updated fixture/result context,
+it renders locked saved-entry state; rejected dirty values do not reappear as a
+saved baseline. If an admin explicitly reopens predictions later, the editable
+session starts from the canonical saved prediction.
 
 CCPP-006B kept the original route and form structure but corrected presentation
 details in `PredictionEntryPage.tsx`:

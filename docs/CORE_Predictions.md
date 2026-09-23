@@ -71,6 +71,11 @@ fixture. It reuses `predictions.getMyFixtureScore` and the accepted CCPP-011A
 projection, so prediction correctness, deductions, pending counts, Void, and
 zero floor remain scoring-engine/projection concerns rather than UI formulas.
 
+CCPP-011D1 replaces the older kickoff-only write gate with fixture-owned
+prediction access control. The server resolver now accounts for final results,
+cancelled fixtures, explicit admin lock/reopen overrides, result tracking start,
+and server-time kickoff. Saved predictions remain readable after lock.
+
 CCPP-012A adds public player display names for competitive presentation.
 Display names are stored in `player_profiles`, not prediction records. Name
 changes do not rewrite saved predictions, score projections, match results, or
@@ -261,16 +266,29 @@ being selected while try totals are positive.
 
 ## Locking And Revisions
 
-Predictions are editable only while server time is strictly before the fixture's
-current scheduled kickoff. At exact kickoff equality and after kickoff, writes
-are rejected.
+CCPP-011D1 makes prediction access a shared server/client resolver instead of a
+kickoff-only client assumption. The canonical order is:
 
-For CCPP-006, eligibility follows the fixture's current scheduled kickoff. If a
-future correction reschedules a fixture into the future, editing can reopen. No
-separate permanent lock policy exists yet.
+- Final result: locked and cannot be reopened for prediction editing.
+- Cancelled fixture: locked and cannot be reopened for prediction editing.
+- Admin override `open`: open, including after scheduled kickoff or result
+  tracking start.
+- Admin override `locked`: locked, including before scheduled kickoff.
+- Automatic mode after result tracking starts: locked.
+- Automatic mode at or after scheduled kickoff by server time: locked.
+- Automatic mode before kickoff with no result tracking: open.
 
-Cancelled fixtures do not accept writes. A saved entry remains readable by its
-owner after kickoff or cancellation.
+`Return to automatic` clears the fixture override when implemented. It does not
+reset result state; in automatic mode, an already-started result keeps
+predictions locked.
+
+Prediction creation and revision submission both pass through the same
+server-side resolver. The client never supplies the authoritative timestamp,
+lock override, kickoff time, result-start state, final state, or cancellation
+state. Server time remains the authority for automatic kickoff locking.
+
+A saved entry remains readable by its owner after kickoff, admin lock, result
+tracking start, final result, or cancellation.
 
 The form captures the saved entry revision when editing starts. Reactive updates
 do not replace the captured revision or unsaved answers. If a stale revision is
@@ -308,6 +326,14 @@ editable form is removed and the "Saved prediction" display shows the current
 persisted entry. This applies to kickoff locking and cancellation. The client
 must not fabricate a saved prediction from dirty form state, including dirty
 custom answers.
+
+The same stale-page protection applies to 011D1 admin locks. If a player keeps
+an old open editor visible while an admin locks predictions, the save attempt is
+rejected by the server with the prediction-access lock error. The persisted
+prediction remains unchanged, the player page adopts the locked state from
+canonical fixture/result data, and rejected dirty values do not become the
+saved baseline. If an admin later reopens predictions, the player edits again
+from the canonical saved prediction.
 
 When the authenticated account changes or signs out, displayed prediction form
 state is cleared and repopulated only from the new account's own subscription.
@@ -413,7 +439,8 @@ prediction flow, Review/submission animation, or final visual acceptance.
 
 ## Deferred Decisions
 
-- Permanent lock policy after rescheduling.
+- Future competition policies around rescheduled fixtures beyond the current
+  automatic/admin-override resolver semantics.
 - Match results and final scoring persistence.
 - League aggregation and cross-fixture competition policy.
 - Prize, venue, sponsorship, and competition rules.

@@ -885,6 +885,46 @@ Not implemented:
   half-time automation, score persistence, leaderboard persistence, background
   scoring jobs, AI, animation work, or a result lifecycle redesign.
 
+## CCPP-011D1 Scope
+
+Milestone status: implemented for prediction access control closeout. Product
+details live in `docs/CORE_Predictions.md`, fixture/platform details live in
+`docs/PLATFORM_Fixtures.md`, prediction platform details live in
+`docs/PLATFORM_Predictions.md`, and verification evidence is recorded in
+`docs/AUDIT_011D1_Prediction_Access_Control.md`.
+
+Implemented:
+
+- Shared prediction-access resolver for final/cancelled precedence, admin
+  lock/reopen overrides, automatic result-start locking, and server-time
+  kickoff locking.
+- Fixture-owned `predictionLockOverride` with admin Lock predictions, Reopen
+  predictions, and Return to automatic actions.
+- Revision-safe admin fixture mutations with stale admin conflict protection.
+- Internal `prediction_access_audits` rows for lock, reopen, and reset actions,
+  including fixture ID, actor admin ID, timestamp, before/after fixture
+  revision, and before/after override values where present.
+- Server-side prediction write guard used for both first prediction creation
+  and revision/edit submission.
+- Player prediction route lock/read-only UX that keeps saved predictions
+  readable and renders persisted data after stale-page lock rejection.
+- Result-start interaction where automatic mode locks predictions, explicit
+  admin reopen remains open after result tracking starts, later explicit lock
+  closes access, and provisional result saves do not reset the override.
+- Final and cancelled states remain locked and cannot be reopened for
+  prediction editing.
+- Match Result first-create hardening: `startResultTracking` creates the first
+  canonical result at revision `1`; production `saveProvisional` no longer
+  creates revision `1` from `expectedRevision: 0`.
+- Focused pure/unit/integration/browser verification retained, documentation,
+  and EOMD packaging.
+
+Not implemented:
+
+- Leagues, live event capture, admin +/- event buttons, AI, animations,
+  persisted score jobs, generic audit subsystem, prediction access redesign, or
+  another feature milestone.
+
 ## CCPP-012A Scope
 
 Milestone status: implemented for public player display identity. Platform

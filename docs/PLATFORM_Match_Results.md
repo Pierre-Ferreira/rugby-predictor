@@ -45,9 +45,12 @@ Startup creates:
 - unique `{ fixtureId: 1 }`
 - `{ "rugbyRoosterTest.ownerRunId": 1 }`
 
-First creation uses a raw Mongo `updateOne` with `$setOnInsert` and `upsert:
-true`. Concurrent first saves produce one document; the competing request
-receives `result-conflict`.
+First creation is owned by `matchResults.admin.startResultTracking`. It uses a
+raw Mongo `updateOne` with `$setOnInsert` and `upsert: true`. Concurrent starts
+produce one document; the competing request receives `result-conflict`.
+
+`matchResults.admin.saveProvisional` and `matchResults.admin.confirmFinal`
+update existing provisional results only.
 
 ## Methods
 
@@ -72,14 +75,23 @@ Unknown top-level fields are rejected. Client attempts to inject actor IDs,
 timestamps, result revisions, confirmation metadata, rulesets, or fixture state
 are rejected.
 
-`expectedRevision` is an integer conflict token. `0` means no result document
-was loaded. Stored results start at revision `1`.
+`expectedRevision` is an integer conflict token. Stored results start at
+revision `1`. The shared `NO_MATCH_RESULT_REVISION` value of `0` remains useful
+for UI/edit-session "no result loaded" state, but production provisional saves
+and final confirmations require an existing result revision. Calling
+`matchResults.admin.saveProvisional` with `expectedRevision: 0` and no result
+document is rejected with `result-not-found`.
 
 `matchResults.admin.startResultTracking` creates the first result document with
 `observations.matchStatus: 'provisional'` and initialized zero observations for
 enabled live built-in counters. It does not accept a revision or observation
 payload from the client. If a result already exists, the existing first-create
 conflict path rejects the repeat start without overwriting values.
+
+`matchResults.admin.saveProvisional` preserves the current fixture-owned
+prediction access override. Saving or correcting provisional observations does
+not silently return predictions to automatic mode or clear an explicit admin
+reopen.
 
 ## Fixture Eligibility
 
@@ -216,6 +228,14 @@ displays Draw, and First Try, Highest-Scoring Half, Half-Time Leader, custom
 Number, and custom Choice settlement controls remain Pending. Existing
 provisional results are edited through the normal revision-guarded form and are
 never reinitialized by the start action.
+
+The same admin page includes the fixture-owned Prediction Access panel. It uses
+the shared resolver to show open/locked state and reason, then calls fixture
+methods to lock, reopen, or return predictions to automatic mode with the
+current fixture revision. Final results and cancelled fixtures display locked
+state and cannot be reopened. Starting result tracking locks predictions in
+automatic mode, but an explicit admin reopen remains open through later
+provisional saves.
 
 Later provisional saves keep initialized counter values numeric. A blank edit
 for an already-resolved live counter does not silently downgrade that counter

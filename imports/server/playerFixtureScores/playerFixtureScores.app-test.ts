@@ -3,6 +3,7 @@ import { Meteor } from 'meteor/meteor';
 import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import { TEST_AUTH_METHODS } from '/imports/shared/auth/methods';
 import {
@@ -10,8 +11,10 @@ import {
   type FixtureDocument,
 } from '/imports/shared/fixtures';
 import {
+  INITIAL_MATCH_RESULT_REVISION,
   MATCH_RESULT_METHODS,
-  NO_MATCH_RESULT_REVISION,
+  rulesetIdentity,
+  type MatchResultDocument,
   type MatchResultMutationResult,
 } from '/imports/shared/matchResults';
 import {
@@ -264,6 +267,34 @@ const completeObservations = (
   ...overrides,
 });
 
+const insertMatchResultDocument = async ({
+  fixtureId,
+  observations,
+  ruleset = defaultRuleset,
+}: {
+  readonly fixtureId: string;
+  readonly observations: FixtureObservations;
+  readonly ruleset?: RulesetSnapshot;
+}): Promise<MatchResultDocument> => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const document: MatchResultDocument = {
+    _id: Random.id(),
+    ...testOwner(),
+    createdAt: now,
+    createdByAdminId: 'fixture-score-test-admin',
+    fixtureId,
+    observations,
+    revision: INITIAL_MATCH_RESULT_REVISION,
+    ruleset: rulesetIdentity(ruleset),
+    updatedAt: now,
+    updatedByAdminId: 'fixture-score-test-admin',
+  };
+
+  await MatchResults.insertAsync(document);
+
+  return document;
+};
+
 const submitPrediction = (
   invocation: TestInvocation,
   input: {
@@ -307,6 +338,24 @@ const startResultTracking = (
     [input],
     invocation,
   );
+
+const createProvisionalResult = async (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+    readonly observations: unknown;
+  },
+) => {
+  const started = await startResultTracking(invocation, {
+    fixtureId: input.fixtureId,
+  });
+
+  return saveProvisional(invocation, {
+    expectedRevision: started.revision,
+    fixtureId: input.fixtureId,
+    observations: input.observations,
+  });
+};
 
 const confirmFinal = (
   invocation: TestInvocation,
@@ -374,8 +423,7 @@ describe('player fixture score method', function () {
     const fixtureId = await insertFixtureDocument();
 
     await submitPrediction(playerA.invocation, { fixtureId });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -454,16 +502,17 @@ describe('player fixture score method', function () {
     const fixtureId = await insertFixtureDocument();
 
     await submitPrediction(player.invocation, { fixtureId });
-    const createdResult = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const createdResult = await insertMatchResultDocument({
       fixtureId,
       observations: {
         firstTry: { status: 'provisional', value: 'team1' },
         halfTimeLeader: { status: 'provisional', value: 'team1' },
+        matchStatus: 'provisional',
         highestScoringHalf: { status: 'provisional', value: 'first' },
         team1: {
           conversions: { status: 'provisional', value: 2 },
           dropGoals: { status: 'provisional', value: 0 },
+          penaltyKicks: { status: 'pending' },
           redCards: { status: 'provisional', value: 0 },
           tries: { status: 'provisional', value: 2 },
           yellowCards: { status: 'provisional', value: 0 },
@@ -471,6 +520,7 @@ describe('player fixture score method', function () {
         team2: {
           conversions: { status: 'provisional', value: 1 },
           dropGoals: { status: 'provisional', value: 0 },
+          penaltyKicks: { status: 'pending' },
           redCards: { status: 'provisional', value: 0 },
           tries: { status: 'provisional', value: 1 },
           yellowCards: { status: 'provisional', value: 0 },
@@ -523,8 +573,7 @@ describe('player fixture score method', function () {
     const predictionResult = await submitPrediction(player.invocation, {
       fixtureId,
     });
-    const firstResult = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const firstResult = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations('provisional', {
         team1: {
@@ -570,8 +619,7 @@ describe('player fixture score method', function () {
       fixtureId,
       prediction: validCustomPrediction(),
     });
-    const provisional = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const provisional = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations('provisional', {
         customAnswers: {

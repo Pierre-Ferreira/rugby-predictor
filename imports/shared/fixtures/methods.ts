@@ -2,7 +2,10 @@ export const FIXTURE_METHODS = {
   cancel: 'fixtures.admin.cancel',
   createDraft: 'fixtures.admin.createDraft',
   editDetails: 'fixtures.admin.editDetails',
+  lockPredictions: 'fixtures.admin.lockPredictions',
   publish: 'fixtures.admin.publish',
+  reopenPredictions: 'fixtures.admin.reopenPredictions',
+  resetPredictionAccess: 'fixtures.admin.resetPredictionAccess',
   saveQuestionConfig: 'fixtures.admin.saveQuestionConfig',
 } as const;
 

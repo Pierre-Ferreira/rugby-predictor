@@ -122,11 +122,12 @@ availability calculation, so a renderer cannot bypass custom-answer validation
 or known result/score consistency guards by calling the action directly.
 
 Read-only context is also enforced at the shared command boundary. When the
-current session context is read-only, direct commands cannot change built-in or
-custom answers, start or advance editable flow, navigate from Review into an
-editable step, return to Review from an editable step, submit, discard, or load
-latest saved data into the editable local form. Harmless dismissal commands such
-as cancelling a discard dialog can still clear local UI state.
+current session context is read-only because prediction access is locked, direct
+commands cannot change built-in or custom answers, start or advance editable
+flow, navigate from Review into an editable step, return to Review from an
+editable step, submit, discard, or load latest saved data into the editable
+local form. Harmless dismissal commands such as cancelling a discard dialog can
+still clear local UI state.
 
 ## Answer State
 
@@ -153,7 +154,10 @@ silently replace dirty answers or advance the captured expected revision.
 
 Successful saves update the captured revision from the server response. Stale
 conflicts preserve local answers and expose the accepted explicit
-`Load latest saved prediction` path.
+`Load latest saved prediction` path. Server-side prediction-access lock
+rejections are treated as authoritative failed saves: the server does not write
+the dirty payload, and the locked page later displays only the current persisted
+prediction.
 
 The submit command builds and validates the existing prediction payload before
 awaiting the Meteor method. It also captures a normalized form snapshot derived
@@ -224,9 +228,9 @@ the existing structure, styling, labels, controls, Review sections, Edit
 actions, discard/conflict UI, and submission buttons while receiving state and
 commands through the session contract.
 
-Read-only locked/cancelled display intentionally remains outside the editable
-renderer contract in 009A. It continues to render from persisted entry data, not
-dirty local form values.
+Read-only locked/final/cancelled display intentionally remains outside the
+editable renderer contract in 009A. It continues to render from persisted entry
+data, not dirty local form values.
 
 ## React Presentation Host
 

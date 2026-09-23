@@ -1,5 +1,6 @@
 import type { FixtureDocument } from '/imports/shared/fixtures';
 import { formatUtcInstantForJohannesburgDisplay } from '/imports/shared/fixtures';
+import { resolvePredictionAccess } from '/imports/shared/predictionAccess';
 import type { PlayerStatusTone } from '../components/player';
 
 export const fixtureStatusLabel = (fixture: FixtureDocument): string => {
@@ -30,9 +31,13 @@ export const fixturePlayerStatusLabel = (
     return 'Cancelled';
   }
 
-  return nowMs < fixture.scheduledKickoffAt.getTime()
-    ? 'Prediction open'
-    : 'Locked';
+  const access = resolvePredictionAccess({
+    fixture,
+    hasResultTrackingStarted: false,
+    now: new Date(nowMs),
+  });
+
+  return access.isOpen ? 'Prediction open' : 'Locked';
 };
 
 export const fixturePlayerStatusTone = (
@@ -43,7 +48,13 @@ export const fixturePlayerStatusTone = (
     return 'danger';
   }
 
-  return nowMs < fixture.scheduledKickoffAt.getTime() ? 'success' : 'warning';
+  const access = resolvePredictionAccess({
+    fixture,
+    hasResultTrackingStarted: false,
+    now: new Date(nowMs),
+  });
+
+  return access.isOpen ? 'success' : 'warning';
 };
 
 export const kickoffLabel = (fixture: FixtureDocument): string =>

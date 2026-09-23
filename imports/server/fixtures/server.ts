@@ -1,6 +1,9 @@
 import { Meteor } from 'meteor/meteor';
+import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
+import { PredictionAccessAudits } from '/imports/api/predictionAccessAudits/collection';
 import {
   FIXTURE_METHODS,
   FIXTURE_PUBLICATIONS,
@@ -18,6 +21,10 @@ import {
   type FixtureMutationResult,
 } from '/imports/shared/fixtures';
 import {
+  type PredictionAccessAuditAction,
+  type PredictionLockOverride,
+} from '/imports/shared/predictionAccess';
+import {
   PredictionQuestionConfigValidationError,
   buildConfiguredRulesetSnapshot,
   normalizeFixturePredictionQuestionConfig,
@@ -32,6 +39,7 @@ import { registerFixtureTestMethods } from './testSupport';
 const publicFixtureFields = {
   competitionDisplayName: 1,
   isCancelled: 1,
+  predictionLockOverride: 1,
   scheduledKickoffAt: 1,
   team1DisplayName: 1,
   team2DisplayName: 1,
@@ -49,6 +57,7 @@ const adminFixtureFields = {
   publishedAt: 1,
   publishedByAdminId: 1,
   predictionQuestionConfig: 1,
+  predictionLockOverride: 1,
   revision: 1,
   rulesetSnapshot: 1,
   scheduledKickoffAt: 1,
@@ -99,6 +108,12 @@ const requireAdminId = async (
 };
 
 const currentTestOwnership = () => {
+  const ownerRunId = getAuthTestRunId();
+
+  return ownerRunId ? { rugbyRoosterTest: { ownerRunId } } : {};
+};
+
+const auditCurrentTestOwnership = () => {
   const ownerRunId = getAuthTestRunId();
 
   return ownerRunId ? { rugbyRoosterTest: { ownerRunId } } : {};
@@ -161,6 +176,179 @@ const readFixtureForStateMessage = async (fixtureId: string) =>
       visibility: 1,
     },
   });
+
+const finalResultExists = async (fixtureId: string): Promise<boolean> =>
+  Boolean(
+    await MatchResults.findOneAsync(
+      {
+        fixtureId,
+        'observations.matchStatus': 'confirmed',
+      },
+      {
+        fields: {
+          _id: 1,
+        },
+      },
+    ),
+  );
+
+const recordPredictionAccessAudit = async (input: {
+  readonly action: PredictionAccessAuditAction;
+  readonly actorAdminUserId: string;
+  readonly fixtureId: string;
+  readonly fixtureRevisionAfter: number;
+  readonly fixtureRevisionBefore: number;
+  readonly predictionLockOverrideAfter?: PredictionLockOverride;
+  readonly predictionLockOverrideBefore?: PredictionLockOverride;
+}) => {
+  await PredictionAccessAudits.insertAsync({
+    _id: Random.id(),
+    ...auditCurrentTestOwnership(),
+    action: input.action,
+    actorAdminUserId: input.actorAdminUserId,
+    createdAt: new Date(),
+    fixtureId: input.fixtureId,
+    fixtureRevisionAfter: input.fixtureRevisionAfter,
+    fixtureRevisionBefore: input.fixtureRevisionBefore,
+    ...(input.predictionLockOverrideAfter
+      ? {
+          predictionLockOverrideAfter: input.predictionLockOverrideAfter,
+        }
+      : {}),
+    ...(input.predictionLockOverrideBefore
+      ? {
+          predictionLockOverrideBefore: input.predictionLockOverrideBefore,
+        }
+      : {}),
+  });
+};
+
+const updatePredictionAccessControl = async (input: {
+  readonly action: PredictionAccessAuditAction;
+  readonly adminId: string;
+  readonly expectedRevision: number;
+  readonly fixtureId: string;
+  readonly nextOverride?: PredictionLockOverride;
+  readonly status: FixtureMutationResult['status'];
+}): Promise<FixtureMutationResult> => {
+  const current = await Fixtures.findOneAsync(input.fixtureId, {
+    fields: {
+      isCancelled: 1,
+      predictionLockOverride: 1,
+      revision: 1,
+      visibility: 1,
+    },
+  });
+
+  if (!current) {
+    throw notFoundError();
+  }
+
+  if (current.visibility !== 'published') {
+    throw new Meteor.Error(
+      'fixture-not-published',
+      'Draft fixtures do not accept prediction access controls.',
+    );
+  }
+
+  if (current.isCancelled) {
+    throw new Meteor.Error(
+      'fixture-cancelled',
+      'Cancelled fixtures are read-only in this milestone.',
+    );
+  }
+
+  if (
+    input.action === 'reopened' &&
+    (await finalResultExists(input.fixtureId))
+  ) {
+    throw new Meteor.Error(
+      'prediction-access-final',
+      'Final results cannot be reopened for prediction editing.',
+    );
+  }
+
+  if (current.revision !== input.expectedRevision) {
+    throw conflictError();
+  }
+
+  const nextRevision = input.expectedRevision + 1;
+  const now = new Date();
+  const modifier =
+    input.nextOverride === undefined
+      ? {
+          $inc: {
+            revision: 1,
+          },
+          $set: {
+            updatedAt: now,
+            updatedByAdminId: input.adminId,
+          },
+          $unset: {
+            predictionLockOverride: 1 as const,
+          },
+        }
+      : {
+          $inc: {
+            revision: 1,
+          },
+          $set: {
+            predictionLockOverride: input.nextOverride,
+            updatedAt: now,
+            updatedByAdminId: input.adminId,
+          },
+        };
+
+  const updatedCount = await Fixtures.updateAsync(
+    {
+      _id: input.fixtureId,
+      isCancelled: false,
+      revision: input.expectedRevision,
+      visibility: 'published',
+    },
+    modifier,
+  );
+
+  if (updatedCount !== 1) {
+    const after = await readFixtureForStateMessage(input.fixtureId);
+
+    if (!after) {
+      throw notFoundError();
+    }
+
+    if (after.isCancelled) {
+      throw new Meteor.Error(
+        'fixture-cancelled',
+        'Cancelled fixtures are read-only in this milestone.',
+      );
+    }
+
+    if (after.visibility !== 'published') {
+      throw new Meteor.Error(
+        'fixture-not-published',
+        'Draft fixtures do not accept prediction access controls.',
+      );
+    }
+
+    throw conflictError();
+  }
+
+  await recordPredictionAccessAudit({
+    action: input.action,
+    actorAdminUserId: input.adminId,
+    fixtureId: input.fixtureId,
+    fixtureRevisionAfter: nextRevision,
+    fixtureRevisionBefore: input.expectedRevision,
+    predictionLockOverrideAfter: input.nextOverride,
+    predictionLockOverrideBefore: current.predictionLockOverride,
+  });
+
+  return {
+    fixtureId: input.fixtureId,
+    revision: nextRevision,
+    status: input.status,
+  };
+};
 
 const extraPageRowLimit = (limit: number): number => limit + 1;
 
@@ -500,6 +688,69 @@ const registerFixtureMethods = () => {
       }
     },
 
+    [FIXTURE_METHODS.lockPredictions]: async function lockPredictions(
+      input: unknown,
+    ): Promise<FixtureMutationResult> {
+      try {
+        const adminId = await requireAdminId(this);
+        const { expectedRevision, fixtureId } =
+          sanitizeStateMutationInput(input);
+
+        return await updatePredictionAccessControl({
+          action: 'locked',
+          adminId,
+          expectedRevision,
+          fixtureId,
+          nextOverride: 'locked',
+          status: 'prediction-access-locked',
+        });
+      } catch (error) {
+        throw asMeteorFixtureError(error);
+      }
+    },
+
+    [FIXTURE_METHODS.reopenPredictions]: async function reopenPredictions(
+      input: unknown,
+    ): Promise<FixtureMutationResult> {
+      try {
+        const adminId = await requireAdminId(this);
+        const { expectedRevision, fixtureId } =
+          sanitizeStateMutationInput(input);
+
+        return await updatePredictionAccessControl({
+          action: 'reopened',
+          adminId,
+          expectedRevision,
+          fixtureId,
+          nextOverride: 'open',
+          status: 'prediction-access-reopened',
+        });
+      } catch (error) {
+        throw asMeteorFixtureError(error);
+      }
+    },
+
+    [FIXTURE_METHODS.resetPredictionAccess]:
+      async function resetPredictionAccess(
+        input: unknown,
+      ): Promise<FixtureMutationResult> {
+        try {
+          const adminId = await requireAdminId(this);
+          const { expectedRevision, fixtureId } =
+            sanitizeStateMutationInput(input);
+
+          return await updatePredictionAccessControl({
+            action: 'reset-to-automatic',
+            adminId,
+            expectedRevision,
+            fixtureId,
+            status: 'prediction-access-automatic',
+          });
+        } catch (error) {
+          throw asMeteorFixtureError(error);
+        }
+      },
+
     [FIXTURE_METHODS.cancel]: async function cancel(
       input: unknown,
     ): Promise<FixtureMutationResult> {
@@ -660,6 +911,12 @@ Fixtures.deny({
   update: () => true,
 });
 
+PredictionAccessAudits.deny({
+  insert: () => true,
+  remove: () => true,
+  update: () => true,
+});
+
 await backfillFixtureRevisions();
 registerFixtureMethods();
 registerFixturePublications();
@@ -682,6 +939,13 @@ Meteor.startup(async () => {
       _id: 1,
     }),
     Fixtures.rawCollection().createIndex({
+      'rugbyRoosterTest.ownerRunId': 1,
+    }),
+    PredictionAccessAudits.rawCollection().createIndex({
+      fixtureId: 1,
+      createdAt: 1,
+    }),
+    PredictionAccessAudits.rawCollection().createIndex({
       'rugbyRoosterTest.ownerRunId': 1,
     }),
   ]);

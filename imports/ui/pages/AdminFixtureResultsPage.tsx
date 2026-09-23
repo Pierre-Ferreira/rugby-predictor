@@ -1,10 +1,14 @@
-import { type ChangeEvent, type FormEvent, useState } from 'react';
+import { type ChangeEvent, type FormEvent, useEffect, useState } from 'react';
 import { Meteor } from 'meteor/meteor';
 import { useTracker } from 'meteor/react-meteor-data';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
 import { MatchResults } from '/imports/api/matchResults/collection';
-import type { FixtureDocument } from '/imports/shared/fixtures';
+import {
+  FIXTURE_METHODS,
+  type FixtureDocument,
+  type FixtureMutationResult,
+} from '/imports/shared/fixtures';
 import {
   buildInitializedLiveResultObservations,
   enabledLiveBuiltInCounterFields,
@@ -17,6 +21,12 @@ import {
   type MatchResultDocument,
   type MatchResultMutationResult,
 } from '/imports/shared/matchResults';
+import {
+  predictionAccessReasonLabel,
+  predictionAccessStateLabel,
+  resolvePredictionAccess,
+  type PredictionAccessResult,
+} from '/imports/shared/predictionAccess';
 import {
   deriveMatchResult,
   deriveTeamScore,
@@ -70,6 +80,18 @@ interface ResultEditSession {
   readonly expectedRevision: number;
   readonly fixtureId: string;
 }
+
+type AdminPendingAction =
+  | 'confirm'
+  | 'lock-predictions'
+  | 'reopen-predictions'
+  | 'reset-prediction-access'
+  | 'save'
+  | 'start';
+
+type PredictionAccessConfirmation = 'lock' | 'reopen';
+
+const refreshIntervalMs = 15_000;
 
 const numericFieldLabels = {
   conversions: 'conversions',
@@ -506,14 +528,31 @@ const ResultAdminEditor = ({
     readonly kind: 'error' | 'success';
     readonly message: string;
   } | null>(null);
-  const [pendingAction, setPendingAction] = useState<
-    'confirm' | 'save' | 'start' | null
-  >(null);
+  const [pendingAction, setPendingAction] = useState<AdminPendingAction | null>(
+    null,
+  );
+  const [predictionAccessConfirmation, setPredictionAccessConfirmation] =
+    useState<PredictionAccessConfirmation | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const isReadOnly =
     state === 'final' ||
     fixture.isCancelled === true ||
     fixture.visibility !== 'published';
   const isConflict = feedback?.code === 'result-conflict';
+  const predictionAccess = resolvePredictionAccess({
+    fixture,
+    hasResultTrackingStarted: Boolean(result),
+    isResultFinal: state === 'final',
+    now: new Date(nowMs),
+  });
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, refreshIntervalMs);
+
+    return () => window.clearInterval(interval);
+  }, []);
 
   const reloadLatest = () => {
     setForm(formFromResult(result, ruleset));
@@ -547,6 +586,47 @@ const ResultAdminEditor = ({
       setFeedback({
         kind: 'success',
         message: 'Live result tracking started.',
+      });
+    } catch (error) {
+      setFeedback({
+        code: codeFromError(error),
+        kind: 'error',
+        message: messageFromError(error),
+      });
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
+  const updatePredictionAccess = async (
+    action:
+      'lock-predictions' | 'reopen-predictions' | 'reset-prediction-access',
+  ) => {
+    const methodName =
+      action === 'lock-predictions'
+        ? FIXTURE_METHODS.lockPredictions
+        : action === 'reopen-predictions'
+          ? FIXTURE_METHODS.reopenPredictions
+          : FIXTURE_METHODS.resetPredictionAccess;
+    const successMessage =
+      action === 'lock-predictions'
+        ? 'Predictions are locked.'
+        : action === 'reopen-predictions'
+          ? 'Predictions reopened by admin.'
+          : 'Prediction access returned to automatic locking.';
+
+    setFeedback(null);
+    setPredictionAccessConfirmation(null);
+    setPendingAction(action);
+
+    try {
+      await callMeteorMethod<FixtureMutationResult>(methodName, {
+        expectedRevision: fixture.revision,
+        fixtureId,
+      });
+      setFeedback({
+        kind: 'success',
+        message: successMessage,
       });
     } catch (error) {
       setFeedback({
@@ -640,6 +720,24 @@ const ResultAdminEditor = ({
           ) : null}
         </div>
       ) : null}
+
+      <PredictionAccessControlPanel
+        confirmation={predictionAccessConfirmation}
+        fixture={fixture}
+        pendingAction={pendingAction}
+        predictionAccess={predictionAccess}
+        resultState={state}
+        onCancelConfirmation={() => setPredictionAccessConfirmation(null)}
+        onConfirmLock={() => void updatePredictionAccess('lock-predictions')}
+        onConfirmReopen={() =>
+          void updatePredictionAccess('reopen-predictions')
+        }
+        onRequestLock={() => setPredictionAccessConfirmation('lock')}
+        onRequestReopen={() => setPredictionAccessConfirmation('reopen')}
+        onResetAutomatic={() =>
+          void updatePredictionAccess('reset-prediction-access')
+        }
+      />
 
       {isReadOnly ? (
         <ReadOnlyResultSummary
@@ -748,6 +846,180 @@ const StartResultTrackingPanel = ({
       {pending ? 'Starting' : 'Start result tracking'}
     </button>
   </section>
+);
+
+const PredictionAccessControlPanel = ({
+  confirmation,
+  fixture,
+  onCancelConfirmation,
+  onConfirmLock,
+  onConfirmReopen,
+  onRequestLock,
+  onRequestReopen,
+  onResetAutomatic,
+  pendingAction,
+  predictionAccess,
+  resultState,
+}: {
+  readonly confirmation: PredictionAccessConfirmation | null;
+  readonly fixture: FixtureDocument;
+  readonly onCancelConfirmation: () => void;
+  readonly onConfirmLock: () => void;
+  readonly onConfirmReopen: () => void;
+  readonly onRequestLock: () => void;
+  readonly onRequestReopen: () => void;
+  readonly onResetAutomatic: () => void;
+  readonly pendingAction: AdminPendingAction | null;
+  readonly predictionAccess: PredictionAccessResult;
+  readonly resultState: ReturnType<typeof matchResultAdminState>;
+}) => {
+  const isPending = pendingAction !== null;
+  const hasOverride = fixture.predictionLockOverride !== undefined;
+  const canReopen =
+    !fixture.isCancelled && resultState !== 'final' && !predictionAccess.isOpen;
+
+  return (
+    <section className="mb-6 rounded-md border border-rooster-line bg-rooster-paper p-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase text-rooster-red">
+            Prediction access
+          </p>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-md border border-rooster-line bg-white px-3 py-2">
+              <dt className="font-black text-rooster-muted">Current state</dt>
+              <dd className="mt-1 font-black text-rooster-ink">
+                {predictionAccessStateLabel(predictionAccess)}
+              </dd>
+            </div>
+            <div className="rounded-md border border-rooster-line bg-white px-3 py-2">
+              <dt className="font-black text-rooster-muted">Reason</dt>
+              <dd className="mt-1 font-black text-rooster-ink">
+                {predictionAccessReasonLabel(predictionAccess.reason)}
+              </dd>
+            </div>
+          </dl>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {predictionAccess.isOpen ? (
+            <button
+              className="focus-ring inline-flex min-h-10 items-center rounded-md bg-rooster-red px-3 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isPending}
+              type="button"
+              onClick={onRequestLock}
+            >
+              Lock predictions
+            </button>
+          ) : canReopen ? (
+            <button
+              className="focus-ring inline-flex min-h-10 items-center rounded-md bg-rooster-grass px-3 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isPending}
+              type="button"
+              onClick={onRequestReopen}
+            >
+              Reopen predictions
+            </button>
+          ) : null}
+          {hasOverride && !fixture.isCancelled ? (
+            <button
+              className="focus-ring inline-flex min-h-10 items-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isPending}
+              type="button"
+              onClick={onResetAutomatic}
+            >
+              {pendingAction === 'reset-prediction-access'
+                ? 'Resetting'
+                : 'Return to automatic'}
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {predictionAccess.reason === 'final' ? (
+        <p className="mt-4 rounded-md border border-rooster-line bg-white px-3 py-2 text-sm font-bold text-rooster-muted">
+          Final results cannot be reopened for prediction editing.
+        </p>
+      ) : null}
+      {predictionAccess.reason === 'cancelled' ? (
+        <p className="mt-4 rounded-md border border-rooster-line bg-white px-3 py-2 text-sm font-bold text-rooster-muted">
+          Cancelled fixtures cannot be reopened for prediction editing.
+        </p>
+      ) : null}
+
+      {confirmation === 'reopen' ? (
+        <PredictionAccessConfirmationPanel
+          actionLabel={
+            pendingAction === 'reopen-predictions'
+              ? 'Reopening'
+              : 'Reopen predictions'
+          }
+          body="Players will be able to create or change predictions for this fixture again."
+          heading="Reopen predictions?"
+          pending={isPending}
+          onCancel={onCancelConfirmation}
+          onConfirm={onConfirmReopen}
+        />
+      ) : null}
+
+      {confirmation === 'lock' ? (
+        <PredictionAccessConfirmationPanel
+          actionLabel={
+            pendingAction === 'lock-predictions'
+              ? 'Locking'
+              : 'Lock predictions'
+          }
+          body="Players will no longer be able to create or change predictions until you reopen them."
+          heading="Lock predictions?"
+          pending={isPending}
+          onCancel={onCancelConfirmation}
+          onConfirm={onConfirmLock}
+        />
+      ) : null}
+    </section>
+  );
+};
+
+const PredictionAccessConfirmationPanel = ({
+  actionLabel,
+  body,
+  heading,
+  onCancel,
+  onConfirm,
+  pending,
+}: {
+  readonly actionLabel: string;
+  readonly body: string;
+  readonly heading: string;
+  readonly onCancel: () => void;
+  readonly onConfirm: () => void;
+  readonly pending: boolean;
+}) => (
+  <div
+    className="mt-4 rounded-md border border-rooster-red/30 bg-white p-4"
+    aria-label={heading}
+    role="alertdialog"
+  >
+    <h3 className="text-sm font-black uppercase text-rooster-red">{heading}</h3>
+    <p className="mt-2 text-sm leading-6 text-rooster-ink">{body}</p>
+    <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+      <button
+        className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md border border-rooster-line bg-white px-3 text-sm font-black text-rooster-ink transition hover:bg-rooster-paper disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={pending}
+        type="button"
+        onClick={onCancel}
+      >
+        Cancel
+      </button>
+      <button
+        className="focus-ring inline-flex min-h-10 items-center justify-center rounded-md bg-rooster-red px-3 text-sm font-black text-white transition hover:bg-rooster-ink disabled:cursor-not-allowed disabled:opacity-60"
+        disabled={pending}
+        type="button"
+        onClick={onConfirm}
+      >
+        {actionLabel}
+      </button>
+    </div>
+  </div>
 );
 
 const ResultShell = ({

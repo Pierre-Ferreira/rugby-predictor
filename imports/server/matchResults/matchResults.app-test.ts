@@ -10,11 +10,12 @@ import {
   type FixtureDocument,
 } from '/imports/shared/fixtures';
 import {
+  INITIAL_MATCH_RESULT_REVISION,
   MATCH_RESULT_METHODS,
   MATCH_RESULT_PUBLICATIONS,
-  NO_MATCH_RESULT_REVISION,
   type MatchResultDocument,
   type MatchResultMutationResult,
+  rulesetIdentity,
 } from '/imports/shared/matchResults';
 import {
   defaultRuleset,
@@ -288,6 +289,34 @@ const completeObservations = (
   ...overrides,
 });
 
+const insertMatchResultDocument = async ({
+  fixtureId,
+  observations,
+  ruleset = defaultRuleset,
+}: {
+  readonly fixtureId: string;
+  readonly observations: FixtureObservations;
+  readonly ruleset?: RulesetSnapshot;
+}): Promise<MatchResultDocument> => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const document: MatchResultDocument = {
+    _id: Random.id(),
+    ...testOwner(),
+    createdAt: now,
+    createdByAdminId: 'match-result-test-admin',
+    fixtureId,
+    observations,
+    revision: INITIAL_MATCH_RESULT_REVISION,
+    ruleset: rulesetIdentity(ruleset),
+    updatedAt: now,
+    updatedByAdminId: 'match-result-test-admin',
+  };
+
+  await MatchResults.insertAsync(document);
+
+  return document;
+};
+
 const saveProvisional = (
   invocation: TestInvocation,
   input: {
@@ -328,6 +357,24 @@ const confirmFinal = (
     invocation,
   );
 
+const createProvisionalResult = async (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+    readonly observations: unknown;
+  },
+) => {
+  const started = await startResultTracking(invocation, {
+    fixtureId: input.fixtureId,
+  });
+
+  return saveProvisional(invocation, {
+    expectedRevision: started.revision,
+    fixtureId: input.fixtureId,
+    observations: input.observations,
+  });
+};
+
 describe('match result administration', function () {
   this.timeout(20_000);
 
@@ -337,24 +384,31 @@ describe('match result administration', function () {
     await resetTestAuthData();
   });
 
-  it('creates a partial provisional result and preserves pending versus zero', async () => {
-    const admin = await createVerifiedAdmin();
+  it('preserves legacy partial provisional pending versus zero test data', async () => {
     const fixtureId = await insertFixtureDocument();
-    const result = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const result = await insertMatchResultDocument({
       fixtureId,
       observations: {
+        matchStatus: 'provisional',
         team1: {
           conversions: { status: 'provisional', value: 0 },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
           tries: { status: 'provisional', value: 0 },
+          yellowCards: { status: 'pending' },
         },
         team2: {
+          conversions: { status: 'pending' },
+          dropGoals: { status: 'pending' },
+          penaltyKicks: { status: 'pending' },
+          redCards: { status: 'pending' },
           tries: { status: 'pending' },
+          yellowCards: { status: 'pending' },
         },
       },
     });
 
-    assert.equal(result.status, 'created');
     assert.equal(result.revision, 1);
 
     const saved = await MatchResults.findOneAsync({ fixtureId });
@@ -476,8 +530,7 @@ describe('match result administration', function () {
       /result-conflict/i,
     );
 
-    const created = await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
+    const created = await createProvisionalResult(admin.invocation, {
       fixtureId: existingFixtureId,
       observations: completeObservations({
         team1: {
@@ -542,7 +595,7 @@ describe('match result administration', function () {
     });
     const saved = await MatchResults.findOneAsync({ fixtureId });
 
-    assert.equal(updated.revision, 2);
+    assert.equal(updated.revision, started.revision + 1);
     assert.equal(saved?.observations.team1.tries?.value, 0);
     assert.equal(saved?.observations.team1.tries?.status, 'provisional');
     assert.equal(saved?.observations.team2.redCards?.value, 0);
@@ -550,16 +603,10 @@ describe('match result administration', function () {
     assert.equal(saved?.observations.firstTry?.status, 'pending');
   });
 
-  it('prevents duplicate first result creation and rejects stale revisions', async () => {
+  it('rejects provisional saves before result tracking starts and rejects stale revisions', async () => {
     const admin = await createVerifiedAdmin();
     const fixtureId = await insertFixtureDocument();
     const observations = completeObservations();
-
-    const created = await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
-      fixtureId,
-      observations,
-    });
 
     await assert.rejects(
       () =>
@@ -568,9 +615,23 @@ describe('match result administration', function () {
           fixtureId,
           observations,
         }),
-      /result-conflict/i,
+      /result-not-found|Save a provisional result first/i,
     );
 
+    await assert.rejects(
+      () =>
+        saveProvisional(admin.invocation, {
+          expectedRevision: 1,
+          fixtureId,
+          observations,
+        }),
+      /result-not-found|Save a provisional result first/i,
+    );
+
+    const created = await createProvisionalResult(admin.invocation, {
+      fixtureId,
+      observations,
+    });
     const updated = await saveProvisional(admin.invocation, {
       expectedRevision: created.revision,
       fixtureId,
@@ -603,7 +664,7 @@ describe('match result administration', function () {
 
     const saved = await MatchResults.findOneAsync({ fixtureId });
 
-    assert.equal(updated.revision, 2);
+    assert.equal(updated.revision, created.revision + 1);
     assert.equal(saved?.observations.team1.tries?.value, 4);
     assert.equal(await MatchResults.find({ fixtureId }).countAsync(), 1);
   });
@@ -624,7 +685,7 @@ describe('match result administration', function () {
       isCancelled: true,
     });
     const input = {
-      expectedRevision: 0,
+      expectedRevision: 1,
       fixtureId: publishedFixtureId,
       observations: completeObservations(),
     };
@@ -669,11 +730,12 @@ describe('match result administration', function () {
           ),
       }),
     });
+    const started = await startResultTracking(admin.invocation, { fixtureId });
 
     await assert.rejects(
       () =>
         saveProvisional(admin.invocation, {
-          expectedRevision: 0,
+          expectedRevision: started.revision,
           fixtureId,
           observations: {
             firstTry: { status: 'provisional', value: 'team1' },
@@ -688,7 +750,7 @@ describe('match result administration', function () {
     await assert.rejects(
       () =>
         saveProvisional(admin.invocation, {
-          expectedRevision: 0,
+          expectedRevision: started.revision,
           fixtureId,
           observations: {
             updatedByAdminId: 'attacker',
@@ -774,24 +836,31 @@ describe('match result administration', function () {
 
     for (const observations of builtInCases) {
       const fixtureId = await insertFixtureDocument();
+      const started = await startResultTracking(admin.invocation, {
+        fixtureId,
+      });
 
       await assert.rejects(
         () =>
           saveProvisional(admin.invocation, {
-            expectedRevision: 0,
+            expectedRevision: started.revision,
             fixtureId,
             observations,
           }),
         /unsupported observation status|unsupported fields|must not include a value/i,
       );
-      assert.equal(await MatchResults.find({ fixtureId }).countAsync(), 0);
+      assert.equal(await MatchResults.find({ fixtureId }).countAsync(), 1);
     }
+
+    const customStarted = await startResultTracking(admin.invocation, {
+      fixtureId: customFixtureId,
+    });
 
     for (const observations of customCases) {
       await assert.rejects(
         () =>
           saveProvisional(admin.invocation, {
-            expectedRevision: 0,
+            expectedRevision: customStarted.revision,
             fixtureId: customFixtureId,
             observations,
           }),
@@ -801,7 +870,7 @@ describe('match result administration', function () {
 
     assert.equal(
       await MatchResults.find({ fixtureId: customFixtureId }).countAsync(),
-      0,
+      1,
     );
   });
 
@@ -810,8 +879,18 @@ describe('match result administration', function () {
     const fixtureId = await insertFixtureDocument({
       rulesetSnapshot: customRulesetSnapshot(),
     });
+    const seeded = await insertMatchResultDocument({
+      fixtureId,
+      observations: completeObservations({
+        team2: {
+          ...completeObservations().team2,
+          yellowCards: { status: 'pending' },
+        },
+      }),
+      ruleset: customRulesetSnapshot(),
+    });
     const provisional = await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
+      expectedRevision: seeded.revision,
       fixtureId,
       observations: completeObservations({
         customAnswers: {
@@ -879,8 +958,7 @@ describe('match result administration', function () {
     const fixtureId = await insertFixtureDocument({
       rulesetSnapshot: customRulesetSnapshot(),
     });
-    const provisional = await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
+    const provisional = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations({
         customAnswers: {
@@ -932,8 +1010,7 @@ describe('match result administration', function () {
     const fixtureId = await insertFixtureDocument({
       rulesetSnapshot: customRulesetSnapshot(),
     });
-    const provisional = await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
+    const provisional = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations({
         customAnswers: {
@@ -984,8 +1061,7 @@ describe('match result administration', function () {
     const admin = await createVerifiedAdmin();
     const fixtureId = await insertFixtureDocument();
 
-    await saveProvisional(admin.invocation, {
-      expectedRevision: 0,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });

@@ -35,6 +35,7 @@ Stored fixture documents include:
 - `cancelledByAdminId`
 - `rulesetSnapshot`
 - `predictionQuestionConfig`
+- `predictionLockOverride`
 - `rugbyRoosterTest.ownerRunId` when created inside isolated tests
 
 Team and competition entities are not normalized into separate collections in
@@ -49,6 +50,9 @@ Admin fixture methods:
 - `fixtures.admin.publish`
 - `fixtures.admin.cancel`
 - `fixtures.admin.saveQuestionConfig`
+- `fixtures.admin.lockPredictions`
+- `fixtures.admin.reopenPredictions`
+- `fixtures.admin.resetPredictionAccess`
 
 Every method calls the existing server-owned platform-admin authorization path.
 The UI auth state is only a hint.
@@ -59,12 +63,13 @@ Inputs are allowlisted and validated:
 - Required text must be nonblank and bounded.
 - Team names must be distinct after normalization.
 - Kickoff must parse to a valid UTC instant.
-- Edit, publish, and cancel mutations require the caller's expected integer
-  `revision`.
+- Edit, publish, cancel, question configuration, and prediction access mutations
+  require the caller's expected integer `revision`.
 - Unknown fields are rejected.
 
 Ordinary edit payloads cannot set actor IDs, timestamps, visibility,
-cancellation fields, test ownership, stored revisions, or ruleset snapshots.
+cancellation fields, test ownership, prediction access overrides, stored
+revisions, or ruleset snapshots.
 
 Question configuration payloads cannot set fixture state, actor IDs,
 timestamps, test ownership, or ruleset snapshots. They accept only `fixtureId`,
@@ -79,6 +84,12 @@ successful state change increments the revision atomically and updates
 first, the method reports `fixture-conflict` instead of overwriting the
 protected state.
 
+Prediction access lock, reopen, and reset use the same fixture revision
+contract. A successful access-control mutation increments the fixture revision,
+updates ordinary fixture audit timestamps, and writes an internal
+prediction-access audit row. A stale admin action returns `fixture-conflict`
+instead of overwriting a newer fixture revision.
+
 Published fixtures can be edited while active. Cancelled fixtures reject edits.
 Publishing an already published fixture and cancelling an already cancelled
 fixture remain predictable no-op calls; they return their existing no-op status
@@ -89,6 +100,53 @@ conditional backfill sets revision `1` on fixtures where `revision` does not
 exist. The backfill is idempotent and does not change timestamps, actor IDs,
 ruleset snapshots, fixture details, visibility, cancellation metadata, or test
 ownership.
+
+## Prediction Access Controls
+
+CCPP-011D1 stores explicit prediction access override on the fixture as
+`predictionLockOverride`:
+
+- absent: automatic access;
+- `locked`: admin locked;
+- `open`: admin reopened.
+
+Automatic access is open only before scheduled kickoff and before result
+tracking starts. Server time is authoritative for kickoff checks.
+
+Admin `open` intentionally keeps predictions open after scheduled kickoff or
+after result tracking starts. Admin `locked` closes predictions before kickoff.
+Final results and cancelled fixtures always resolve locked and cannot be
+reopened for prediction editing.
+
+The admin result page exposes the implemented fixture-owned actions:
+
+- Lock predictions.
+- Reopen predictions.
+- Return to automatic.
+
+`fixtures.admin.lockPredictions`, `fixtures.admin.reopenPredictions`, and
+`fixtures.admin.resetPredictionAccess` accept only `fixtureId` and
+`expectedRevision`. They require platform-admin authorization, published
+fixture state, non-cancelled fixture state, and a current fixture revision.
+`reopenPredictions` also rejects fixtures with a confirmed final result.
+
+Prediction access audit rows live in the `prediction_access_audits` Mongo
+collection, exported from
+`imports/api/predictionAccessAudits/collection.ts`. Client inserts, updates,
+and removals are denied. Audit rows are internal server data and are not
+published to player-facing clients.
+
+Audit fields:
+
+- `action`: `locked`, `reopened`, or `reset-to-automatic`;
+- `fixtureId`;
+- `actorAdminUserId`, stored internally only;
+- `createdAt`;
+- `fixtureRevisionBefore`;
+- `fixtureRevisionAfter`;
+- optional `predictionLockOverrideBefore`;
+- optional `predictionLockOverrideAfter`;
+- `rugbyRoosterTest.ownerRunId` in isolated tests.
 
 ## Admin Edit Sessions
 
@@ -171,6 +229,7 @@ Public fields:
 - `venueDisplayName`
 - `visibility`
 - `isCancelled`
+- `predictionLockOverride`
 
 Actor IDs, timestamps other than kickoff, test ownership, cancellation actor
 metadata, stored revisions, `predictionQuestionConfig`, and `rulesetSnapshot`
@@ -194,6 +253,8 @@ The fixture server creates indexes for the implemented queries:
 - `{ scheduledKickoffAt: -1, _id: 1, visibility: 1 }`
 - `{ updatedAt: -1, _id: 1 }`
 - `{ "rugbyRoosterTest.ownerRunId": 1 }`
+- `prediction_access_audits`: `{ fixtureId: 1, createdAt: 1 }`
+- `prediction_access_audits`: `{ "rugbyRoosterTest.ownerRunId": 1 }`
 
 ## Ruleset Snapshot
 
@@ -221,9 +282,10 @@ not database-level immutability.
 Prediction submission validates against this stored snapshot. Ordinary fixture
 edits do not replace it.
 
-For CCPP-006, prediction lock eligibility follows the fixture's current
-`scheduledKickoffAt`. Correcting a kickoff from the past into the future can
-reopen prediction editing; a separate permanent lock policy is deferred.
+Prediction access now resolves through `imports/shared/predictionAccess/`.
+Automatic kickoff eligibility still follows the fixture's current
+`scheduledKickoffAt`, but result tracking, fixture cancellation, final result
+state, and explicit admin overrides are also part of the canonical rule.
 
 ## Query Limits
 

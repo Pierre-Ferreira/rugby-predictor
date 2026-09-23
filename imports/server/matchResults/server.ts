@@ -12,7 +12,6 @@ import {
   MATCH_RESULT_METHODS,
   MATCH_RESULT_PUBLICATIONS,
   MatchResultValidationError,
-  assertExpectedFirstResultRevision,
   assertExistingResultRevision,
   buildInitializedLiveResultObservations,
   normalizeResultObservations,
@@ -74,6 +73,7 @@ const resultSummaryFields = {
 const fixtureContextFields = {
   competitionDisplayName: 1,
   isCancelled: 1,
+  predictionLockOverride: 1,
   predictionQuestionConfig: 1,
   revision: 1,
   rulesetSnapshot: 1,
@@ -345,23 +345,13 @@ const registerResultMethods = () => {
       try {
         const adminId = await requireAdminId(this);
         const input = sanitizeResultMutationInput(rawInput);
+        assertExistingResultRevision(input.expectedRevision);
         const { ruleset } = await loadEligibleFixture(input.fixtureId);
         let observations = normalizeResultObservations(
           input.observations,
           ruleset,
           'provisional',
         );
-
-        if (input.expectedRevision === 0) {
-          assertExpectedFirstResultRevision(input.expectedRevision);
-
-          return await createResultEntry({
-            adminId,
-            fixtureId: input.fixtureId,
-            observations,
-            ruleset,
-          });
-        }
 
         const current = await MatchResults.findOneAsync(
           {

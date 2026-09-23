@@ -31,8 +31,13 @@
   usage limits, and failure/performance behaviour.
 - `docs/PLATFORM_PWA.md` - minimal PWA manifest, icons, safe-area shell, installation notes, limitations, and verification guidance.
 - `docs/PLATFORM_Scoring_Engine.md` - pure TypeScript scoring engine module map, API summary, snapshot policy, representative output, and future integration responsibilities.
-- `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications, indexes, authorization, query limits, and ruleset snapshot storage.
-- `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications, indexes, ownership, revision behavior, route, locked display state source, and future presentation architecture.
+- `docs/PLATFORM_Fixtures.md` - fixture schema, methods, publications,
+  indexes, authorization, query limits, ruleset snapshot storage, fixture-owned
+  prediction access overrides, and internal prediction-access audit rows.
+- `docs/PLATFORM_Predictions.md` - prediction schema, methods, publications,
+  indexes, ownership, revision behavior, server-side prediction-access
+  resolver, route, locked display state source, and future presentation
+  architecture.
 - `docs/PLATFORM_Prediction_Session.md` - CCPP-009A shared prediction
   session ownership, lifecycle, renderer-facing state/actions, React
   presentation host, superseded Kaplay adapter boundary,
@@ -188,6 +193,9 @@
 - `docs/AUDIT_011D_Live_Result_Initialization.md` - CCPP-011D explicit
   result-tracking start, zero-initialized live counters, 011A/011B/011C
   effects, retained browser evidence, final checks, and EOMD archive evidence.
+- `docs/AUDIT_011D1_Prediction_Access_Control.md` - CCPP-011D1
+  prediction-access resolver, admin controls, stale player-page protection,
+  Match Result first-create hardening, verification, and EOMD archive evidence.
 - `docs/AUDIT_012A_Player_Display_Identity.md` - CCPP-012A public display-name
   persistence, Account editor, leaderboard identity integration, privacy
   boundary, tests, browser evidence, and EOMD archive evidence.
@@ -291,6 +299,9 @@
 - `docs/TEMP_011D_Resume.md` - temporary CCPP-011D checkpoint for live-result
   initialization, retained browser evidence, static closeout, and packaging
   handoff.
+- `docs/TEMP_011D1_Resume.md` - temporary CCPP-011D1 checkpoint for
+  prediction access control, static closeout, retained browser evidence, and
+  packaging handoff.
 - `docs/TEMP_012A_Resume.md` - temporary CCPP-012A checkpoint for public
   player identity implementation, verification, browser evidence, and
   packaging handoff.
@@ -311,6 +322,8 @@
   and PWA server-module imports.
 - `imports/api/fixtures/collection.ts` - shared Meteor fixture collection.
 - `imports/api/matchResults/collection.ts` - shared Meteor match result collection.
+- `imports/api/predictionAccessAudits/collection.ts` - internal
+  prediction-access audit collection for admin lock/reopen/reset changes.
 - `imports/api/playerProfiles/collection.ts` - shared `player_profiles` Mongo
   collection for public display names.
 - `imports/api/predictions/collection.ts` - shared Meteor prediction collection.
@@ -416,12 +429,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/api/matchResults/collection.ts` - shared `match_results` Mongo collection.
 - `imports/server/matchResults/server.ts` - result start/save/confirm methods,
   fixture eligibility checks, admin-only publications, denied client writes,
-  and indexes.
+  and indexes. `startResultTracking` owns first result creation; provisional
+  save requires an existing result revision.
 - `imports/server/matchResults/testSupport.ts` - isolated result test reset helper.
 - `imports/ui/pages/AdminFixtureResultsPage.tsx` - admin result entry, explicit
-  result-tracking start panel, derived rugby score display, custom
-  settlement/Void UI, final confirmation, read-only final summary, and result
-  conflict reload.
+  result-tracking start panel, Prediction Access controls, derived rugby score
+  display, custom settlement/Void UI, final confirmation, read-only final
+  summary, and result conflict reload.
 
 ## Player Fixture Score Entry Points
 
@@ -460,9 +474,13 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 
 ## Fixture Entry Points
 
-- `imports/shared/fixtures/` - fixture method/publication names, domain types, validation, and timezone conversion helpers.
+- `imports/shared/fixtures/` - fixture method/publication names, domain types,
+  validation, prediction access method names/statuses, and timezone conversion
+  helpers.
 - `imports/api/fixtures/collection.ts` - shared `fixtures` Mongo collection.
-- `imports/server/fixtures/server.ts` - fixture methods, cursor publications, indexes, revision backfill, and write-path protections.
+- `imports/server/fixtures/server.ts` - fixture methods, cursor publications,
+  prediction access controls/audits, indexes, revision backfill, and
+  write-path protections.
 - `imports/server/fixtures/ruleset.ts` - default ruleset snapshot creation for fixture publication.
 - `imports/server/fixtures/testSupport.ts` - isolated fixture test helpers,
   including test-only disabled built-in question snapshots for prediction
@@ -477,6 +495,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 ## Prediction Entry Points
 
 - `imports/shared/predictions/` - prediction method/publication names, domain types, submission validation, and storage normalization.
+- `imports/shared/predictionAccess/` - shared access resolver used by server
+  prediction writes and prediction/admin UI state.
 - `imports/shared/predictionQuestions/` - CCPP-008 fixture prediction question
   configuration types, constants, validation, normalization, legacy defaults,
   and ruleset snapshot projection.
@@ -486,7 +506,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   message catalog, variant selection, interpolation, ruleset-derived
   enabled-question deduction text, and Intro starting-points copy.
 - `imports/api/predictions/collection.ts` - shared `predictions` Mongo collection.
-- `imports/server/predictions/server.ts` - prediction submission method, fixture eligibility checks, private publications, denied client writes, and indexes.
+- `imports/server/predictions/server.ts` - prediction submission method,
+  server-side access resolver guard, fixture/result context publication,
+  private publications, denied client writes, and indexes.
 - `imports/server/predictions/testSupport.ts` - isolated prediction test reset
   and signed-in current-entry observation helpers.
 - `imports/ui/predictions/predictionSession.ts` - CCPP-009A/009A1 editable
@@ -524,8 +546,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   controls by CCPP-010A.
 - `imports/ui/pages/PredictionEntryPage.tsx` - guided sequential prediction
   route host, shared session host, React presentation host, Intro, numbered
-  steps, Review/Edit UI, and read-only locked-entry UI that presents persisted
-  entry data.
+  steps, Review/Edit UI, and prediction-access-aware read-only locked-entry UI
+  that presents persisted entry data.
 
 ## Verification Entry Points
 
@@ -557,6 +579,8 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `tests/unit/fixtures.test.ts` - fixture validation, pagination option, revision, and timezone unit tests.
 - `tests/unit/predictions.test.ts` - prediction submission validation, internal
   team-side value, and bypassed invalid conversion unit tests.
+- `tests/unit/prediction-access.test.ts` - CCPP-011D1 prediction-access
+  resolver unit tests for automatic/admin/final/cancelled ordering.
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007/007A/008A standard
   sequence, custom step ordering, message catalog, ruleset-aware copy, and
   state-helper unit tests.
@@ -615,7 +639,11 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   profile, and prediction integration suites.
 - `imports/server/auth/passwordless.app-test.ts` - Meteor full-app auth integration tests.
 - `imports/server/fixtures/fixtures.app-test.ts` - Meteor full-app fixture integration tests for admin methods, cursor publications, revisions, backfill, and ruleset snapshots.
-- `imports/server/predictions/predictions.app-test.ts` - Meteor full-app prediction integration tests for authorization, ownership, snapshot validation, kickoff locking, concurrent creation, stale revisions, field injection, and locked readability.
+- `imports/server/predictions/predictions.app-test.ts` - Meteor full-app
+  prediction integration tests for authorization, ownership, snapshot
+  validation, kickoff locking, CCPP-011D1 prediction access controls/audits,
+  concurrent creation, stale revisions, field injection, and locked
+  readability.
 - `imports/server/matchResults/matchResults.app-test.ts` - Meteor full-app
   result integration tests for authorization, fixture eligibility, provisional
   saves, explicit start result tracking, Pending versus zero, duplicate first
@@ -672,6 +700,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
   save/revisit, blank-versus-zero restoration, derived rugby score, custom
   Number settlement beyond prediction range, custom Choice Void, final read-only
   summary, stale conflict preservation, and explicit latest-result reload.
+- `tests/e2e/prediction-access-control.spec.ts` - focused CCPP-011D1 browser
+  journey for admin lock, stale player save rejection, admin reopen, result
+  start while reopened, and relock screenshots.
 - `tests/e2e/live-result-initialization.spec.ts` - focused CCPP-011D browser
   journey for admin pre-start, explicit start, zero-initialized provisional
   counters, `/my-score` zero actuals/deductions, provisional leaderboard, and
@@ -718,6 +749,9 @@ Route metadata and matching live in `imports/shared/routes.ts`. Client-side navi
 - `imports/shared/fixtures/` - shared fixture names, types, validation, and timezone helpers.
 - `imports/shared/matchResults/` - shared result names, types, normalization,
   lifecycle labels, revision constants, and final validation helpers.
+- `imports/shared/predictionAccess/` - shared prediction-access resolver,
+  reason/source labels, override types, locked error code, and audit document
+  types.
 - `imports/shared/playerProfiles/` - shared public player identity method names,
   types, validation, and errors.
 - `imports/shared/predictions/` - shared prediction names, types, validation, and storage-normalization helpers.

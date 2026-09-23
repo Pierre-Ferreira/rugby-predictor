@@ -86,6 +86,9 @@ Current unit test files:
   team-side value preservation, bypassed invalid conversion rejection, custom
   answer validation, custom answer injection rejection, and delegation to the
   shared scoring validation contract.
+- `tests/unit/prediction-access.test.ts` - CCPP-011D1 prediction-access
+  resolver coverage for automatic before/kickoff/result-start locking, admin
+  lock/reopen overrides, and final/cancelled precedence over reopen.
 - `tests/unit/prediction-sequence.test.ts` - CCPP-007 standard prediction
   sequence definitions, active progress totals, navigation destinations, shared
   message catalog variant stability, ruleset-derived deduction values,
@@ -337,6 +340,11 @@ The current browser suite covers:
   current Match Result Draw, `/my-score` zero actuals and deductions, provisional
   leaderboard participation, and a later save proving initialized counters stay
   numeric.
+- CCPP-011D1 prediction access control browser coverage in
+  `tests/e2e/prediction-access-control.spec.ts`: one focused admin/player
+  journey through admin lock, stale player save rejection, locked player page,
+  admin reopen, editing after reopen, result tracking start while reopened,
+  and later relock.
 - Fixture leaderboard browser coverage in
   `tests/e2e/fixture-leaderboard.spec.ts`: one signed-in player journey through
   provisional `If it ended now`, shared-place ties, current-user highlight,
@@ -590,13 +598,16 @@ The integration suite includes coverage for:
   cancelled / missing / snapshotless fixture rejection, stored-snapshot
   validation, strict before/equal/after kickoff boundaries with a controlled
   clock, custom answer persistence/injection rejection, concurrent first
-  submissions, stale revisions, server-owned field injection rejection, and
-  locked saved-entry readability.
+  submissions, stale revisions, server-owned field injection rejection, locked
+  saved-entry readability, CCPP-011D1 admin lock/reopen/reset authority, stale
+  player-page write rejection, access audit rows, explicit reopen after
+  kickoff/result tracking, and final/cancelled reopen rejection.
 - Result admin authorization, published/non-cancelled fixture eligibility,
   explicit start result tracking, zero-initialized live counters, partial
   provisional saves, Pending versus zero storage, duplicate first-result
-  creation conflict, stale result revisions, server-owned field injection
-  rejection, disabled/unknown observation rejection, custom Void final
+  creation conflict, production `saveProvisional(expectedRevision: 0)`
+  rejection before result tracking starts, stale result revisions, server-owned
+  field injection rejection, disabled/unknown observation rejection, custom Void final
   confirmation, final read-only enforcement, legacy blank provisional Pending
   behavior, and admin-only result publications.
 - Player fixture-score method authorization, no-prediction `null` contract,
@@ -645,6 +656,25 @@ Implementation verification recorded on September 21, 2026:
 
 Closeout retains that browser and integration evidence because only
 documentation/static packaging changes followed the successful run.
+
+## CCPP-011D1 Verification History
+
+Implementation verification reported before this documentation closeout:
+
+- Prediction-access pure resolver tests passed.
+- `meteor npm run typecheck` passed after nullable/access and E2E typing
+  corrections.
+- `meteor npm run test:integration` passed 105 server tests.
+- The focused browser journey
+  `tests/e2e/prediction-access-control.spec.ts` passed after test-only
+  assertion corrections for ambiguous locators, structured Meteor error
+  reading, and stable reopen-state assertions.
+- A focused unit slice for prediction access, predictions, match results, and
+  prediction session passed after the browser run.
+
+The 011D1 closeout retained the focused browser pass. Integration was rerun
+after final formatting touched server/shared files; the rerun passed with 105
+server tests.
 
 ## CI
 

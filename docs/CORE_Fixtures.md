@@ -31,6 +31,7 @@ Each fixture has:
 - Optional venue display name.
 - Visibility of `draft` or `published`.
 - Cancellation state separate from visibility.
+- Optional prediction access override owned by the fixture.
 - Server-owned integer revision for optimistic conflict protection.
 - Server-owned created and updated timestamps.
 - Server-owned responsible admin IDs for create/update/publish/cancel.
@@ -50,6 +51,8 @@ Published fixtures:
 - Are visible in public lists and detail pages.
 - Can have ordinary details corrected while not cancelled.
 - Keep the ruleset snapshot created at first publication.
+- Can have predictions explicitly locked, reopened, or returned to automatic
+  access by admins while not cancelled.
 - Can be cancelled.
 
 Cancelled fixtures:
@@ -59,12 +62,16 @@ Cancelled fixtures:
 - Are read-only for this milestone.
 - Cannot be restored, unpublished, deleted, or published from cancelled draft
   state.
+- Cannot reopen predictions for editing, even if a previous access override was
+  open.
 
 Publishing an already published fixture returns a predictable no-op result.
 Cancelling an already cancelled fixture returns a predictable no-op result.
 
 Kickoff passing does not change state. A past scheduled fixture is only a
 fixture whose scheduled kickoff is before the current browsing boundary.
+Prediction access can still lock automatically at kickoff, or earlier when
+result tracking starts.
 
 ## Timezone Policy
 

@@ -2,11 +2,16 @@ import { Meteor } from 'meteor/meteor';
 import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import {
   FixtureValidationError,
   sanitizeFixtureId,
 } from '/imports/shared/fixtures';
+import {
+  PREDICTION_ACCESS_LOCKED_ERROR,
+  resolvePredictionAccess,
+} from '/imports/shared/predictionAccess';
 import {
   PREDICTION_METHODS,
   PREDICTION_PUBLICATIONS,
@@ -46,12 +51,19 @@ const rawPredictions = (): RawPredictionCollection =>
 const fixturePredictionContextFields = {
   competitionDisplayName: 1,
   isCancelled: 1,
+  predictionLockOverride: 1,
   rulesetSnapshot: 1,
   scheduledKickoffAt: 1,
   team1DisplayName: 1,
   team2DisplayName: 1,
   venueDisplayName: 1,
   visibility: 1,
+} as const;
+
+const fixturePredictionResultContextFields = {
+  fixtureId: 1,
+  observations: 1,
+  revision: 1,
 } as const;
 
 const predictionEntryFields = {
@@ -154,6 +166,7 @@ const loadEligibleFixture = async (fixtureId: string) => {
   const fixture = await Fixtures.findOneAsync(fixtureId, {
     fields: {
       isCancelled: 1,
+      predictionLockOverride: 1,
       rulesetSnapshot: 1,
       scheduledKickoffAt: 1,
       visibility: 1,
@@ -171,13 +184,6 @@ const loadEligibleFixture = async (fixtureId: string) => {
     );
   }
 
-  if (fixture.isCancelled) {
-    throw new Meteor.Error(
-      'fixture-cancelled',
-      'Cancelled fixtures do not accept prediction submissions.',
-    );
-  }
-
   if (!fixture.rulesetSnapshot) {
     throw rulesetUnavailableError();
   }
@@ -188,10 +194,28 @@ const loadEligibleFixture = async (fixtureId: string) => {
     throw rulesetUnavailableError();
   }
 
-  if (Date.now() >= fixture.scheduledKickoffAt.getTime()) {
+  const result =
+    (await MatchResults.findOneAsync(
+      {
+        fixtureId,
+      },
+      {
+        fields: {
+          observations: 1,
+        },
+      },
+    )) ?? null;
+  const access = resolvePredictionAccess({
+    fixture,
+    hasResultTrackingStarted: Boolean(result),
+    isResultFinal: result?.observations.matchStatus === 'confirmed',
+    now: new Date(),
+  });
+
+  if (!access.isOpen) {
     throw new Meteor.Error(
-      'prediction-locked',
-      'Prediction submissions close at scheduled kickoff.',
+      PREDICTION_ACCESS_LOCKED_ERROR,
+      'Predictions are locked for this fixture.',
     );
   }
 
@@ -377,16 +401,27 @@ const registerPredictionPublications = () => {
         await requireVerifiedUser(this);
         const fixtureId = sanitizeFixtureId(fixtureIdInput);
 
-        return Fixtures.find(
-          {
-            _id: fixtureId,
-            visibility: 'published',
-          },
-          {
-            fields: fixturePredictionContextFields,
-            limit: 1,
-          },
-        );
+        return [
+          Fixtures.find(
+            {
+              _id: fixtureId,
+              visibility: 'published',
+            },
+            {
+              fields: fixturePredictionContextFields,
+              limit: 1,
+            },
+          ),
+          MatchResults.find(
+            {
+              fixtureId,
+            },
+            {
+              fields: fixturePredictionResultContextFields,
+              limit: 1,
+            },
+          ),
+        ];
       } catch {
         return [];
       }

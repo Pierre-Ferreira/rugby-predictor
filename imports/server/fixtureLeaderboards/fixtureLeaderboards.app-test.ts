@@ -4,6 +4,7 @@ import { MongoInternals } from 'meteor/mongo';
 import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { MatchResults } from '/imports/api/matchResults/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import { TEST_AUTH_METHODS } from '/imports/shared/auth/methods';
 import {
@@ -16,8 +17,10 @@ import {
   type FixtureDocument,
 } from '/imports/shared/fixtures';
 import {
+  INITIAL_MATCH_RESULT_REVISION,
   MATCH_RESULT_METHODS,
-  NO_MATCH_RESULT_REVISION,
+  rulesetIdentity,
+  type MatchResultDocument,
   type MatchResultMutationResult,
 } from '/imports/shared/matchResults';
 import {
@@ -236,6 +239,32 @@ const completeObservations = ({
   },
 });
 
+const insertMatchResultDocument = async ({
+  fixtureId,
+  observations,
+}: {
+  readonly fixtureId: string;
+  readonly observations: FixtureObservations;
+}): Promise<MatchResultDocument> => {
+  const now = new Date('2026-01-01T00:00:00.000Z');
+  const document: MatchResultDocument = {
+    _id: Random.id(),
+    ...testOwner(),
+    createdAt: now,
+    createdByAdminId: 'fixture-leaderboard-test-admin',
+    fixtureId,
+    observations,
+    revision: INITIAL_MATCH_RESULT_REVISION,
+    ruleset: rulesetIdentity(defaultRuleset),
+    updatedAt: now,
+    updatedByAdminId: 'fixture-leaderboard-test-admin',
+  };
+
+  await MatchResults.insertAsync(document);
+
+  return document;
+};
+
 const submitPrediction = (
   invocation: TestInvocation,
   input: {
@@ -279,6 +308,24 @@ const startResultTracking = (
     [input],
     invocation,
   );
+
+const createProvisionalResult = async (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+    readonly observations: unknown;
+  },
+) => {
+  const started = await startResultTracking(invocation, {
+    fixtureId: input.fixtureId,
+  });
+
+  return saveProvisional(invocation, {
+    expectedRevision: started.revision,
+    fixtureId: input.fixtureId,
+    observations: input.observations,
+  });
+};
 
 const confirmFinal = (
   invocation: TestInvocation,
@@ -365,8 +412,7 @@ describe('fixture leaderboard method', function () {
     const fixtureId = await insertFixtureDocument();
 
     await submitPrediction(player.invocation, { fixtureId });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -441,7 +487,6 @@ describe('fixture leaderboard method', function () {
   });
 
   it('includes all eligible saved predictions in a provisional leaderboard', async () => {
-    const admin = await createVerifiedAdmin();
     const playerA = await createVerifiedPlayer('player-a');
     const playerB = await createVerifiedPlayer('player-b');
     const playerC = await createVerifiedPlayer('player-c');
@@ -456,8 +501,7 @@ describe('fixture leaderboard method', function () {
       fixtureId,
       prediction: validPrediction(1),
     });
-    const result = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const result = await insertMatchResultDocument({
       fixtureId,
       observations: completeObservations({ redCardsPending: true }),
     });
@@ -489,8 +533,7 @@ describe('fixture leaderboard method', function () {
 
     await updatePlayerProfile(player.invocation, 'Pierre');
     await submitPrediction(player.invocation, { fixtureId });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -511,8 +554,7 @@ describe('fixture leaderboard method', function () {
     const fixtureId = await insertFixtureDocument();
 
     await submitPrediction(player.invocation, { fixtureId });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -539,8 +581,7 @@ describe('fixture leaderboard method', function () {
       fixtureId,
       prediction: validPrediction(1),
     });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -570,8 +611,7 @@ describe('fixture leaderboard method', function () {
     const savedPrediction = await submitPrediction(player.invocation, {
       fixtureId,
     });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -610,8 +650,7 @@ describe('fixture leaderboard method', function () {
       fixtureId,
       prediction: validPrediction(1),
     });
-    const provisional = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const provisional = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -675,8 +714,7 @@ describe('fixture leaderboard method', function () {
         }),
       ),
     );
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });
@@ -715,8 +753,7 @@ describe('fixture leaderboard method', function () {
       fixtureId,
       prediction: validPrediction(1),
     });
-    const firstResult = await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    const firstResult = await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations({ team1YellowCards: 0 }),
     });
@@ -769,8 +806,7 @@ describe('fixture leaderboard method', function () {
       fixtureId,
       prediction: validPrediction(2),
     });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations({
         redCardsPending: true,
@@ -799,8 +835,7 @@ describe('fixture leaderboard method', function () {
     const fixtureId = await insertFixtureDocument();
 
     await submitPrediction(player.invocation, { fixtureId });
-    await saveProvisional(admin.invocation, {
-      expectedRevision: NO_MATCH_RESULT_REVISION,
+    await createProvisionalResult(admin.invocation, {
       fixtureId,
       observations: completeObservations(),
     });

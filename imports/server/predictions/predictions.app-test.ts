@@ -3,12 +3,19 @@ import { Meteor } from 'meteor/meteor';
 import { Random } from 'meteor/random';
 
 import { Fixtures } from '/imports/api/fixtures/collection';
+import { PredictionAccessAudits } from '/imports/api/predictionAccessAudits/collection';
 import { Predictions } from '/imports/api/predictions/collection';
 import { TEST_AUTH_METHODS } from '/imports/shared/auth/methods';
 import {
+  FIXTURE_METHODS,
   INITIAL_FIXTURE_REVISION,
   type FixtureDocument,
+  type FixtureMutationResult,
 } from '/imports/shared/fixtures';
+import {
+  MATCH_RESULT_METHODS,
+  type MatchResultMutationResult,
+} from '/imports/shared/matchResults';
 import {
   PREDICTION_METHODS,
   PREDICTION_PUBLICATIONS,
@@ -28,6 +35,7 @@ import {
 import { getAuthTestRunId } from '/imports/server/auth/settings';
 import { resetTestAuthData } from '/imports/server/auth/testSupport';
 import { resetFixtureTestData } from '/imports/server/fixtures/testSupport';
+import { resetMatchResultTestData } from '/imports/server/matchResults/testSupport';
 import { resetPredictionTestData } from './testSupport';
 
 type MethodHandler = (
@@ -123,8 +131,25 @@ const fetchPublication = async <TDocument>(
     [...args],
   );
 
-  if (!result || Array.isArray(result)) {
+  if (!result) {
     return [];
+  }
+
+  if (Array.isArray(result)) {
+    const rows: TDocument[] = [];
+
+    for (const cursor of result) {
+      if (
+        cursor &&
+        typeof cursor === 'object' &&
+        'fetchAsync' in cursor &&
+        typeof cursor.fetchAsync === 'function'
+      ) {
+        rows.push(...((await cursor.fetchAsync()) as TDocument[]));
+      }
+    }
+
+    return rows;
   }
 
   if (
@@ -155,6 +180,17 @@ const createVerifiedPlayer = async (label = 'player') => {
     invocation,
     userId: user.userId,
   };
+};
+
+const createVerifiedAdmin = async () => {
+  const admin = await createVerifiedPlayer('admin');
+
+  assert.equal(
+    await callMethod(TEST_AUTH_METHODS.setAdminForEmail, [admin.email, true]),
+    true,
+  );
+
+  return admin;
 };
 
 const createUnverifiedPlayer = async () => {
@@ -309,6 +345,66 @@ const submitPrediction = (
     invocation,
   );
 
+const fixtureControl = (
+  invocation: TestInvocation,
+  methodName: string,
+  input: {
+    readonly expectedRevision: number;
+    readonly fixtureId: string;
+  },
+) => callMethod<FixtureMutationResult>(methodName, [input], invocation);
+
+const startResultTracking = (
+  invocation: TestInvocation,
+  input: {
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod<MatchResultMutationResult>(
+    MATCH_RESULT_METHODS.startResultTracking,
+    [input],
+    invocation,
+  );
+
+const confirmFinalResult = (
+  invocation: TestInvocation,
+  input: {
+    readonly expectedRevision: number;
+    readonly fixtureId: string;
+  },
+) =>
+  callMethod<MatchResultMutationResult>(
+    MATCH_RESULT_METHODS.confirmFinal,
+    [
+      {
+        expectedRevision: input.expectedRevision,
+        fixtureId: input.fixtureId,
+        observations: {
+          firstTry: { status: 'provisional', value: 'team1' },
+          halfTimeLeader: { status: 'provisional', value: 'team1' },
+          highestScoringHalf: { status: 'provisional', value: 'first' },
+          team1: {
+            conversions: { status: 'provisional', value: 2 },
+            dropGoals: { status: 'provisional', value: 0 },
+            penaltyKicks: { status: 'provisional', value: 1 },
+            redCards: { status: 'provisional', value: 0 },
+            tries: { status: 'provisional', value: 2 },
+            yellowCards: { status: 'provisional', value: 0 },
+          },
+          team2: {
+            conversions: { status: 'provisional', value: 1 },
+            dropGoals: { status: 'provisional', value: 0 },
+            penaltyKicks: { status: 'provisional', value: 1 },
+            redCards: { status: 'provisional', value: 0 },
+            tries: { status: 'provisional', value: 1 },
+            yellowCards: { status: 'provisional', value: 0 },
+          },
+        },
+      },
+    ],
+    invocation,
+  );
+
 const predictionByOwner = async (
   fixtureId: string,
   userId: string,
@@ -354,6 +450,7 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
 
   beforeEach(async () => {
     await resetTestAuthData();
+    await resetMatchResultTestData();
     await resetFixtureTestData();
     await resetPredictionTestData();
   });
@@ -667,7 +764,7 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
     await assert.rejects(
       () =>
         submitPrediction(player.invocation, { fixtureId: cancelledFixtureId }),
-      /Cancelled fixtures|fixture-cancelled/i,
+      /prediction-access-locked|Predictions are locked/i,
     );
     await assert.rejects(
       () =>
@@ -712,7 +809,7 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
           submitPrediction(player.invocation, {
             fixtureId: equalFixtureId,
           }),
-        /close at scheduled kickoff|prediction-locked/i,
+        /prediction-access-locked|Predictions are locked/i,
       );
     });
 
@@ -722,9 +819,252 @@ describe('CCPP-006 prediction submission', function (this: Mocha.Suite) {
           submitPrediction(player.invocation, {
             fixtureId: afterFixtureId,
           }),
-        /close at scheduled kickoff|prediction-locked/i,
+        /prediction-access-locked|Predictions are locked/i,
       );
     });
+  });
+
+  it('enforces admin lock, explicit reopen, result-start reopen, relock, audit, and stale player saves', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer();
+    const fixtureId = await insertFixtureDocument({
+      scheduledKickoffAt: new Date('2098-01-01T12:00:00.000Z'),
+    });
+    const created = await submitPrediction(player.invocation, { fixtureId });
+    const storedBeforeLock = await predictionByOwner(fixtureId, player.userId);
+    const fixtureBeforeLock = await Fixtures.findOneAsync(fixtureId);
+
+    assert.ok(fixtureBeforeLock);
+
+    const locked = await fixtureControl(
+      admin.invocation,
+      FIXTURE_METHODS.lockPredictions,
+      {
+        expectedRevision: fixtureBeforeLock.revision,
+        fixtureId,
+      },
+    );
+
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          expectedRevision: created.revision,
+          fixtureId,
+          prediction: validPrediction({
+            highestScoringHalf: 'equal',
+          }),
+        }),
+      /prediction-access-locked|Predictions are locked/i,
+    );
+
+    const unchangedAfterLock = await predictionByOwner(
+      fixtureId,
+      player.userId,
+    );
+
+    assert.equal(locked.status, 'prediction-access-locked');
+    assert.equal(unchangedAfterLock?.revision, storedBeforeLock?.revision);
+    assert.equal(unchangedAfterLock?.prediction.highestScoringHalf, 'second');
+
+    const reopened = await fixtureControl(
+      admin.invocation,
+      FIXTURE_METHODS.reopenPredictions,
+      {
+        expectedRevision: locked.revision!,
+        fixtureId,
+      },
+    );
+    const editedAfterReopen = await submitPrediction(player.invocation, {
+      expectedRevision: created.revision,
+      fixtureId,
+      prediction: validPrediction({
+        highestScoringHalf: 'equal',
+      }),
+    });
+
+    assert.equal(reopened.status, 'prediction-access-reopened');
+    assert.equal(editedAfterReopen.status, 'updated');
+
+    await startResultTracking(admin.invocation, { fixtureId });
+
+    const editedAfterResultStart = await submitPrediction(player.invocation, {
+      expectedRevision: editedAfterReopen.revision,
+      fixtureId,
+      prediction: validPrediction({
+        highestScoringHalf: 'first',
+      }),
+    });
+
+    assert.equal(editedAfterResultStart.status, 'updated');
+
+    const relocked = await fixtureControl(
+      admin.invocation,
+      FIXTURE_METHODS.lockPredictions,
+      {
+        expectedRevision: reopened.revision!,
+        fixtureId,
+      },
+    );
+
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          expectedRevision: editedAfterResultStart.revision,
+          fixtureId,
+          prediction: validPrediction({
+            highestScoringHalf: 'second',
+          }),
+        }),
+      /prediction-access-locked|Predictions are locked/i,
+    );
+
+    const audits = await PredictionAccessAudits.find(
+      { fixtureId },
+      { sort: { createdAt: 1 } },
+    ).fetchAsync();
+
+    assert.equal(relocked.status, 'prediction-access-locked');
+    assert.deepEqual(
+      audits.map((audit) => audit.action),
+      ['locked', 'reopened', 'locked'],
+    );
+    assert.deepEqual(
+      audits.map((audit) => audit.actorAdminUserId),
+      [admin.userId, admin.userId, admin.userId],
+    );
+    assert.deepEqual(
+      audits.map((audit) => audit.fixtureRevisionBefore),
+      [fixtureBeforeLock.revision, locked.revision, reopened.revision],
+    );
+    assert.deepEqual(
+      audits.map((audit) => audit.fixtureRevisionAfter),
+      [locked.revision, reopened.revision, relocked.revision],
+    );
+  });
+
+  it('allows explicit reopen after scheduled kickoff and rejects stale admin control revisions', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer();
+    const fixtureId = await insertFixtureDocument({
+      scheduledKickoffAt: new Date('2030-01-01T12:00:00.000Z'),
+    });
+    const fixture = await Fixtures.findOneAsync(fixtureId);
+
+    assert.ok(fixture);
+
+    await withFixedDate('2030-01-01T12:00:00.001Z', async () => {
+      await assert.rejects(
+        () => submitPrediction(player.invocation, { fixtureId }),
+        /prediction-access-locked|Predictions are locked/i,
+      );
+    });
+
+    const reopened = await fixtureControl(
+      admin.invocation,
+      FIXTURE_METHODS.reopenPredictions,
+      {
+        expectedRevision: fixture.revision,
+        fixtureId,
+      },
+    );
+
+    await assert.rejects(
+      () =>
+        fixtureControl(admin.invocation, FIXTURE_METHODS.lockPredictions, {
+          expectedRevision: fixture.revision,
+          fixtureId,
+        }),
+      /fixture-conflict|changed before your update/i,
+    );
+
+    await withFixedDate('2030-01-01T12:00:00.001Z', async () => {
+      const created = await submitPrediction(player.invocation, { fixtureId });
+
+      assert.equal(created.status, 'created');
+    });
+
+    assert.equal(reopened.status, 'prediction-access-reopened');
+  });
+
+  it('locks automatically after result tracking starts unless admin explicitly reopens', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer();
+    const fixtureId = await insertFixtureDocument({
+      scheduledKickoffAt: new Date('2098-01-01T12:00:00.000Z'),
+    });
+
+    await startResultTracking(admin.invocation, { fixtureId });
+
+    await assert.rejects(
+      () => submitPrediction(player.invocation, { fixtureId }),
+      /prediction-access-locked|Predictions are locked/i,
+    );
+
+    const fixture = await Fixtures.findOneAsync(fixtureId);
+
+    assert.ok(fixture);
+
+    await fixtureControl(admin.invocation, FIXTURE_METHODS.reopenPredictions, {
+      expectedRevision: fixture.revision,
+      fixtureId,
+    });
+
+    const created = await submitPrediction(player.invocation, { fixtureId });
+
+    assert.equal(created.status, 'created');
+  });
+
+  it('keeps final and cancelled fixtures closed and prevents reopen', async () => {
+    const admin = await createVerifiedAdmin();
+    const player = await createVerifiedPlayer();
+    const finalFixtureId = await insertFixtureDocument();
+    const cancelledFixtureId = await insertFixtureDocument({
+      cancelledAt: new Date('2026-01-02T00:00:00.000Z'),
+      cancelledByAdminId: 'prediction-test-admin',
+      isCancelled: true,
+    });
+    const started = await startResultTracking(admin.invocation, {
+      fixtureId: finalFixtureId,
+    });
+
+    await confirmFinalResult(admin.invocation, {
+      expectedRevision: started.revision,
+      fixtureId: finalFixtureId,
+    });
+
+    const finalFixture = await Fixtures.findOneAsync(finalFixtureId);
+    const cancelledFixture = await Fixtures.findOneAsync(cancelledFixtureId);
+
+    assert.ok(finalFixture);
+    assert.ok(cancelledFixture);
+
+    await assert.rejects(
+      () =>
+        fixtureControl(admin.invocation, FIXTURE_METHODS.reopenPredictions, {
+          expectedRevision: finalFixture.revision,
+          fixtureId: finalFixtureId,
+        }),
+      /prediction-access-final|Final results cannot be reopened/i,
+    );
+    await assert.rejects(
+      () =>
+        fixtureControl(admin.invocation, FIXTURE_METHODS.reopenPredictions, {
+          expectedRevision: cancelledFixture.revision,
+          fixtureId: cancelledFixtureId,
+        }),
+      /fixture-cancelled|Cancelled fixtures/i,
+    );
+    await assert.rejects(
+      () => submitPrediction(player.invocation, { fixtureId: finalFixtureId }),
+      /prediction-access-locked|Predictions are locked/i,
+    );
+    await assert.rejects(
+      () =>
+        submitPrediction(player.invocation, {
+          fixtureId: cancelledFixtureId,
+        }),
+      /prediction-access-locked|Predictions are locked/i,
+    );
   });
 
   it('rejects invalid and contradictory prediction answers', async () => {

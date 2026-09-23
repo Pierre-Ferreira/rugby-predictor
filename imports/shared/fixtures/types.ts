@@ -1,5 +1,6 @@
 import type { RulesetSnapshot } from '/imports/shared/scoring';
 import type { FixturePredictionQuestionConfig } from '/imports/shared/predictionQuestions';
+import type { PredictionLockOverride } from '/imports/shared/predictionAccess';
 
 export const fixtureVisibilities = ['draft', 'published'] as const;
 export const fixtureListModes = ['upcoming', 'past'] as const;
@@ -31,6 +32,7 @@ export interface FixtureDocument {
   readonly cancelledByAdminId?: string;
   readonly rulesetSnapshot?: RulesetSnapshot;
   readonly predictionQuestionConfig?: FixturePredictionQuestionConfig;
+  readonly predictionLockOverride?: PredictionLockOverride;
   readonly rugbyRoosterTest?: FixtureTestOwnership;
 }
 
@@ -72,11 +74,15 @@ export interface CancelFixtureInput {
 
 export interface FixtureMutationResult {
   readonly fixtureId: string;
+  readonly revision?: number;
   readonly status:
     | 'already-cancelled'
     | 'already-published'
     | 'cancelled'
     | 'created'
+    | 'prediction-access-automatic'
+    | 'prediction-access-locked'
+    | 'prediction-access-reopened'
     | 'updated'
     | 'published';
 }
