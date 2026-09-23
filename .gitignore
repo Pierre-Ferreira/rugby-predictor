@@ -21,3 +21,6 @@ _build-local-playwright
 */build-assets-local-playwright
 */build-chunks-local-integration
 */build-chunks-local-playwright
+
+#OTHER
+EOMD_zipfiles
